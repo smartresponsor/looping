@@ -32,6 +32,7 @@ final class ChatGptLoopRunnerDispatcherContract
                 'console.write.engine.chat.bind' => 'write',
                 'console.write.engine.answer.capture' => 'write',
                 'console.write.engine.gateway.decide' => 'write',
+                'console.write.engine.reply.draft_submit' => 'write',
             ],
             'resultBridge' => [
                 'ok=true' => '--host-result-ok=1',
