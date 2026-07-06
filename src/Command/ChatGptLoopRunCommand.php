@@ -47,6 +47,8 @@ final class ChatGptLoopRunCommand
             $resumeState = (new \App\Service\ChatGptLoopResumeStateBuilder())->build($dispatchResult, $routePlan);
             $repoFactSnapshot = (new \App\Service\ChatGptLoopRepoFactSnapshot())->fromOptions($options);
             $evidence = (new \App\Service\ChatGptLoopEvidenceClassifier())->classify($repoFactSnapshot);
+            $gateRoute = (new \App\Service\ChatGptLoopGateRouter())->route($evidence, $repoFactSnapshot);
+            $tolerantGatePlan = (new \App\Service\ChatGptLoopTolerantGatePlan())->build($gateRoute, $options);
 
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
@@ -88,6 +90,8 @@ final class ChatGptLoopRunCommand
                 'dispatchResult' => $dispatchResult,
                 'repoFactSnapshot' => $repoFactSnapshot,
                 'evidence' => $evidence,
+                'gateRoute' => $gateRoute,
+                'tolerantGatePlan' => $tolerantGatePlan,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
             ]);
@@ -106,6 +110,8 @@ final class ChatGptLoopRunCommand
                 'dispatchResult' => $dispatchResult,
                 'repoFactSnapshot' => $repoFactSnapshot,
                 'evidence' => $evidence,
+                'gateRoute' => $gateRoute,
+                'tolerantGatePlan' => $tolerantGatePlan,
                 'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
@@ -129,6 +135,8 @@ final class ChatGptLoopRunCommand
                 'dispatchResult' => $dispatchResult,
                 'repoFactSnapshot' => $repoFactSnapshot,
                 'evidence' => $evidence,
+                'gateRoute' => $gateRoute,
+                'tolerantGatePlan' => $tolerantGatePlan,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
