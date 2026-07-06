@@ -42,6 +42,7 @@ final class ChatGptLoopRunCommand
 
             $dispatchEnvelope = (new \App\Service\ChatGptLoopDispatchEnvelopeBuilder())->build($delegateRequest);
             $runnerExecutionPlan = (new \App\Service\ChatGptLoopRunnerExecutionPlan())->fromEnvelope($dispatchEnvelope);
+            $hostResultBridge = $this->buildHostResultBridge($options, $runnerExecutionPlan, $task);
             $dispatchResult = (new \App\Service\ChatGptLoopDispatchResultIntake())->fromOptions($options, $dispatchEnvelope);
             $resumeState = (new \App\Service\ChatGptLoopResumeStateBuilder())->build($dispatchResult, $routePlan);
 
@@ -81,6 +82,7 @@ final class ChatGptLoopRunCommand
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
                 'runnerExecutionPlan' => $runnerExecutionPlan,
+                'hostResultBridge' => $hostResultBridge,
                 'dispatchResult' => $dispatchResult,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
@@ -96,6 +98,7 @@ final class ChatGptLoopRunCommand
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
                 'runnerExecutionPlan' => $runnerExecutionPlan,
+                'hostResultBridge' => $hostResultBridge,
                 'dispatchResult' => $dispatchResult,
                 'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
@@ -116,6 +119,7 @@ final class ChatGptLoopRunCommand
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
                 'runnerExecutionPlan' => $runnerExecutionPlan,
+                'hostResultBridge' => $hostResultBridge,
                 'dispatchResult' => $dispatchResult,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
@@ -125,6 +129,22 @@ final class ChatGptLoopRunCommand
         } catch (Throwable $exception) {
             return $this->printJson(['ok' => false, 'status' => 'FAILED', 'error' => $exception->getMessage()], STDERR, 1);
         }
+    }
+
+    private function buildHostResultBridge(array $options, array $runnerExecutionPlan, string $task): ?array
+    {
+        if (!array_key_exists('host-result-ok', $options)) {
+            return null;
+        }
+
+        $hostResult = [
+            'ok' => in_array(strtolower((string) $options['host-result-ok']), ['1', 'true', 'ok', 'yes'], true),
+            'taskId' => $options['host-task-id'] ?? null,
+            'chatId' => $options['host-chat-id'] ?? null,
+            'targetId' => $options['host-target-id'] ?? null,
+        ];
+
+        return (new \App\Service\ChatGptLoopHostResultBridge())->build($hostResult, $runnerExecutionPlan, $task);
     }
 
     private function writeJson(string $type, string $runId, array $payload): string
