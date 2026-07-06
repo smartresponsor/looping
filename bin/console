@@ -28,8 +28,13 @@ use App\Command\ChatGptLoopRunCommand;
 
 $command = $argv[1] ?? null;
 
+if ($command === 'chatgpt-loop:contract') {
+    fwrite(STDOUT, json_encode((new \App\Service\ChatGptLoopRunnerContract())->describe(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    exit(0);
+}
+
 if ($command !== 'chatgpt-loop:run') {
-    fwrite(STDERR, "Available command: chatgpt-loop:run\n");
+    fwrite(STDERR, "Available commands: chatgpt-loop:run, chatgpt-loop:contract\n");
     exit(2);
 }
 
