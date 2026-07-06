@@ -23,12 +23,20 @@ final class ChatGptLoopRunCommand
             $options = $this->parseOptions($args);
             $task = trim($options['task'] ?? '');
             $mode = $options['mode'] ?? 'diagnostic';
+            $planOnly = ($options['plan-only'] ?? '0') === '1';
+            $delegateStage = $options['delegate'] ?? null;
 
             if ($task === '') {
                 throw new InvalidArgumentException('The --task option is required.');
             }
 
             $productPlan = (new \App\Service\ChatGptProductLoopPlanner())->plan($task, $mode);
+            $delegateRequest = null;
+
+            if (is_string($delegateStage) && $delegateStage !== '') {
+                $delegateRequest = (new \App\Service\ChatGptLoopDelegatePlanner())->create($productPlan, $delegateStage);
+            }
+
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
             $runId = 'run_' . gmdate('Ymd_His') . '_' . substr(hash('sha256', $taskId . microtime(true)), 0, 12);
@@ -42,8 +50,8 @@ final class ChatGptLoopRunCommand
             }
 
             $backend = getenv('CHATGPT_LOOP_BACKEND') ?: 'console-mcp';
-            $ok = getenv('CHATGPT_LOOP_BACKEND_CONFIGURED') === '1';
-            $status = $ok ? 'ACCEPTED' : 'BACKEND_NOT_CONFIGURED';
+            $ok = $planOnly || $delegateRequest !== null || getenv('CHATGPT_LOOP_BACKEND_CONFIGURED') === '1';
+            $status = $planOnly ? 'PLAN_ONLY_READY' : ($delegateRequest !== null ? 'DELEGATE_READY' : ($ok ? 'ACCEPTED' : 'BACKEND_NOT_CONFIGURED'));
             $nextAction = $ok ? [
                 'code' => 'WAIT_FOR_RESULT',
                 'label' => 'Wait for ChatGPT result',
@@ -59,6 +67,7 @@ final class ChatGptLoopRunCommand
                 'run' => ['id' => $runId, 'taskId' => $taskId, 'mode' => $mode, 'createdAt' => $createdAt],
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
                 'productPlan' => $productPlan,
+                'delegateRequest' => $delegateRequest,
                 'nextAction' => $nextAction,
             ]);
             $transcriptPath = $this->writeJson('transcript', $runId, [
@@ -66,6 +75,7 @@ final class ChatGptLoopRunCommand
                 'createdAt' => $createdAt,
                 'request' => ['taskId' => $taskId, 'mode' => $mode, 'task' => $body, 'bang' => $bang],
                 'productPlan' => $productPlan,
+                'delegateRequest' => $delegateRequest,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
 
@@ -78,6 +88,7 @@ final class ChatGptLoopRunCommand
                 'statePath' => $statePath,
                 'transcriptPath' => $transcriptPath,
                 'productPlan' => $productPlan,
+                'delegateRequest' => $delegateRequest,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
                 'createdAt' => $createdAt,
