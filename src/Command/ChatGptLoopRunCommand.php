@@ -49,6 +49,7 @@ final class ChatGptLoopRunCommand
             $evidence = (new \App\Service\ChatGptLoopEvidenceClassifier())->classify($repoFactSnapshot);
             $gateRoute = (new \App\Service\ChatGptLoopGateRouter())->route($evidence, $repoFactSnapshot);
             $tolerantGatePlan = (new \App\Service\ChatGptLoopTolerantGatePlan())->build($gateRoute, $options);
+            $feedback = (new \App\Service\ChatGptLoopFeedbackBuilder())->build($evidence, $gateRoute, $tolerantGatePlan);
 
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
@@ -92,6 +93,7 @@ final class ChatGptLoopRunCommand
                 'evidence' => $evidence,
                 'gateRoute' => $gateRoute,
                 'tolerantGatePlan' => $tolerantGatePlan,
+                'feedback' => $feedback,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
             ]);
@@ -112,6 +114,7 @@ final class ChatGptLoopRunCommand
                 'evidence' => $evidence,
                 'gateRoute' => $gateRoute,
                 'tolerantGatePlan' => $tolerantGatePlan,
+                'feedback' => $feedback,
                 'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
@@ -137,6 +140,7 @@ final class ChatGptLoopRunCommand
                 'evidence' => $evidence,
                 'gateRoute' => $gateRoute,
                 'tolerantGatePlan' => $tolerantGatePlan,
+                'feedback' => $feedback,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
