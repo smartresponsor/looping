@@ -45,6 +45,8 @@ final class ChatGptLoopRunCommand
             $hostResultBridge = $this->buildHostResultBridge($options, $runnerExecutionPlan, $task);
             $dispatchResult = (new \App\Service\ChatGptLoopDispatchResultIntake())->fromOptions($options, $dispatchEnvelope);
             $resumeState = (new \App\Service\ChatGptLoopResumeStateBuilder())->build($dispatchResult, $routePlan);
+            $repoFactSnapshot = (new \App\Service\ChatGptLoopRepoFactSnapshot())->fromOptions($options);
+            $evidence = (new \App\Service\ChatGptLoopEvidenceClassifier())->classify($repoFactSnapshot);
 
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
@@ -84,6 +86,8 @@ final class ChatGptLoopRunCommand
                 'runnerExecutionPlan' => $runnerExecutionPlan,
                 'hostResultBridge' => $hostResultBridge,
                 'dispatchResult' => $dispatchResult,
+                'repoFactSnapshot' => $repoFactSnapshot,
+                'evidence' => $evidence,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
             ]);
@@ -100,6 +104,8 @@ final class ChatGptLoopRunCommand
                 'runnerExecutionPlan' => $runnerExecutionPlan,
                 'hostResultBridge' => $hostResultBridge,
                 'dispatchResult' => $dispatchResult,
+                'repoFactSnapshot' => $repoFactSnapshot,
+                'evidence' => $evidence,
                 'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
@@ -121,6 +127,8 @@ final class ChatGptLoopRunCommand
                 'runnerExecutionPlan' => $runnerExecutionPlan,
                 'hostResultBridge' => $hostResultBridge,
                 'dispatchResult' => $dispatchResult,
+                'repoFactSnapshot' => $repoFactSnapshot,
+                'evidence' => $evidence,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
