@@ -31,7 +31,7 @@ if (-not $Payload.dispatchEnvelope) { throw 'dispatchEnvelope missing' }
 if (-not $Payload.runnerExecutionPlan) { throw 'runnerExecutionPlan missing' }
 if ($Payload.runnerExecutionPlan.ok -ne $true) { throw "runner execution plan not ready: $($Payload.runnerExecutionPlan.status)" }
 
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_read_only' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
 
 if ($SimulateHost) {
     $SimTaskId = 'sim-' + $Payload.taskId
@@ -66,11 +66,14 @@ if (-not $Execute) {
 
 $Payload | Add-Member -NotePropertyName executionResult -NotePropertyValue @{
     ok = $true
-    status = 'EXECUTE_READ_ONLY_READY'
+    status = 'EXECUTE_ALLOWLISTED_READY'
     tool = $Payload.runnerExecutionPlan.tool
     arguments = $Payload.runnerExecutionPlan.arguments
     hostCallRequired = $Payload.runnerExecutionPlan.hostCallRequired
     resultMapping = $Payload.runnerExecutionPlan.resultMapping
-    reason = 'Host runner must invoke the allowlisted read-only Console MCP tool with these arguments.'
+    allowedMode = $Payload.runnerExecutionPlan.allowedMode
+    mutation = $Payload.runnerExecutionPlan.mutation
+    confirmationGate = $Payload.runnerExecutionPlan.confirmationGate
+    reason = 'Host runner must invoke the allowlisted Console MCP tool with these arguments.'
 } -Force
 $Payload | ConvertTo-Json -Depth 20
