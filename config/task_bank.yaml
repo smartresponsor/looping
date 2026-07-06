@@ -1,0 +1,8 @@
+task_bank:
+  backend: console-mcp-engine
+  identity_priority: [task_id, chat_id, target_id, component_workspace]
+  terminal_status: [complete, cancelled, pruned]
+  non_terminal_status: [queued, running, waiting_user, blocked]
+  require_explicit_missing_chat_confirmation: true
+  forbid_prune_on_bind_failure_only: true
+  delegation_mode: plan_only

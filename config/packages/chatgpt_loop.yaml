@@ -1,0 +1,6 @@
+chatgpt_loop:
+  state_dir: '%kernel.project_dir%/var/state'
+  transcript_dir: '%kernel.project_dir%/var/transcript'
+  backend:
+    name: 'console-mcp'
+    configured: false
