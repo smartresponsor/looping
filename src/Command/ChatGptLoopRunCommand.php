@@ -42,6 +42,7 @@ final class ChatGptLoopRunCommand
 
             $dispatchEnvelope = (new \App\Service\ChatGptLoopDispatchEnvelopeBuilder())->build($delegateRequest);
             $dispatchResult = (new \App\Service\ChatGptLoopDispatchResultIntake())->fromOptions($options, $dispatchEnvelope);
+            $resumeState = (new \App\Service\ChatGptLoopResumeStateBuilder())->build($dispatchResult, $routePlan);
 
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
@@ -79,6 +80,7 @@ final class ChatGptLoopRunCommand
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
                 'dispatchResult' => $dispatchResult,
+                'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
             ]);
             $transcriptPath = $this->writeJson('transcript', $runId, [
@@ -92,6 +94,7 @@ final class ChatGptLoopRunCommand
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
                 'dispatchResult' => $dispatchResult,
+                'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
 
@@ -110,6 +113,7 @@ final class ChatGptLoopRunCommand
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
                 'dispatchResult' => $dispatchResult,
+                'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
                 'createdAt' => $createdAt,
