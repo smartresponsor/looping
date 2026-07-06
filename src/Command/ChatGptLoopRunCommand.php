@@ -32,6 +32,7 @@ final class ChatGptLoopRunCommand
             }
 
             $productPlan = (new \App\Service\ChatGptProductLoopPlanner())->plan($task, $mode);
+            $routePlan = (new \App\Service\ChatGptLoopRoutePlanner())->plan($productPlan, $loopBudget->toArray(), is_string($delegateStage) ? $delegateStage : null);
             $delegateRequest = null;
 
             if (is_string($delegateStage) && $delegateStage !== '') {
@@ -69,6 +70,7 @@ final class ChatGptLoopRunCommand
                 'loopBudget' => $loopBudget->toArray(),
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
                 'productPlan' => $productPlan,
+                'routePlan' => $routePlan,
                 'delegateRequest' => $delegateRequest,
                 'nextAction' => $nextAction,
             ]);
@@ -78,6 +80,7 @@ final class ChatGptLoopRunCommand
                 'request' => ['taskId' => $taskId, 'mode' => $mode, 'task' => $body, 'bang' => $bang],
                 'loopBudget' => $loopBudget->toArray(),
                 'productPlan' => $productPlan,
+                'routePlan' => $routePlan,
                 'delegateRequest' => $delegateRequest,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
@@ -92,6 +95,7 @@ final class ChatGptLoopRunCommand
                 'statePath' => $statePath,
                 'transcriptPath' => $transcriptPath,
                 'productPlan' => $productPlan,
+                'routePlan' => $routePlan,
                 'delegateRequest' => $delegateRequest,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
