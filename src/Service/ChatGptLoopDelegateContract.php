@@ -38,6 +38,7 @@ final class ChatGptLoopDelegateContract
         $component = (string) ($request['component'] ?? '');
         $workspacePath = (string) ($request['workspacePath'] ?? '');
         $preset = (string) ($request['preset'] ?? 'repo_rc_implementation');
+        $budget = is_array($request['loopBudget'] ?? null) ? $request['loopBudget'] : [];
 
         return match ($stage) {
             'entrypoint_plan' => [
@@ -45,6 +46,8 @@ final class ChatGptLoopDelegateContract
                 'workspacePath' => $workspacePath,
                 'componentName' => ucfirst($component),
                 'taskPreset' => $preset,
+                'maxAutoIterations' => $budget['maxIterations'] ?? null,
+                'lifecycleTarget' => ($budget['untilRc'] ?? false) === true ? 'rc_complete' : 'bounded',
             ],
             'task_bank_resume_or_enqueue' => [
                 'component' => ucfirst($component),
@@ -54,6 +57,8 @@ final class ChatGptLoopDelegateContract
                 'maxTicks' => 1,
                 'stopOnIdle' => true,
                 'stopOnWaitingUser' => true,
+                'budgetMode' => $budget['mode'] ?? 'single_step',
+                'remainingBudget' => $budget['maxIterations'] ?? null,
             ],
             default => [
                 'component' => $component,

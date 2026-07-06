@@ -25,6 +25,7 @@ final class ChatGptLoopRunCommand
             $mode = $options['mode'] ?? 'diagnostic';
             $planOnly = ($options['plan-only'] ?? '0') === '1';
             $delegateStage = $options['delegate'] ?? null;
+            $loopBudget = \App\Dto\ChatGptLoopBudget::fromOptions($options);
 
             if ($task === '') {
                 throw new InvalidArgumentException('The --task option is required.');
@@ -34,7 +35,7 @@ final class ChatGptLoopRunCommand
             $delegateRequest = null;
 
             if (is_string($delegateStage) && $delegateStage !== '') {
-                $delegateRequest = (new \App\Service\ChatGptLoopDelegatePlanner())->create($productPlan, $delegateStage);
+                $delegateRequest = (new \App\Service\ChatGptLoopDelegatePlanner())->create($productPlan, $delegateStage, $loopBudget->toArray());
             }
 
             $createdAt = gmdate('c');
@@ -65,6 +66,7 @@ final class ChatGptLoopRunCommand
             $statePath = $this->writeJson('state', $runId, [
                 'task' => ['id' => $taskId, 'rawText' => $task, 'bang' => $bang, 'body' => $body],
                 'run' => ['id' => $runId, 'taskId' => $taskId, 'mode' => $mode, 'createdAt' => $createdAt],
+                'loopBudget' => $loopBudget->toArray(),
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
                 'productPlan' => $productPlan,
                 'delegateRequest' => $delegateRequest,
@@ -74,6 +76,7 @@ final class ChatGptLoopRunCommand
                 'runId' => $runId,
                 'createdAt' => $createdAt,
                 'request' => ['taskId' => $taskId, 'mode' => $mode, 'task' => $body, 'bang' => $bang],
+                'loopBudget' => $loopBudget->toArray(),
                 'productPlan' => $productPlan,
                 'delegateRequest' => $delegateRequest,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
@@ -85,6 +88,7 @@ final class ChatGptLoopRunCommand
                 'runId' => $runId,
                 'taskId' => $taskId,
                 'mode' => $mode,
+                'loopBudget' => $loopBudget->toArray(),
                 'statePath' => $statePath,
                 'transcriptPath' => $transcriptPath,
                 'productPlan' => $productPlan,

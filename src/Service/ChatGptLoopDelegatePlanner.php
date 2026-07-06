@@ -12,7 +12,7 @@ use App\Dto\ChatGptLoopDelegateRequest;
 
 final class ChatGptLoopDelegatePlanner
 {
-    public function create(array $productPlan, string $requestedStage): array
+    public function create(array $productPlan, string $requestedStage, array $loopBudget = []): array
     {
         $delegation = $productPlan['delegation'] ?? [];
         $stages = $delegation['stages'] ?? [];
@@ -35,6 +35,7 @@ final class ChatGptLoopDelegatePlanner
         );
 
         $requestArray = $request->toArray();
+        $requestArray['loopBudget'] = $loopBudget;
 
         return [
             'ok' => true,
