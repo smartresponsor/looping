@@ -33,8 +33,13 @@ if ($command === 'chatgpt-loop:contract') {
     exit(0);
 }
 
+if ($command === 'chatgpt-loop:dispatcher-contract') {
+    fwrite(STDOUT, json_encode((new \App\Service\ChatGptLoopRunnerDispatcherContract())->describe(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    exit(0);
+}
+
 if ($command !== 'chatgpt-loop:run') {
-    fwrite(STDERR, "Available commands: chatgpt-loop:run, chatgpt-loop:contract\n");
+    fwrite(STDERR, "Available commands: chatgpt-loop:run, chatgpt-loop:contract, chatgpt-loop:dispatcher-contract\n");
     exit(2);
 }
 
