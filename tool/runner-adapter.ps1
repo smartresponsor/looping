@@ -16,9 +16,8 @@ $Raw = & php @ArgsList 2>&1
 $Payload = $Raw | ConvertFrom-Json
 
 if (-not $Payload.dispatchEnvelope) { throw 'dispatchEnvelope missing' }
-if (-not $Payload.dispatchEnvelope.tool) { throw 'dispatchEnvelope.tool missing' }
-if ($Payload.dispatchEnvelope.confirmationRequired -eq $true) { throw 'confirmation required before execution' }
-if ($Payload.dispatchEnvelope.mutation -ne 'none') { throw "non-read-only envelope blocked: $($Payload.dispatchEnvelope.mutation)" }
+if (-not $Payload.runnerExecutionPlan) { throw 'runnerExecutionPlan missing' }
+if ($Payload.runnerExecutionPlan.ok -ne $true) { throw "runner execution plan not ready: $($Payload.runnerExecutionPlan.status)" }
 
 $Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($Execute) { 'execute_read_only' } else { 'dry_run' })) -Force
 
@@ -27,16 +26,13 @@ if (-not $Execute) {
     exit 0
 }
 
-if ($Payload.dispatchEnvelope.tool -ne 'console.read_.browser.chatgpt.entrypoint.plan') {
-    throw "read-only execution is not wired for tool: $($Payload.dispatchEnvelope.tool)"
-}
-
 $Payload | Add-Member -NotePropertyName executionResult -NotePropertyValue @{
     ok = $true
     status = 'EXECUTE_READ_ONLY_READY'
-    tool = $Payload.dispatchEnvelope.tool
-    arguments = $Payload.dispatchEnvelope.arguments
-    hostCallRequired = $true
-    reason = 'Host runner must invoke the discovered Console MCP read-only tool with these arguments.'
+    tool = $Payload.runnerExecutionPlan.tool
+    arguments = $Payload.runnerExecutionPlan.arguments
+    hostCallRequired = $Payload.runnerExecutionPlan.hostCallRequired
+    resultMapping = $Payload.runnerExecutionPlan.resultMapping
+    reason = 'Host runner must invoke the allowlisted read-only Console MCP tool with these arguments.'
 } -Force
 $Payload | ConvertTo-Json -Depth 20

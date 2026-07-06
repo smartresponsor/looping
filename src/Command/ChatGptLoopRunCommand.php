@@ -41,6 +41,7 @@ final class ChatGptLoopRunCommand
             }
 
             $dispatchEnvelope = (new \App\Service\ChatGptLoopDispatchEnvelopeBuilder())->build($delegateRequest);
+            $runnerExecutionPlan = (new \App\Service\ChatGptLoopRunnerExecutionPlan())->fromEnvelope($dispatchEnvelope);
             $dispatchResult = (new \App\Service\ChatGptLoopDispatchResultIntake())->fromOptions($options, $dispatchEnvelope);
             $resumeState = (new \App\Service\ChatGptLoopResumeStateBuilder())->build($dispatchResult, $routePlan);
 
@@ -79,6 +80,7 @@ final class ChatGptLoopRunCommand
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
+                'runnerExecutionPlan' => $runnerExecutionPlan,
                 'dispatchResult' => $dispatchResult,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
@@ -93,6 +95,7 @@ final class ChatGptLoopRunCommand
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
+                'runnerExecutionPlan' => $runnerExecutionPlan,
                 'dispatchResult' => $dispatchResult,
                 'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
@@ -112,6 +115,7 @@ final class ChatGptLoopRunCommand
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
+                'runnerExecutionPlan' => $runnerExecutionPlan,
                 'dispatchResult' => $dispatchResult,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
