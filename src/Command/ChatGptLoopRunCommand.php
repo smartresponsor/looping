@@ -51,6 +51,7 @@ final class ChatGptLoopRunCommand
             $tolerantGatePlan = (new \App\Service\ChatGptLoopTolerantGatePlan())->build($gateRoute, $options);
             $feedback = (new \App\Service\ChatGptLoopFeedbackBuilder())->build($evidence, $gateRoute, $tolerantGatePlan);
             $loopDecision = (new \App\Service\ChatGptLoopDecisionBuilder())->build($feedback, $resumeState, $routePlan, $loopBudget->toArray());
+            $askGatewayIntentContract = (new \App\Service\ChatGptLoopAskGatewayIntentContract())->build($task, $evidence, $feedback, $loopDecision);
 
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
@@ -96,6 +97,7 @@ final class ChatGptLoopRunCommand
                 'tolerantGatePlan' => $tolerantGatePlan,
                 'feedback' => $feedback,
                 'loopDecision' => $loopDecision,
+                'askGatewayIntentContract' => $askGatewayIntentContract,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
             ]);
@@ -118,6 +120,7 @@ final class ChatGptLoopRunCommand
                 'tolerantGatePlan' => $tolerantGatePlan,
                 'feedback' => $feedback,
                 'loopDecision' => $loopDecision,
+                'askGatewayIntentContract' => $askGatewayIntentContract,
                 'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
@@ -145,6 +148,7 @@ final class ChatGptLoopRunCommand
                 'tolerantGatePlan' => $tolerantGatePlan,
                 'feedback' => $feedback,
                 'loopDecision' => $loopDecision,
+                'askGatewayIntentContract' => $askGatewayIntentContract,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
