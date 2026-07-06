@@ -27,5 +27,16 @@ if (-not $Execute) {
     exit 0
 }
 
-$Payload | Add-Member -NotePropertyName executionResult -NotePropertyValue @{ ok = $false; status = 'EXECUTE_NOT_WIRED'; reason = 'Console MCP invocation is intentionally not wired in this adapter yet.' } -Force
+if ($Payload.dispatchEnvelope.tool -ne 'console.read_.browser.chatgpt.entrypoint.plan') {
+    throw "read-only execution is not wired for tool: $($Payload.dispatchEnvelope.tool)"
+}
+
+$Payload | Add-Member -NotePropertyName executionResult -NotePropertyValue @{
+    ok = $true
+    status = 'EXECUTE_READ_ONLY_READY'
+    tool = $Payload.dispatchEnvelope.tool
+    arguments = $Payload.dispatchEnvelope.arguments
+    hostCallRequired = $true
+    reason = 'Host runner must invoke the discovered Console MCP read-only tool with these arguments.'
+} -Force
 $Payload | ConvertTo-Json -Depth 20
