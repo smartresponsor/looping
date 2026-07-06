@@ -33,10 +33,11 @@ final class ChatGptLoopRunCommand
 
             $productPlan = (new \App\Service\ChatGptProductLoopPlanner())->plan($task, $mode);
             $routePlan = (new \App\Service\ChatGptLoopRoutePlanner())->plan($productPlan, $loopBudget->toArray(), is_string($delegateStage) ? $delegateStage : null);
+            $selectedDelegateStage = is_string($delegateStage) && $delegateStage !== '' ? $delegateStage : ($routePlan['nextDelegateStage'] ?? null);
             $delegateRequest = null;
 
-            if (is_string($delegateStage) && $delegateStage !== '') {
-                $delegateRequest = (new \App\Service\ChatGptLoopDelegatePlanner())->create($productPlan, $delegateStage, $loopBudget->toArray());
+            if (!$planOnly && is_string($selectedDelegateStage) && $selectedDelegateStage !== '') {
+                $delegateRequest = (new \App\Service\ChatGptLoopDelegatePlanner())->create($productPlan, $selectedDelegateStage, $loopBudget->toArray());
             }
 
             $createdAt = gmdate('c');
@@ -71,6 +72,7 @@ final class ChatGptLoopRunCommand
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
                 'productPlan' => $productPlan,
                 'routePlan' => $routePlan,
+                'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'nextAction' => $nextAction,
             ]);
@@ -81,6 +83,7 @@ final class ChatGptLoopRunCommand
                 'loopBudget' => $loopBudget->toArray(),
                 'productPlan' => $productPlan,
                 'routePlan' => $routePlan,
+                'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
@@ -96,6 +99,7 @@ final class ChatGptLoopRunCommand
                 'transcriptPath' => $transcriptPath,
                 'productPlan' => $productPlan,
                 'routePlan' => $routePlan,
+                'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
