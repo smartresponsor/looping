@@ -32,7 +32,7 @@ if (-not $Payload.dispatchEnvelope) { throw 'dispatchEnvelope missing' }
 if (-not $Payload.runnerExecutionPlan) { throw 'runnerExecutionPlan missing' }
 if ($Payload.runnerExecutionPlan.ok -ne $true) { throw "runner execution plan not ready: $($Payload.runnerExecutionPlan.status)" }
 
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
 
 if ($Dispatch) {
     $PayloadDir = Join-Path $Root 'var/runner'
@@ -40,9 +40,23 @@ if ($Dispatch) {
     $PayloadPath = Join-Path $PayloadDir ($Payload.runId + '.json')
     $Payload | ConvertTo-Json -Depth 30 | Set-Content -Path $PayloadPath -Encoding UTF8
     $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
-    $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath 2>&1
+    if ($SimulateHost) { $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath -Simulate 2>&1 } else { $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath 2>&1 }
+    $DispatcherPayload = $DispatchRaw | ConvertFrom-Json
     $Payload | Add-Member -NotePropertyName dispatchPayloadPath -NotePropertyValue $PayloadPath -Force
-    $Payload | Add-Member -NotePropertyName dispatcherPayload -NotePropertyValue ($DispatchRaw | ConvertFrom-Json) -Force
+    $Payload | Add-Member -NotePropertyName dispatcherPayload -NotePropertyValue $DispatcherPayload -Force
+    if ($SimulateHost) {
+        $BridgeArgs = @('bin/console', 'chatgpt-loop:run', "--task=$Task", "--host-result-ok=$([int]$DispatcherPayload.ok)")
+        if ($DispatcherPayload.taskId) { $BridgeArgs += "--host-task-id=$($DispatcherPayload.taskId)" }
+        if ($DispatcherPayload.chatId) { $BridgeArgs += "--host-chat-id=$($DispatcherPayload.chatId)" }
+        if ($DispatcherPayload.targetId) { $BridgeArgs += "--host-target-id=$($DispatcherPayload.targetId)" }
+        $BridgeRaw = & php @BridgeArgs 2>&1
+        $BridgePayload = $BridgeRaw | ConvertFrom-Json
+        if (-not $BridgePayload.hostResultBridge) { throw 'dispatch simulated hostResultBridge missing' }
+        $ContinueArgs = @($BridgePayload.hostResultBridge.continueArgs)
+        $ContinueRaw = & php @ContinueArgs 2>&1
+        $Payload | Add-Member -NotePropertyName dispatchedHostPayload -NotePropertyValue $BridgePayload -Force
+        $Payload | Add-Member -NotePropertyName continuePayload -NotePropertyValue ($ContinueRaw | ConvertFrom-Json) -Force
+    }
     $Payload | ConvertTo-Json -Depth 30
     exit 0
 }
