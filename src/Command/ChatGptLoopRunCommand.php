@@ -40,6 +40,8 @@ final class ChatGptLoopRunCommand
                 $delegateRequest = (new \App\Service\ChatGptLoopDelegatePlanner())->create($productPlan, $selectedDelegateStage, $loopBudget->toArray());
             }
 
+            $dispatchEnvelope = (new \App\Service\ChatGptLoopDispatchEnvelopeBuilder())->build($delegateRequest);
+
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
             $runId = 'run_' . gmdate('Ymd_His') . '_' . substr(hash('sha256', $taskId . microtime(true)), 0, 12);
@@ -74,6 +76,7 @@ final class ChatGptLoopRunCommand
                 'routePlan' => $routePlan,
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
+                'dispatchEnvelope' => $dispatchEnvelope,
                 'nextAction' => $nextAction,
             ]);
             $transcriptPath = $this->writeJson('transcript', $runId, [
@@ -85,6 +88,7 @@ final class ChatGptLoopRunCommand
                 'routePlan' => $routePlan,
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
+                'dispatchEnvelope' => $dispatchEnvelope,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
 
@@ -101,6 +105,7 @@ final class ChatGptLoopRunCommand
                 'routePlan' => $routePlan,
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
+                'dispatchEnvelope' => $dispatchEnvelope,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
                 'createdAt' => $createdAt,
