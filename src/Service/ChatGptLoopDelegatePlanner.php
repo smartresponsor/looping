@@ -34,10 +34,13 @@ final class ChatGptLoopDelegatePlanner
             true,
         );
 
+        $requestArray = $request->toArray();
+
         return [
             'ok' => true,
             'status' => 'DELEGATE_REQUEST_READY',
-            'request' => $request->toArray(),
+            'request' => $requestArray,
+            'contract' => (new ChatGptLoopDelegateContract())->describe($requestedStage, $requestArray),
             'execution' => 'external_console_mcp_required',
         ];
     }
