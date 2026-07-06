@@ -6,6 +6,7 @@ param(
     [switch]$Execute,
     [switch]$Continue,
     [switch]$SimulateHost,
+    [switch]$Dispatch,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -31,7 +32,20 @@ if (-not $Payload.dispatchEnvelope) { throw 'dispatchEnvelope missing' }
 if (-not $Payload.runnerExecutionPlan) { throw 'runnerExecutionPlan missing' }
 if ($Payload.runnerExecutionPlan.ok -ne $true) { throw "runner execution plan not ready: $($Payload.runnerExecutionPlan.status)" }
 
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($Dispatch) {
+    $PayloadDir = Join-Path $Root 'var/runner'
+    if (-not (Test-Path $PayloadDir)) { New-Item -ItemType Directory -Path $PayloadDir | Out-Null }
+    $PayloadPath = Join-Path $PayloadDir ($Payload.runId + '.json')
+    $Payload | ConvertTo-Json -Depth 30 | Set-Content -Path $PayloadPath -Encoding UTF8
+    $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
+    $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath 2>&1
+    $Payload | Add-Member -NotePropertyName dispatchPayloadPath -NotePropertyValue $PayloadPath -Force
+    $Payload | Add-Member -NotePropertyName dispatcherPayload -NotePropertyValue ($DispatchRaw | ConvertFrom-Json) -Force
+    $Payload | ConvertTo-Json -Depth 30
+    exit 0
+}
 
 if ($SimulateHost) {
     $SimTaskId = 'sim-' + $Payload.taskId
