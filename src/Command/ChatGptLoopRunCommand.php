@@ -41,6 +41,7 @@ final class ChatGptLoopRunCommand
             }
 
             $dispatchEnvelope = (new \App\Service\ChatGptLoopDispatchEnvelopeBuilder())->build($delegateRequest);
+            $dispatchResult = (new \App\Service\ChatGptLoopDispatchResultIntake())->fromOptions($options, $dispatchEnvelope);
 
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
@@ -77,6 +78,7 @@ final class ChatGptLoopRunCommand
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
+                'dispatchResult' => $dispatchResult,
                 'nextAction' => $nextAction,
             ]);
             $transcriptPath = $this->writeJson('transcript', $runId, [
@@ -89,6 +91,7 @@ final class ChatGptLoopRunCommand
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
+                'dispatchResult' => $dispatchResult,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
 
@@ -106,6 +109,7 @@ final class ChatGptLoopRunCommand
                 'selectedDelegateStage' => $selectedDelegateStage,
                 'delegateRequest' => $delegateRequest,
                 'dispatchEnvelope' => $dispatchEnvelope,
+                'dispatchResult' => $dispatchResult,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
                 'createdAt' => $createdAt,
