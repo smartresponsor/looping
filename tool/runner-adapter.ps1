@@ -5,6 +5,7 @@ param(
     [switch]$UntilRc,
     [switch]$Execute,
     [switch]$Continue,
+    [switch]$SimulateHost,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -30,7 +31,23 @@ if (-not $Payload.dispatchEnvelope) { throw 'dispatchEnvelope missing' }
 if (-not $Payload.runnerExecutionPlan) { throw 'runnerExecutionPlan missing' }
 if ($Payload.runnerExecutionPlan.ok -ne $true) { throw "runner execution plan not ready: $($Payload.runnerExecutionPlan.status)" }
 
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($Continue) { 'continue' } elseif ($Execute) { 'execute_read_only' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_read_only' } else { 'dry_run' })) -Force
+
+if ($SimulateHost) {
+    $SimTaskId = 'sim-' + $Payload.taskId
+    $SimChatId = 'sim-chat-' + $Payload.runId
+    $SimTargetId = 'sim-target-' + $Payload.runId
+    $SimArgs = @('bin/console', 'chatgpt-loop:run', "--task=$Task", '--host-result-ok=1', "--host-task-id=$SimTaskId", "--host-chat-id=$SimChatId", "--host-target-id=$SimTargetId")
+    $SimRaw = & php @SimArgs 2>&1
+    $SimPayload = $SimRaw | ConvertFrom-Json
+    if (-not $SimPayload.hostResultBridge) { throw 'simulated hostResultBridge missing' }
+    $ContinueArgs = @($SimPayload.hostResultBridge.continueArgs)
+    $ContinueRaw = & php @ContinueArgs 2>&1
+    $Payload | Add-Member -NotePropertyName simulatedHostPayload -NotePropertyValue $SimPayload -Force
+    $Payload | Add-Member -NotePropertyName continuePayload -NotePropertyValue ($ContinueRaw | ConvertFrom-Json) -Force
+    $Payload | ConvertTo-Json -Depth 30
+    exit 0
+}
 
 if ($Continue) {
     if (-not $Payload.hostResultBridge) { throw 'hostResultBridge missing' }
