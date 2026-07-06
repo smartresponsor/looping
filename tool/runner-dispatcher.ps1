@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$PayloadPath,
-    [switch]$Simulate
+    [switch]$Simulate,
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,11 +24,31 @@ $AllowedTools = @{
 }
 
 if (-not $AllowedTools.ContainsKey([string]$Plan.tool)) { throw "dispatcher tool not allowed: $($Plan.tool)" }
+if ($Plan.allowedMode -ne $AllowedTools[[string]$Plan.tool]) { throw "dispatcher allowedMode mismatch: $($Plan.allowedMode)" }
+
+$Boundary = [ordered]@{
+    ok = $true
+    status = 'DISPATCHER_BOUNDARY_READY'
+    payloadPath = $PayloadPath
+    tool = $Plan.tool
+    arguments = $Plan.arguments
+    allowedMode = $Plan.allowedMode
+    mutation = $Plan.mutation
+    confirmationGate = $Plan.confirmationGate
+    dryRunOnly = $true
+    realExecution = 'disabled'
+    nextAction = 'dry_run_or_simulate_only'
+}
+
+if ($DryRun) {
+    [pscustomobject]$Boundary | ConvertTo-Json -Depth 30
+    exit 0
+}
 
 if (-not $Simulate) {
     [pscustomobject]@{
         ok = $false
-        status = 'DISPATCHER_HOST_CALL_REQUIRED'
+        status = 'DISPATCHER_DRY_RUN_REQUIRED'
         tool = $Plan.tool
         arguments = $Plan.arguments
         allowedMode = $Plan.allowedMode

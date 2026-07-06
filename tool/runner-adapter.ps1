@@ -7,6 +7,7 @@ param(
     [switch]$Continue,
     [switch]$SimulateHost,
     [switch]$Dispatch,
+    [switch]$DryRun,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -40,7 +41,7 @@ if ($Dispatch) {
     $PayloadPath = Join-Path $PayloadDir ($Payload.runId + '.json')
     $Payload | ConvertTo-Json -Depth 30 | Set-Content -Path $PayloadPath -Encoding UTF8
     $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
-    if ($SimulateHost) { $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath -Simulate 2>&1 } else { $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath 2>&1 }
+    if ($SimulateHost) { $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath -Simulate 2>&1 } elseif ($DryRun) { $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath -DryRun 2>&1 } else { $DispatchRaw = & $Dispatcher -PayloadPath $PayloadPath -DryRun 2>&1 }
     $DispatcherPayload = $DispatchRaw | ConvertFrom-Json
     $Payload | Add-Member -NotePropertyName dispatchPayloadPath -NotePropertyValue $PayloadPath -Force
     $Payload | Add-Member -NotePropertyName dispatcherPayload -NotePropertyValue $DispatcherPayload -Force
