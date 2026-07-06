@@ -8,10 +8,18 @@ param(
     [switch]$SimulateHost,
     [switch]$Dispatch,
     [switch]$DryRun,
+    [switch]$ResponseDispatch,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
-    [string]$HostTargetId
+    [string]$HostTargetId,
+    [string]$AskVerdict,
+    [string]$AskRisks,
+    [string]$AskPolicyReferences,
+    [string]$AskMessageToChat,
+    [string]$AskNextAction,
+    [string]$ResponseChatId,
+    [string]$ResponseTargetId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +33,13 @@ if ($HostResultOk) {
     if ($HostChatId) { $ArgsList += "--host-chat-id=$HostChatId" }
     if ($HostTargetId) { $ArgsList += "--host-target-id=$HostTargetId" }
 }
+if ($AskVerdict) { $ArgsList += "--ask-verdict=$AskVerdict" }
+if ($AskRisks) { $ArgsList += "--ask-risks=$AskRisks" }
+if ($AskPolicyReferences) { $ArgsList += "--ask-policy-references=$AskPolicyReferences" }
+if ($AskMessageToChat) { $ArgsList += "--ask-message-to-chat=$AskMessageToChat" }
+if ($AskNextAction) { $ArgsList += "--ask-next-action=$AskNextAction" }
+if ($ResponseChatId) { $ArgsList += "--response-chat-id=$ResponseChatId" }
+if ($ResponseTargetId) { $ArgsList += "--response-target-id=$ResponseTargetId" }
 
 $Raw = & php @ArgsList 2>&1
 $Payload = $Raw | ConvertFrom-Json
@@ -57,6 +72,38 @@ if ($Dispatch) {
         $ContinueRaw = & php @ContinueArgs 2>&1
         $Payload | Add-Member -NotePropertyName dispatchedHostPayload -NotePropertyValue $BridgePayload -Force
         $Payload | Add-Member -NotePropertyName continuePayload -NotePropertyValue ($ContinueRaw | ConvertFrom-Json) -Force
+    }
+    if ($ResponseDispatch) {
+        $ResponseEnvelope = $Payload.chatResponseDispatchContract.envelope
+        if (-not $ResponseEnvelope) { throw 'chat response dispatch envelope missing' }
+        $ResponsePayload = [ordered]@{
+            ok = $true
+            runId = $Payload.runId
+            taskId = $Payload.taskId
+            runnerExecutionPlan = [ordered]@{
+                ok = $true
+                status = 'RUNNER_EXECUTION_PLAN_READY'
+                tool = $ResponseEnvelope.tool
+                arguments = $ResponseEnvelope.arguments
+                allowedMode = 'write'
+                mutation = $ResponseEnvelope.mutation
+                confirmationRequired = $ResponseEnvelope.confirmationRequired
+                confirmationGate = 'disabled'
+                hostCallRequired = $true
+                resultMapping = @{
+                    'ok=true' = '--dispatch-status=ok'
+                    'ok=false' = '--dispatch-status=failed'
+                    taskId = '--external-task-id'
+                    chatId = '--external-chat-id'
+                    targetId = '--external-target-id'
+                }
+            }
+        }
+        $ResponsePayloadPath = Join-Path $PayloadDir ($Payload.runId + '.response.json')
+        $ResponsePayload | ConvertTo-Json -Depth 30 | Set-Content -Path $ResponsePayloadPath -Encoding UTF8
+        if ($SimulateHost) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -Simulate 2>&1 } else { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -DryRun 2>&1 }
+        $Payload | Add-Member -NotePropertyName responseDispatchPayloadPath -NotePropertyValue $ResponsePayloadPath -Force
+        $Payload | Add-Member -NotePropertyName responseDispatcherPayload -NotePropertyValue ($ResponseDispatchRaw | ConvertFrom-Json) -Force
     }
     $Payload | ConvertTo-Json -Depth 30
     exit 0
