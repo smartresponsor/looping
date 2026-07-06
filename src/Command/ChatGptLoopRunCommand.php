@@ -54,6 +54,7 @@ final class ChatGptLoopRunCommand
             $askGatewayIntentContract = (new \App\Service\ChatGptLoopAskGatewayIntentContract())->build($task, $evidence, $feedback, $loopDecision);
             $askGatewayResult = (new \App\Service\ChatGptLoopAskGatewayResultIntake())->fromOptions($options);
             $askGatewayDecision = (new \App\Service\ChatGptLoopAskGatewayDecisionBuilder())->build($loopDecision, $askGatewayResult);
+            $chatResponsePayload = (new \App\Service\ChatGptLoopChatResponsePayloadBuilder())->build($feedback, $loopDecision, $askGatewayResult, $askGatewayDecision);
 
             $createdAt = gmdate('c');
             $taskId = 'task_' . substr(hash('sha256', $task . $createdAt), 0, 16);
@@ -102,6 +103,7 @@ final class ChatGptLoopRunCommand
                 'askGatewayIntentContract' => $askGatewayIntentContract,
                 'askGatewayResult' => $askGatewayResult,
                 'askGatewayDecision' => $askGatewayDecision,
+                'chatResponsePayload' => $chatResponsePayload,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
             ]);
@@ -127,6 +129,7 @@ final class ChatGptLoopRunCommand
                 'askGatewayIntentContract' => $askGatewayIntentContract,
                 'askGatewayResult' => $askGatewayResult,
                 'askGatewayDecision' => $askGatewayDecision,
+                'chatResponsePayload' => $chatResponsePayload,
                 'resumeState' => $resumeState,
                 'result' => ['ok' => $ok, 'status' => $status, 'backend' => $backend],
             ]);
@@ -157,6 +160,7 @@ final class ChatGptLoopRunCommand
                 'askGatewayIntentContract' => $askGatewayIntentContract,
                 'askGatewayResult' => $askGatewayResult,
                 'askGatewayDecision' => $askGatewayDecision,
+                'chatResponsePayload' => $chatResponsePayload,
                 'resumeState' => $resumeState,
                 'nextAction' => $nextAction,
                 'backend' => $backend,
