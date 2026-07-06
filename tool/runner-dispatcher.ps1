@@ -21,6 +21,7 @@ $AllowedTools = @{
     'console.write.engine.chat.bind' = 'write'
     'console.write.engine.answer.capture' = 'write'
     'console.write.engine.gateway.decide' = 'write'
+    'console.write.engine.reply.draft_submit' = 'write'
 }
 
 if (-not $AllowedTools.ContainsKey([string]$Plan.tool)) { throw "dispatcher tool not allowed: $($Plan.tool)" }
