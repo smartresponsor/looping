@@ -64,6 +64,26 @@ if (-not $Payload.nextDispatchPayload) {
 
 $FirstPayload = @($Payload.nextDispatchPayload)[0]
 $FirstBoundary = @($Payload.nextDispatchBoundary)[0]
+$DispatchPayload = Get-Content -Raw -Path $FirstPayload.path | ConvertFrom-Json
+$ToolCall = [ordered]@{
+    name = $DispatchPayload.runnerExecutionPlan.tool
+    arguments = $DispatchPayload.runnerExecutionPlan.arguments
+}
+$ExpectedResultPath = Join-Path (Split-Path -Parent $FirstPayload.path) ((Split-Path -Leaf $FirstPayload.path) + '.result.json')
+$AdapterCommand = @(
+    'tool/runner-transport-adapter.ps1',
+    '-Task',
+    $Task,
+    '-MaxIterations',
+    [string]$MaxIterations,
+    '-RetryAttempt',
+    [string]$RetryAttempt,
+    '-PayloadPath',
+    $FirstPayload.path,
+    '-ResultPath',
+    $ExpectedResultPath
+)
+if ($UntilRc) { $AdapterCommand += '-UntilRc' }
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_DAEMON_DISPATCH_READY'
@@ -74,6 +94,9 @@ $FirstBoundary = @($Payload.nextDispatchBoundary)[0]
     dispatchPayloadPath = $FirstPayload.path
     dispatchTool = $FirstPayload.tool
     dispatchBoundary = $FirstBoundary
+    toolCall = ([pscustomobject]$ToolCall)
+    expectedResultPath = $ExpectedResultPath
+    adapterCommand = $AdapterCommand
     nextDispatchPayload = $Payload.nextDispatchPayload
     nextDispatchBoundary = $Payload.nextDispatchBoundary
     nextAction = 'invoke_console_mcp_tool_call_then_feed_transport_result'
