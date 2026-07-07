@@ -36,6 +36,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+$RunnerStateSchemaVersion = 2
+$RunnerRuntimeVersion = '2026.07.runner-loop'
+
+function New-RunnerStateCapabilities {
+    [pscustomobject]@{
+        nextDispatch = $true
+        transportResult = $true
+        replySequence = $true
+        resumeLatest = $true
+        budgetCursor = $true
+        retryPolicy = $true
+        recoveryDispatch = $true
+        recoveryResult = $true
+    }
+}
 
 function Add-NextDispatchEnvelope {
     param([Parameter(Mandatory=$true)]$Payload)
@@ -217,6 +232,9 @@ function Write-RunnerState {
         recoveryPlan = $Payload.recoveryPlan
         updatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
+    $State.schemaVersion = $RunnerStateSchemaVersion
+    $State.runtimeVersion = $RunnerRuntimeVersion
+    $State.capabilities = (New-RunnerStateCapabilities)
 
     $LatestPath = Join-Path $StateDir 'latest.json'
     $RunPath = Join-Path $StateDir (($Payload.runId) + '.json')
@@ -231,6 +249,8 @@ if ($ResumeLatest) {
     if (-not (Test-Path $StatePath)) { throw "latest runner state not found: $StatePath" }
     $State = Get-Content -Raw -Path $StatePath | ConvertFrom-Json
     if ($State.status -ne 'RUNNER_STATE_PERSISTED') { throw "latest runner state is not persisted: $($State.status)" }
+    $StateSchemaVersion = if ($State.schemaVersion) { [int]$State.schemaVersion } else { 1 }
+    if ($StateSchemaVersion -gt $RunnerStateSchemaVersion) { throw "latest runner state schema is newer than runtime: $StateSchemaVersion" }
     $Payload = [pscustomobject]@{
         ok = $true
         runId = $State.runId

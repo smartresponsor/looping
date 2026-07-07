@@ -246,6 +246,9 @@ if ($ResumePayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { thro
 if (-not $ResumePayload.budget) { throw "resume latest budget cursor missing" }
 if ($ResumePayload.budget.remaining -ne 1) { throw "resume latest budget remaining mismatch" }
 if ($ResumePayload.budget.mode -ne 'steps') { throw "resume latest budget mode mismatch" }
+if ($ResumePayload.resumeState.schemaVersion -ne 2) { throw "resume latest schema version mismatch" }
+if ($ResumePayload.resumeState.runtimeVersion -ne '2026.07.runner-loop') { throw "resume latest runtime version mismatch" }
+if ($ResumePayload.resumeState.capabilities.recoveryResult -ne $true) { throw "resume latest capabilities missing recovery result" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8
