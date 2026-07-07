@@ -88,6 +88,10 @@ if ($AdapterHostResultPayload.nextLoopTickPlan.status -ne 'NEXT_LOOP_TICK_PLAN_R
 if ($AdapterHostResultPayload.nextLoopTickPlan.stage -ne 'answer_capture') { throw "next loop tick stage was not answer_capture" }
 if ($AdapterHostResultPayload.nextLoopTickPlan.phase -ne 'reply_watch') { throw "next loop tick phase was not reply_watch" }
 if ($AdapterHostResultPayload.nextLoopTickPlan.action -ne 'capture_next_answer') { throw "next loop tick action was not capture_next_answer" }
+if ($AdapterHostResultPayload.nextLoopTickContract.status -ne 'NEXT_LOOP_TICK_CONTRACT_READY') { throw "next loop tick contract was not ready" }
+if ($AdapterHostResultPayload.nextLoopTickContract.tool -ne 'console.write.engine.answer.capture') { throw "next loop tick contract tool was not answer capture" }
+if ($AdapterHostResultPayload.nextLoopTickContract.arguments.taskId -ne 'smoke-engine-task') { throw "next loop tick contract task id mismatch" }
+if ($AdapterHostResultPayload.nextLoopTickContract.arguments.confirmCapture -ne $true) { throw "next loop tick contract confirmCapture was not true" }
 
 [pscustomobject]@{
     ok = $true

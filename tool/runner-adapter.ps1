@@ -90,8 +90,26 @@ if ($HostBridgeResultPath) {
         untilRc = [bool]$UntilRc
         nextCommand = 'run_answer_capture_then_continue_loop'
     }
+    $NextLoopTickContract = [ordered]@{
+        ok = $true
+        status = 'NEXT_LOOP_TICK_CONTRACT_READY'
+        stage = 'answer_capture'
+        tool = 'console.write.engine.answer.capture'
+        arguments = [ordered]@{
+            taskId = $NextLoopTickPlan.taskId
+            preferredChatId = if ($ResponseChatId) { $ResponseChatId } else { $null }
+            requireChatId = $true
+            readinessProfile = 'rc_gate'
+            confirmCapture = $true
+        }
+        mutation = 'write'
+        confirmationRequired = $false
+        execution = 'external_console_mcp_required'
+        nextAction = 'dispatch_answer_capture'
+    }
     $Payload | Add-Member -NotePropertyName hostBridgeResult -NotePropertyValue $HostBridgePayload -Force
     $Payload | Add-Member -NotePropertyName nextLoopTickPlan -NotePropertyValue ([pscustomobject]$NextLoopTickPlan) -Force
+    $Payload | Add-Member -NotePropertyName nextLoopTickContract -NotePropertyValue ([pscustomobject]$NextLoopTickContract) -Force
     $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
         ok = $true
         status = 'FINAL_ACTION_HOST_RESULT_ACCEPTED'
