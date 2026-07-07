@@ -32,8 +32,58 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 
+function Add-NextDispatchEnvelope {
+    param([Parameter(Mandatory=$true)]$Payload)
+
+    if (-not $Payload.nextDispatchContract) { return }
+
+    $DispatchDir = Join-Path $Root 'var/runner/next-dispatch'
+    if (-not (Test-Path $DispatchDir)) { New-Item -ItemType Directory -Path $DispatchDir | Out-Null }
+
+    $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
+    $Contracts = @()
+    if ($Payload.nextDispatchContract.sequence) {
+        $Contracts += @($Payload.nextDispatchContract.sequence)
+    } else {
+        $Contracts += $Payload.nextDispatchContract
+    }
+
+    $DispatchPayloads = @()
+    $DispatchResults = @()
+    for ($Index = 0; $Index -lt $Contracts.Count; $Index++) {
+        $Contract = $Contracts[$Index]
+        $DispatchPayload = [ordered]@{
+            ok = $true
+            runId = $Payload.runId
+            taskId = $Payload.taskId
+            runnerExecutionPlan = [ordered]@{
+                ok = $true
+                status = 'RUNNER_EXECUTION_PLAN_READY'
+                tool = $Contract.tool
+                arguments = $Contract.arguments
+                allowedMode = 'write'
+                mutation = $Contract.mutation
+                confirmationRequired = $Contract.confirmationRequired
+                confirmationGate = 'disabled'
+                hostCallRequired = $true
+            }
+        }
+        $DispatchPath = Join-Path $DispatchDir ($Payload.runId + '.' + $Index + '.json')
+        [pscustomobject]$DispatchPayload | ConvertTo-Json -Depth 40 | Set-Content -Path $DispatchPath -Encoding UTF8
+        $DispatchRaw = & $Dispatcher -PayloadPath $DispatchPath -DryRun 2>&1
+        $DispatchPayloads += [pscustomobject]@{ index = $Index; path = $DispatchPath; tool = $Contract.tool }
+        $DispatchResults += ($DispatchRaw | ConvertFrom-Json)
+    }
+
+    $Payload | Add-Member -NotePropertyName nextDispatchPayload -NotePropertyValue $DispatchPayloads -Force
+    $Payload | Add-Member -NotePropertyName nextDispatchBoundary -NotePropertyValue $DispatchResults -Force
+    $Payload | Add-Member -NotePropertyName nextDispatchStatus -NotePropertyValue 'NEXT_DISPATCH_BOUNDARY_READY' -Force
+}
+
 function Write-RunnerState {
     param([Parameter(Mandatory=$true)]$Payload)
+
+    Add-NextDispatchEnvelope -Payload $Payload
 
     $StateDir = Join-Path $Root 'var/runner/state'
     if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir | Out-Null }

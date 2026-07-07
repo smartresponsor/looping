@@ -95,6 +95,9 @@ if ($AdapterHostResultPayload.nextLoopTickContract.arguments.confirmCapture -ne 
 if ($AdapterHostResultPayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "next dispatch contract did not expose answer capture" }
 if ($AdapterHostResultPayload.runnerStateStatus -ne 'RUNNER_STATE_PERSISTED') { throw "runner state was not persisted" }
 if (-not (Test-Path $AdapterHostResultPayload.runnerStatePath)) { throw "runner state path does not exist" }
+if ($AdapterHostResultPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "next dispatch boundary was not ready" }
+if ($AdapterHostResultPayload.nextDispatchBoundary[0].status -ne 'DISPATCHER_BOUNDARY_READY') { throw "next dispatch boundary result was not ready" }
+if (-not (Test-Path $AdapterHostResultPayload.nextDispatchPayload[0].path)) { throw "next dispatch payload path does not exist" }
 
 $AnswerCapturedPath = Join-Path $Root 'var/runner/answer-captured-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerCapturedPath -Encoding UTF8
@@ -142,6 +145,9 @@ if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[1].tool -ne 'console.
 if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].arguments.taskId -ne 'smoke-engine-task') { throw "gateway reply-back task id mismatch" }
 if ($GatewayReplyPayload.nextDispatchContract.sequence[0].tool -ne 'console.write.engine.reply.draft') { throw "next dispatch contract did not expose reply draft" }
 if ($GatewayReplyPayload.nextDispatchContract.sequence[1].tool -ne 'console.write.engine.reply.submit') { throw "next dispatch contract did not expose reply submit" }
+if ($GatewayReplyPayload.nextDispatchBoundary.Count -ne 2) { throw "reply-back next dispatch boundary count mismatch" }
+if ($GatewayReplyPayload.nextDispatchBoundary[0].tool -ne 'console.write.engine.reply.draft') { throw "reply-back next dispatch draft boundary mismatch" }
+if ($GatewayReplyPayload.nextDispatchBoundary[1].tool -ne 'console.write.engine.reply.submit') { throw "reply-back next dispatch submit boundary mismatch" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8
