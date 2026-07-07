@@ -27,6 +27,14 @@ $Seed = [ordered]@{ ok = $true; status = 'RUNNER_STATE_PERSISTED'; schemaVersion
 [pscustomobject]$Seed | ConvertTo-Json -Depth 40 | Set-Content -Path $StatePath -Encoding UTF8
 $Raw = & $Daemon -Task $Task -MaxIterations $MaxIterations 2>&1
 $Payload = $Raw | ConvertFrom-Json
+$AdapterPayload = $null
+if ($Payload.status -eq 'RUNNER_DAEMON_DISPATCH_READY' -and [string]$Payload.dispatchTool -eq 'console.read_.repo.context.capture') {
+    $Result = [pscustomobject]@{ ok = $true; tool = 'console.read_.repo.context.capture'; status = 'REPO_CONTEXT_CAPTURED'; workspacePath = $TargetRepo; mode = 'read_only'; capturedAt = (Get-Date).ToUniversalTime().ToString('o') }
+    $Result | ConvertTo-Json -Depth 20 | Set-Content -Path $Payload.expectedResultPath -Encoding UTF8
+    $Adapter = Join-Path $Root 'tool/runner-transport-adapter.ps1'
+    $AdapterRaw = & $Adapter -Task $Task -MaxIterations $MaxIterations -PayloadPath $Payload.dispatchPayloadPath -ResultPath $Payload.expectedResultPath 2>&1
+    $AdapterPayload = $AdapterRaw | ConvertFrom-Json
+}
 
 $ToolName = if ($Payload.toolCall) { [string]$Payload.toolCall.name } else { $null }
 $ArgumentsText = if ($Payload.toolCall) { ($Payload.toolCall.arguments | ConvertTo-Json -Depth 20 -Compress) } else { '' }
@@ -66,5 +74,8 @@ if ($Payload.status -eq 'RUNNER_DAEMON_STATE_TASK_MISMATCH') {
     targetBound = (-not $TargetMissing)
     handoffPath = $Payload.handoffPath
     expectedResultPath = $Payload.expectedResultPath
-    nextAction = $NextAction
+    adapterStatus = if ($AdapterPayload) { [string]$AdapterPayload.status } else { $null }
+    adapterNextAction = if ($AdapterPayload) { [string]$AdapterPayload.nextAction } else { $null }
+    autoFed = [bool]$AdapterPayload
+    nextAction = if ($AdapterPayload) { 'repo_context_capture_auto_fed' } else { $NextAction }
 } | ConvertTo-Json -Depth 40

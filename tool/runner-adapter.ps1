@@ -425,6 +425,15 @@ if ($TransportResultPath) {
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
+    } elseif ($TransportTool -eq 'console.read_.repo.context.capture') {
+        $Payload | Add-Member -NotePropertyName repoContextResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_REPO_CONTEXT_CAPTURE_ACCEPTED'; action = 'repo_context_capture_accepted'; nextAction = 'stop_loop' } -Force
+        Write-RunnerState -Payload $Payload
+        $Payload | ConvertTo-Json -Depth 40
+        exit 0
     } elseif ($TransportTool -eq 'console.write.engine.reply.draft' -or $TransportTool -eq 'console.write.engine.reply.submit') {
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
