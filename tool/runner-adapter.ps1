@@ -377,15 +377,15 @@ if ($TransportResultPath) {
     $TransportPayloadPath = Join-Path (Split-Path -Parent $TransportResultPath) ('transport-intake-' + $TransportTool.Replace('.', '-').Replace('_', '-') + '.json')
     $TransportPayload | ConvertTo-Json -Depth 40 | Set-Content -Path $TransportPayloadPath -Encoding UTF8
 
-    $IntakeArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations, '-ResponseTaskId', $(if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportPayload.task_id) { $TransportPayload.task_id } else { '' }))
+    $IntakeArgs = @{ Task = $Task; MaxIterations = $MaxIterations; ResponseTaskId = $(if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportPayload.task_id) { $TransportPayload.task_id } else { '' }) }
     if ($TransportTool -eq 'console.write.engine.answer.capture') {
-        $IntakeArgs += @('-AnswerCaptureResultPath', $TransportPayloadPath)
+        $IntakeArgs.AnswerCaptureResultPath = $TransportPayloadPath
     } elseif ($TransportTool -eq 'console.write.engine.gateway.decide') {
-        $IntakeArgs += @('-GatewayDecisionResultPath', $TransportPayloadPath)
+        $IntakeArgs.GatewayDecisionResultPath = $TransportPayloadPath
     } elseif ($TransportTool -eq 'console.write.engine.worker.tick') {
-        $IntakeArgs += @('-WorkerTickResultPath', $TransportPayloadPath)
+        $IntakeArgs.WorkerTickResultPath = $TransportPayloadPath
         if ([string]$TransportPayload.recoveryMode -eq 'worker_state') {
-            $IntakeArgs += @('-RetryAttempt', 0)
+            $IntakeArgs.RetryAttempt = 0
             $Payload | Add-Member -NotePropertyName recoveryResult -NotePropertyValue $TransportResult -Force
         }
     } elseif ($TransportTool -eq 'console.write.engine.chat.bind') {
