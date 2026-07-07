@@ -11,6 +11,28 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 $StatePath = Join-Path $Root 'var/runner/state/latest.json'
 
+function Enter-RunnerLock {
+    param([Parameter(Mandatory=$true)][string]$Owner)
+    $LockDir = Join-Path $Root 'var/runner/lock'
+    if (-not (Test-Path $LockDir)) { New-Item -ItemType Directory -Path $LockDir | Out-Null }
+    $LockPath = Join-Path $LockDir 'runner.lock'
+    if (Test-Path $LockPath) {
+        $Lock = Get-Content -Raw -Path $LockPath | ConvertFrom-Json
+        $AgeMinutes = ((Get-Date).ToUniversalTime() - ([datetime]$Lock.acquiredAt)).TotalMinutes
+        if ($AgeMinutes -lt 30) {
+            [pscustomobject]@{ ok = $false; status = 'RUNNER_LOCK_BUSY'; lockPath = $LockPath; owner = $Lock.owner; acquiredAt = $Lock.acquiredAt; nextAction = 'retry_later' } | ConvertTo-Json -Depth 20
+            exit 0
+        }
+    }
+    [pscustomobject]@{ owner = $Owner; pid = $PID; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Depth 20 | Set-Content -Path $LockPath -Encoding UTF8
+    return $LockPath
+}
+
+function Exit-RunnerLock {
+    param([string]$LockPath)
+    if ($LockPath -and (Test-Path $LockPath)) { Remove-Item -Path $LockPath -Force }
+}
+
 function Write-RunnerJournalEvent {
     param([Parameter(Mandatory=$true)]$Event)
     $JournalDir = Join-Path $Root 'var/runner/journal'
@@ -21,12 +43,15 @@ function Write-RunnerJournalEvent {
     return $JournalPath
 }
 
+$RunnerLockPath = Enter-RunnerLock -Owner 'runner-daemon'
+
 if (-not (Test-Path $StatePath)) {
     $StartArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations)
     if ($UntilRc) { $StartArgs += '-UntilRc' }
     if ($NextDispatchExecuteReal) { $StartArgs += '-NextDispatchExecuteReal' }
     $StartRaw = & $Runner @StartArgs 2>&1
     $StartPayload = $StartRaw | ConvertFrom-Json
+    Exit-RunnerLock -LockPath $RunnerLockPath
     [pscustomobject]@{
         ok = $true
         status = 'RUNNER_DAEMON_STARTED'
@@ -47,6 +72,7 @@ $ResumeRaw = & $Runner @ResumeArgs 2>&1
 $Payload = $ResumeRaw | ConvertFrom-Json
 
 if ($Payload.finalActionResult -and [string]$Payload.finalActionResult.nextAction -in @('stop_loop', 'stop_hard')) {
+    Exit-RunnerLock -LockPath $RunnerLockPath
     [pscustomobject]@{
         ok = $true
         status = 'RUNNER_DAEMON_TERMINAL'
@@ -60,6 +86,7 @@ if ($Payload.finalActionResult -and [string]$Payload.finalActionResult.nextActio
 }
 
 if (-not $Payload.nextDispatchPayload) {
+    Exit-RunnerLock -LockPath $RunnerLockPath
     [pscustomobject]@{
         ok = $true
         status = 'RUNNER_DAEMON_WAITING'
@@ -116,6 +143,7 @@ $Handoff = [ordered]@{
 }
 [pscustomobject]$Handoff | ConvertTo-Json -Depth 40 | Set-Content -Path $HandoffPath -Encoding UTF8
 $JournalPath = Write-RunnerJournalEvent ([ordered]@{ component = 'runner-daemon'; status = 'RUNNER_DAEMON_DISPATCH_READY'; action = 'handoff_ready'; task = $Task; dispatchTool = $FirstPayload.tool; dispatchPayloadPath = $FirstPayload.path; handoffPath = $HandoffPath; expectedResultPath = $ExpectedResultPath })
+Exit-RunnerLock -LockPath $RunnerLockPath
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_DAEMON_DISPATCH_READY'

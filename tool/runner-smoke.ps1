@@ -285,6 +285,14 @@ $DaemonPayload = $DaemonRaw | ConvertFrom-Json
 if ($DaemonPayload.status -ne 'RUNNER_DAEMON_DISPATCH_READY') { throw "runner daemon dispatch was not ready" }
 if (-not $DaemonPayload.dispatchPayloadPath) { throw "runner daemon dispatch payload path missing" }
 if (-not $DaemonPayload.dispatchTool) { throw "runner daemon dispatch tool missing" }
+$LockDir = Join-Path $Root 'var/runner/lock'
+if (-not (Test-Path $LockDir)) { New-Item -ItemType Directory -Path $LockDir | Out-Null }
+$LockPath = Join-Path $LockDir 'runner.lock'
+[pscustomobject]@{ owner = 'smoke-lock'; pid = 0; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Depth 20 | Set-Content -Path $LockPath -Encoding UTF8
+$DaemonBusyRaw = & (Join-Path $Root 'tool/runner-daemon.ps1') -Task $Task -MaxIterations 1 2>&1
+$DaemonBusyPayload = $DaemonBusyRaw | ConvertFrom-Json
+if ($DaemonBusyPayload.status -ne 'RUNNER_LOCK_BUSY') { throw "runner daemon lock busy guard mismatch" }
+Remove-Item -Path $LockPath -Force
 if ($DaemonPayload.toolCall.name -ne $DaemonPayload.dispatchTool) { throw "runner daemon tool call name mismatch" }
 if (-not $DaemonPayload.toolCall.arguments) { throw "runner daemon tool call arguments missing" }
 if (-not $DaemonPayload.expectedResultPath) { throw "runner daemon expected result path missing" }
