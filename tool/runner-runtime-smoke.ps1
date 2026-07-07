@@ -3,6 +3,13 @@ $ErrorActionPreference="Stop"
 $Root=Split-Path -Parent $PSScriptRoot
 $Daemon=Join-Path $Root "tool/runner-daemon.ps1"
 $Adapter=Join-Path $Root "tool/runner-transport-adapter.ps1"
+$StateDir=Join-Path $Root "var/runner/state"
+$StatePath=Join-Path $StateDir "latest.json"
+$BackupPath=$null
+$LockPath=Join-Path $Root "var/runner/lock/runner.lock"
+if(Test-Path $LockPath){Remove-Item -Path $LockPath -Force}
+if(Test-Path $StatePath){$BackupPath=$StatePath+".runtime-smoke.bak";Move-Item -Path $StatePath -Destination $BackupPath -Force}
+trap{if(Test-Path $LockPath){Remove-Item -Path $LockPath -Force};if($BackupPath -and (Test-Path $BackupPath)){Move-Item -Path $BackupPath -Destination $StatePath -Force};throw $_}
 $FirstRaw=& $Daemon -Task $Task -MaxIterations $MaxIterations 2>&1
 $First=$FirstRaw|ConvertFrom-Json
 if($First.status -eq "RUNNER_DAEMON_STARTED"){$FirstRaw=& $Daemon -Task $Task -MaxIterations $MaxIterations 2>&1;$First=$FirstRaw|ConvertFrom-Json}
@@ -16,4 +23,6 @@ $AdapterPayload=$AdapterRaw|ConvertFrom-Json
 if($AdapterPayload.status -ne "RUNNER_TRANSPORT_ADAPTER_FED"){throw "runtime smoke adapter did not feed: $($AdapterPayload.status)"}
 $SecondRaw=& $Daemon -Task $Task -MaxIterations $MaxIterations 2>&1
 $Second=$SecondRaw|ConvertFrom-Json
+if(Test-Path $LockPath){Remove-Item -Path $LockPath -Force}
+if($BackupPath -and (Test-Path $BackupPath)){Move-Item -Path $BackupPath -Destination $StatePath -Force}
 [pscustomobject]@{ok=$true;status="RUNNER_RUNTIME_SMOKE_PASSED";task=$Task;firstStatus=$First.status;tool=$Tool;resultStatus=$ResultStatus;adapterStatus=$AdapterPayload.status;secondStatus=$Second.status;handoffPath=$First.handoffPath;resultPath=$First.expectedResultPath}|ConvertTo-Json -Depth 40
