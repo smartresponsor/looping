@@ -12,6 +12,16 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 
+function Write-RunnerJournalEvent {
+    param([Parameter(Mandatory=$true)]$Event)
+    $JournalDir = Join-Path $Root 'var/runner/journal'
+    if (-not (Test-Path $JournalDir)) { New-Item -ItemType Directory -Path $JournalDir | Out-Null }
+    $JournalPath = Join-Path $JournalDir 'runner.ndjson'
+    $Event | Add-Member -NotePropertyName writtenAt -NotePropertyValue (Get-Date).ToUniversalTime().ToString('o') -Force
+    ([pscustomobject]$Event | ConvertTo-Json -Depth 40 -Compress) + "`n" | Add-Content -Path $JournalPath -Encoding UTF8
+    return $JournalPath
+}
+
 $DispatchPayload = Get-Content -Raw -Path $PayloadPath | ConvertFrom-Json
 $ExpectedTool = [string]$DispatchPayload.runnerExecutionPlan.tool
 $RawResult = Get-Content -Raw -Path $ResultPath | ConvertFrom-Json
@@ -41,6 +51,7 @@ $RunnerArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations, '-RetryAttempt
 if ($UntilRc) { $RunnerArgs += '-UntilRc' }
 $FeedRaw = & $Runner @RunnerArgs 2>&1
 $Feed = $FeedRaw | ConvertFrom-Json
+$JournalPath = Write-RunnerJournalEvent ([ordered]@{ component = 'runner-transport-adapter'; status = 'RUNNER_TRANSPORT_ADAPTER_FED'; action = 'transport_result_accepted_and_fed'; task = $Task; expectedTool = $ExpectedTool; payloadPath = $PayloadPath; resultPath = $ResultPath; acceptedPath = $AcceptedPath })
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_TRANSPORT_ADAPTER_FED'

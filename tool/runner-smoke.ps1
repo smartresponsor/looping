@@ -186,6 +186,10 @@ $TransportAdapterPayload = $TransportAdapterRaw | ConvertFrom-Json
 if ($TransportAdapterPayload.status -ne 'RUNNER_TRANSPORT_ADAPTER_FED') { throw "transport adapter did not feed result" }
 if ($TransportAdapterPayload.feed.finalActionResult.status -ne 'FINAL_ACTION_RECOVERY_RESULT_ACCEPTED') { throw "transport adapter feed final action mismatch" }
 if ($TransportAdapterPayload.feed.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "transport adapter feed next dispatch mismatch" }
+$TransportJournalPath = Join-Path $Root 'var/runner/journal/runner.ndjson'
+if (-not (Test-Path $TransportJournalPath)) { throw "transport adapter journal file missing" }
+$TransportJournalRaw = Get-Content -Raw -Path $TransportJournalPath
+if ($TransportJournalRaw -notlike '*RUNNER_TRANSPORT_ADAPTER_FED*') { throw "transport adapter journal fed event missing" }
 
 $InvalidTransportResultPath = Join-Path $Root 'var/runner/transport-adapter-invalid-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_CHAT_BIND_RECOVERED' } | ConvertTo-Json -Depth 20 | Set-Content -Path $InvalidTransportResultPath -Encoding UTF8
@@ -289,6 +293,9 @@ if (@($DaemonHandoff.runbook).Count -ne 4) { throw "runner daemon handoff runboo
 if ($DaemonHandoff.runbook[0].action -ne 'invoke_tool_call') { throw "runner daemon runbook step 1 mismatch" }
 if (@($DaemonHandoff.runbook[1].requiredFields) -notcontains 'tool') { throw "runner daemon runbook required fields mismatch" }
 if ($DaemonHandoff.runbook[2].action -ne 'run_transport_adapter') { throw "runner daemon runbook step 3 mismatch" }
+if (-not (Test-Path $DaemonPayload.journalPath)) { throw "runner daemon journal file missing" }
+$RunnerJournalRaw = Get-Content -Raw -Path $DaemonPayload.journalPath
+if ($RunnerJournalRaw -notlike '*RUNNER_DAEMON_DISPATCH_READY*') { throw "runner daemon journal dispatch event missing" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8

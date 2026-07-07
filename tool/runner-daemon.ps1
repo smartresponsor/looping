@@ -11,6 +11,16 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 $StatePath = Join-Path $Root 'var/runner/state/latest.json'
 
+function Write-RunnerJournalEvent {
+    param([Parameter(Mandatory=$true)]$Event)
+    $JournalDir = Join-Path $Root 'var/runner/journal'
+    if (-not (Test-Path $JournalDir)) { New-Item -ItemType Directory -Path $JournalDir | Out-Null }
+    $JournalPath = Join-Path $JournalDir 'runner.ndjson'
+    $Event | Add-Member -NotePropertyName writtenAt -NotePropertyValue (Get-Date).ToUniversalTime().ToString('o') -Force
+    ([pscustomobject]$Event | ConvertTo-Json -Depth 40 -Compress) + "`n" | Add-Content -Path $JournalPath -Encoding UTF8
+    return $JournalPath
+}
+
 if (-not (Test-Path $StatePath)) {
     $StartArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations)
     if ($UntilRc) { $StartArgs += '-UntilRc' }
@@ -105,6 +115,7 @@ $Handoff = [ordered]@{
     nextAction = 'invoke_tool_call_write_result_then_run_adapter'
 }
 [pscustomobject]$Handoff | ConvertTo-Json -Depth 40 | Set-Content -Path $HandoffPath -Encoding UTF8
+$JournalPath = Write-RunnerJournalEvent ([ordered]@{ component = 'runner-daemon'; status = 'RUNNER_DAEMON_DISPATCH_READY'; action = 'handoff_ready'; task = $Task; dispatchTool = $FirstPayload.tool; dispatchPayloadPath = $FirstPayload.path; handoffPath = $HandoffPath; expectedResultPath = $ExpectedResultPath })
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_DAEMON_DISPATCH_READY'
@@ -120,6 +131,7 @@ $Handoff = [ordered]@{
     adapterCommand = $AdapterCommand
     handoffPath = $HandoffPath
     handoff = ([pscustomobject]$Handoff)
+    journalPath = $JournalPath
     nextDispatchPayload = $Payload.nextDispatchPayload
     nextDispatchBoundary = $Payload.nextDispatchBoundary
     nextAction = 'invoke_console_mcp_tool_call_then_feed_transport_result'
