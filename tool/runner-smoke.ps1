@@ -187,6 +187,19 @@ if ($TransportAdapterPayload.status -ne 'RUNNER_TRANSPORT_ADAPTER_FED') { throw 
 if ($TransportAdapterPayload.feed.finalActionResult.status -ne 'FINAL_ACTION_RECOVERY_RESULT_ACCEPTED') { throw "transport adapter feed final action mismatch" }
 if ($TransportAdapterPayload.feed.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "transport adapter feed next dispatch mismatch" }
 
+$InvalidTransportResultPath = Join-Path $Root 'var/runner/transport-adapter-invalid-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_CHAT_BIND_RECOVERED' } | ConvertTo-Json -Depth 20 | Set-Content -Path $InvalidTransportResultPath -Encoding UTF8
+$InvalidTransportRaw = & (Join-Path $Root 'tool/runner-transport-adapter.ps1') -Task $Task -MaxIterations 1 -PayloadPath $AnswerRetryExhaustedPayload.nextDispatchPayload[0].path -ResultPath $InvalidTransportResultPath 2>&1
+$InvalidTransportPayload = $InvalidTransportRaw | ConvertFrom-Json
+if ($InvalidTransportPayload.status -ne 'RUNNER_TRANSPORT_RESULT_CONTRACT_INVALID') { throw "transport adapter invalid contract was not rejected" }
+if (@($InvalidTransportPayload.missingFields) -notcontains 'tool') { throw "transport adapter invalid contract did not report missing tool" }
+
+$MismatchTransportResultPath = Join-Path $Root 'var/runner/transport-adapter-mismatch-smoke.json'
+[pscustomobject]@{ ok = $true; tool = 'console.write.engine.worker.tick'; status = 'ENGINE_WORKER_TICK_ACCEPTED' } | ConvertTo-Json -Depth 20 | Set-Content -Path $MismatchTransportResultPath -Encoding UTF8
+$MismatchTransportRaw = & (Join-Path $Root 'tool/runner-transport-adapter.ps1') -Task $Task -MaxIterations 1 -PayloadPath $AnswerRetryExhaustedPayload.nextDispatchPayload[0].path -ResultPath $MismatchTransportResultPath 2>&1
+$MismatchTransportPayload = $MismatchTransportRaw | ConvertFrom-Json
+if ($MismatchTransportPayload.status -ne 'RUNNER_TRANSPORT_RESULT_TOOL_MISMATCH') { throw "transport adapter tool mismatch was not rejected" }
+
 $WorkerRecoveryTransportPath = Join-Path $Root 'var/runner/worker-recovery-transport-smoke.json'
 [pscustomobject]@{
     ok = $true

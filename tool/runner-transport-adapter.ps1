@@ -12,6 +12,22 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 
+$DispatchPayload = Get-Content -Raw -Path $PayloadPath | ConvertFrom-Json
+$ExpectedTool = [string]$DispatchPayload.runnerExecutionPlan.tool
+$RawResult = Get-Content -Raw -Path $ResultPath | ConvertFrom-Json
+$MissingFields = @()
+if ($null -eq $RawResult.ok) { $MissingFields += 'ok' }
+if (-not $RawResult.tool) { $MissingFields += 'tool' }
+if (-not $RawResult.status) { $MissingFields += 'status' }
+if ($MissingFields.Count -gt 0) {
+    [pscustomobject]@{ ok = $false; status = 'RUNNER_TRANSPORT_RESULT_CONTRACT_INVALID'; missingFields = $MissingFields; expectedTool = $ExpectedTool; nextAction = 'rewrite_executor_result_file' } | ConvertTo-Json -Depth 40
+    exit 0
+}
+if ([string]$RawResult.tool -ne $ExpectedTool) {
+    [pscustomobject]@{ ok = $false; status = 'RUNNER_TRANSPORT_RESULT_TOOL_MISMATCH'; expectedTool = $ExpectedTool; actualTool = [string]$RawResult.tool; nextAction = 'rewrite_executor_result_file' } | ConvertTo-Json -Depth 40
+    exit 0
+}
+
 $AcceptedRaw = & $Dispatcher -PayloadPath $PayloadPath -ResultPath $ResultPath 2>&1
 $Accepted = $AcceptedRaw | ConvertFrom-Json
 if ($Accepted.status -ne 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED') {
