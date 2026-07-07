@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Task,
     [string]$Mode = 'repo_rc_implementation',
     [int]$MaxIterations = 1,
+    [int]$RetryAttempt = 0,
     [switch]$UntilRc,
     [switch]$Execute,
     [switch]$Continue,
@@ -107,7 +108,24 @@ function Add-RetryPolicy {
         'FINAL_ACTION_RC_REACHED' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_STOP'; action = 'stop_loop'; strategy = 'terminal'; nextAction = 'stop_loop'; maxAttempts = 0 } }
         default { $null }
     }
-    if ($Policy) { $Payload | Add-Member -NotePropertyName retryPolicy -NotePropertyValue ([pscustomobject]$Policy) -Force }
+    if ($Policy) {
+        $Policy.attempt = $RetryAttempt
+        $Policy.nextAttempt = if ([int]$Policy.maxAttempts -gt 0) { $RetryAttempt + 1 } else { $RetryAttempt }
+        if ([int]$Policy.maxAttempts -gt 0 -and $RetryAttempt -ge [int]$Policy.maxAttempts) {
+            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+            $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+                ok = $false
+                status = 'FINAL_ACTION_RETRY_EXHAUSTED'
+                action = 'stop_or_recover'
+                nextAction = 'stop_or_recover'
+            } -Force
+            $Policy.status = 'RETRY_POLICY_EXHAUSTED'
+            $Policy.action = 'stop_or_recover'
+            $Policy.strategy = 'terminal'
+            $Policy.nextAction = 'stop_or_recover'
+        }
+        $Payload | Add-Member -NotePropertyName retryPolicy -NotePropertyValue ([pscustomobject]$Policy) -Force
+    }
 }
 
 function Update-RunnerBudget {
@@ -175,6 +193,7 @@ function Write-RunnerState {
         nextDispatchContract = $Payload.nextDispatchContract
         budget = if ($Payload.budget) { $Payload.budget } else { [ordered]@{ mode = 'single_step'; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
         retryPolicy = $Payload.retryPolicy
+        retryAttempt = $RetryAttempt
         updatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
 

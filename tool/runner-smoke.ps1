@@ -151,6 +151,14 @@ if ($AnswerNotReadyPayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAP
 if ($AnswerNotReadyPayload.answerCaptureWaitPlan.status -ne 'ANSWER_CAPTURE_WAIT_PLAN_READY') { throw "answer capture wait plan was not ready" }
 if ($AnswerNotReadyPayload.retryPolicy.action -ne 'retry_answer_capture') { throw "answer capture wait retry policy mismatch" }
 if ($AnswerNotReadyPayload.retryPolicy.strategy -ne 'bounded_retry') { throw "answer capture wait retry strategy mismatch" }
+if ($AnswerNotReadyPayload.retryPolicy.attempt -ne 0) { throw "answer capture retry attempt mismatch" }
+if ($AnswerNotReadyPayload.retryPolicy.nextAttempt -ne 1) { throw "answer capture retry next attempt mismatch" }
+
+$AnswerRetryExhaustedRaw = & $Runner -Task $Task -MaxIterations 1 -RetryAttempt 5 -ResponseTaskId 'smoke-engine-task' -AnswerCaptureResultPath $AnswerNotReadyPath 2>&1
+$AnswerRetryExhaustedPayload = $AnswerRetryExhaustedRaw | ConvertFrom-Json
+if ($AnswerRetryExhaustedPayload.finalActionResult.status -ne 'FINAL_ACTION_RETRY_EXHAUSTED') { throw "answer capture retry exhaustion final action mismatch" }
+if ($AnswerRetryExhaustedPayload.retryPolicy.status -ne 'RETRY_POLICY_EXHAUSTED') { throw "answer capture retry policy was not exhausted" }
+if ($AnswerRetryExhaustedPayload.retryPolicy.attempt -ne 5) { throw "answer capture exhausted attempt mismatch" }
 
 $GatewayContinuePath = Join-Path $Root 'var/runner/gateway-continue-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayContinuePath -Encoding UTF8
