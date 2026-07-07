@@ -364,6 +364,38 @@ if ($TransportResultPath) {
         $IntakeArgs += @('-GatewayDecisionResultPath', $TransportPayloadPath)
     } elseif ($TransportTool -eq 'console.write.engine.worker.tick') {
         $IntakeArgs += @('-WorkerTickResultPath', $TransportPayloadPath)
+    } elseif ($TransportTool -eq 'console.write.engine.chat.bind') {
+        $RecoveredTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportPayload.task_id) { $TransportPayload.task_id } else { $null }
+        $RecoveryCaptureContract = [ordered]@{
+            ok = $true
+            status = 'RECOVERY_RESULT_NEXT_CAPTURE_CONTRACT_READY'
+            stage = 'answer_capture'
+            tool = 'console.write.engine.answer.capture'
+            arguments = [ordered]@{
+                taskId = $RecoveredTaskId
+                preferredChatId = if ($TransportPayload.chat_id) { $TransportPayload.chat_id } else { $null }
+                requireChatId = $true
+                readinessProfile = 'rc_gate'
+                confirmCapture = $true
+                retryAttempt = 0
+            }
+            mutation = 'write'
+            confirmationRequired = $false
+            execution = 'external_console_mcp_required'
+            nextAction = 'dispatch_answer_capture'
+        }
+        $Payload | Add-Member -NotePropertyName recoveryResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName retryAttempt -NotePropertyValue 0 -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue ([pscustomobject]$RecoveryCaptureContract) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_RECOVERY_RESULT_ACCEPTED'
+            action = 'dispatch_answer_capture'
+            nextAction = 'dispatch_answer_capture'
+        } -Force
+        Write-RunnerState -Payload $Payload
+        $Payload | ConvertTo-Json -Depth 40
+        exit 0
     } elseif ($TransportTool -eq 'console.write.engine.reply.draft' -or $TransportTool -eq 'console.write.engine.reply.submit') {
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force

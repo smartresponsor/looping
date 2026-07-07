@@ -165,6 +165,20 @@ if ($AnswerRetryExhaustedPayload.recoveryPlan.dispatchContract.tool -ne 'console
 if ($AnswerRetryExhaustedPayload.nextDispatchContract.tool -ne 'console.write.engine.chat.bind') { throw "answer capture recovery next dispatch mismatch" }
 if ($AnswerRetryExhaustedPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "answer capture recovery next dispatch boundary not ready" }
 
+$RecoveryTransportPath = Join-Path $Root 'var/runner/recovery-transport-smoke.json'
+[pscustomobject]@{
+    ok = $true
+    status = 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED'
+    tool = 'console.write.engine.chat.bind'
+    result = @{ ok = $true; tool = 'console.write.engine.chat.bind'; status = 'ENGINE_CHAT_BIND_RECOVERED'; task_id = 'smoke-engine-task'; chat_id = 'smoke-chat-recovered' }
+} | ConvertTo-Json -Depth 20 | Set-Content -Path $RecoveryTransportPath -Encoding UTF8
+$RecoveryResultRaw = & $Runner -Task $Task -MaxIterations 1 -RetryAttempt 5 -ResponseTaskId 'smoke-engine-task' -TransportResultPath $RecoveryTransportPath 2>&1
+$RecoveryResultPayload = $RecoveryResultRaw | ConvertFrom-Json
+if ($RecoveryResultPayload.finalActionResult.status -ne 'FINAL_ACTION_RECOVERY_RESULT_ACCEPTED') { throw "recovery result final action mismatch" }
+if ($RecoveryResultPayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "recovery result did not continue to answer capture" }
+if ($RecoveryResultPayload.nextDispatchContract.arguments.retryAttempt -ne 0) { throw "recovery result did not reset retry attempt" }
+if ($RecoveryResultPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "recovery result next dispatch boundary not ready" }
+
 $GatewayContinuePath = Join-Path $Root 'var/runner/gateway-continue-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayContinuePath -Encoding UTF8
 $GatewayContinueRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayContinuePath 2>&1
