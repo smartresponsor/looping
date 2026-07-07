@@ -200,6 +200,9 @@ if ($ResumePayload.runnerMode -ne 'resume_latest') { throw "runner did not enter
 if ($ResumePayload.finalActionResult.status -ne 'FINAL_ACTION_RESUME_LATEST') { throw "resume latest final action mismatch" }
 if ($ResumePayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "resume latest did not restore answer capture next dispatch" }
 if ($ResumePayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "resume latest next dispatch boundary was not ready" }
+if (-not $ResumePayload.budget) { throw "resume latest budget cursor missing" }
+if ($ResumePayload.budget.remaining -ne 1) { throw "resume latest budget remaining mismatch" }
+if ($ResumePayload.budget.mode -ne 'steps') { throw "resume latest budget mode mismatch" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8

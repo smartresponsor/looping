@@ -110,6 +110,7 @@ function Write-RunnerState {
         finalActionSelected = $Payload.finalActionSelected
         finalActionResult = $Payload.finalActionResult
         nextDispatchContract = $Payload.nextDispatchContract
+        budget = if ($Payload.budget) { $Payload.budget } else { [ordered]@{ mode = 'single_step'; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
         updatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
 
@@ -139,6 +140,7 @@ if ($ResumeLatest) {
             nextAction = 'dispatch_next_from_state'
         }
         nextDispatchContract = $State.nextDispatchContract
+        budget = if ($State.budget) { $State.budget } else { [ordered]@{ mode = 'single_step'; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
         resumeState = $State
         resumeStatePath = $StatePath
     }
@@ -185,6 +187,7 @@ if ($AutoFinalAction) {
 
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
 $Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($ReplySequenceResultPath) { 'reply_sequence_result' } elseif ($TransportResultPath) { 'transport_result' } elseif ($WorkerTickResultPath) { 'worker_tick_result' } elseif ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ mode = if ($UntilRc) { 'until_rc' } else { 'steps' }; remaining = $MaxIterations; untilRc = [bool]$UntilRc }) -Force
 
 if ($ReplySequenceResultPath) {
     if (-not (Test-Path $ReplySequenceResultPath)) { throw "reply sequence result file not found: $ReplySequenceResultPath" }
