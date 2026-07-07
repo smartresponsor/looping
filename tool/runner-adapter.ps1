@@ -364,6 +364,10 @@ if ($TransportResultPath) {
         $IntakeArgs += @('-GatewayDecisionResultPath', $TransportPayloadPath)
     } elseif ($TransportTool -eq 'console.write.engine.worker.tick') {
         $IntakeArgs += @('-WorkerTickResultPath', $TransportPayloadPath)
+        if ([string]$TransportPayload.recoveryMode -eq 'worker_state') {
+            $IntakeArgs += @('-RetryAttempt', 0)
+            $Payload | Add-Member -NotePropertyName recoveryResult -NotePropertyValue $TransportResult -Force
+        }
     } elseif ($TransportTool -eq 'console.write.engine.chat.bind') {
         $RecoveredTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportPayload.task_id) { $TransportPayload.task_id } else { $null }
         $RecoveryCaptureContract = [ordered]@{

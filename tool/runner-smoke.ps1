@@ -179,6 +179,20 @@ if ($RecoveryResultPayload.nextDispatchContract.tool -ne 'console.write.engine.a
 if ($RecoveryResultPayload.nextDispatchContract.arguments.retryAttempt -ne 0) { throw "recovery result did not reset retry attempt" }
 if ($RecoveryResultPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "recovery result next dispatch boundary not ready" }
 
+$WorkerRecoveryTransportPath = Join-Path $Root 'var/runner/worker-recovery-transport-smoke.json'
+[pscustomobject]@{
+    ok = $true
+    status = 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED'
+    tool = 'console.write.engine.worker.tick'
+    result = @{ ok = $true; tool = 'console.write.engine.worker.tick'; status = 'ENGINE_WORKER_TICK_ACCEPTED'; task_id = 'smoke-engine-task'; recoveryMode = 'worker_state' }
+} | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerRecoveryTransportPath -Encoding UTF8
+$WorkerRecoveryRaw = & $Runner -Task $Task -MaxIterations 2 -RetryAttempt 3 -ResponseTaskId 'smoke-engine-task' -TransportResultPath $WorkerRecoveryTransportPath 2>&1
+$WorkerRecoveryPayload = $WorkerRecoveryRaw | ConvertFrom-Json
+if ($WorkerRecoveryPayload.finalActionResult.status -ne 'FINAL_ACTION_TRANSPORT_RESULT_FED') { throw "worker recovery transport was not fed" }
+if ($WorkerRecoveryPayload.transportIntakePayload.runnerMode -ne 'worker_tick_result') { throw "worker recovery did not route to worker intake" }
+if ($WorkerRecoveryPayload.transportIntakePayload.finalActionResult.status -ne 'FINAL_ACTION_WORKER_CONTINUE') { throw "worker recovery intake did not continue" }
+if ($WorkerRecoveryPayload.transportIntakePayload.retryPolicy) { throw "worker recovery intake should reset retry policy on successful continue" }
+
 $GatewayContinuePath = Join-Path $Root 'var/runner/gateway-continue-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayContinuePath -Encoding UTF8
 $GatewayContinueRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayContinuePath 2>&1
