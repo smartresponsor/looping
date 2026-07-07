@@ -51,9 +51,9 @@ function Write-RunnerJournalEvent {
 $RunnerLockPath = Enter-RunnerLock -Owner 'runner-daemon'
 
 if (-not (Test-Path $StatePath)) {
-    $StartArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations)
-    if ($UntilRc) { $StartArgs += '-UntilRc' }
-    if ($NextDispatchExecuteReal) { $StartArgs += '-NextDispatchExecuteReal' }
+    $StartArgs = @{ Task = $Task; MaxIterations = $MaxIterations }
+    if ($UntilRc) { $StartArgs.UntilRc = $true }
+    if ($NextDispatchExecuteReal) { $StartArgs.NextDispatchExecuteReal = $true }
     $StartRaw = & $Runner @StartArgs 2>&1
     $StartPayload = $StartRaw | ConvertFrom-Json
     Exit-RunnerLock -LockPath $RunnerLockPath
@@ -70,9 +70,9 @@ if (-not (Test-Path $StatePath)) {
     exit 0
 }
 
-$ResumeArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations, '-RetryAttempt', $RetryAttempt, '-ResumeLatest')
-if ($UntilRc) { $ResumeArgs += '-UntilRc' }
-if ($NextDispatchExecuteReal) { $ResumeArgs += '-NextDispatchExecuteReal' }
+$ResumeArgs = @{ Task = $Task; MaxIterations = $MaxIterations; RetryAttempt = $RetryAttempt; ResumeLatest = $true }
+if ($UntilRc) { $ResumeArgs.UntilRc = $true }
+if ($NextDispatchExecuteReal) { $ResumeArgs.NextDispatchExecuteReal = $true }
 $ResumeRaw = & $Runner @ResumeArgs 2>&1
 $Payload = $ResumeRaw | ConvertFrom-Json
 
