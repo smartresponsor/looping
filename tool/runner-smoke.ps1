@@ -115,6 +115,14 @@ try {
 if ($NextDispatchReadyPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_REAL_ADAPTER_READY') { throw "next dispatch real adapter was not ready" }
 if ($NextDispatchReadyPayload.nextDispatchBoundary[0].toolCall.name -ne 'console.write.engine.answer.capture') { throw "next dispatch toolCall was not answer capture" }
 
+$TransportResultPath = Join-Path $Root 'var/runner/transport-result-smoke.json'
+[pscustomobject]@{ ok = $true; tool = 'console.write.engine.answer.capture'; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $TransportResultPath -Encoding UTF8
+$Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
+$TransportResultRaw = & $Dispatcher -PayloadPath $NextDispatchReadyPayload.nextDispatchPayload[0].path -ResultPath $TransportResultPath 2>&1
+$TransportResultPayload = $TransportResultRaw | ConvertFrom-Json
+if ($TransportResultPayload.status -ne 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED') { throw "transport result was not accepted" }
+if ($TransportResultPayload.nextAction -ne 'feed_result_to_runner_intake') { throw "transport result next action mismatch" }
+
 $AnswerCapturedPath = Join-Path $Root 'var/runner/answer-captured-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerCapturedPath -Encoding UTF8
 $AnswerCapturedRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -AnswerCaptureResultPath $AnswerCapturedPath 2>&1

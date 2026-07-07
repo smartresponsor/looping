@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)][string]$PayloadPath,
     [switch]$Simulate,
     [switch]$DryRun,
-    [switch]$ExecuteReal
+    [switch]$ExecuteReal,
+    [string]$ResultPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +29,27 @@ $AllowedTools = @{
 
 if (-not $AllowedTools.ContainsKey([string]$Plan.tool)) { throw "dispatcher tool not allowed: $($Plan.tool)" }
 if ($Plan.allowedMode -ne $AllowedTools[[string]$Plan.tool]) { throw "dispatcher allowedMode mismatch: $($Plan.allowedMode)" }
+
+if ($ResultPath) {
+    if (-not (Test-Path $ResultPath)) { throw "result file not found: $ResultPath" }
+    $ResultPayload = Get-Content -Raw -Path $ResultPath | ConvertFrom-Json
+    if ($ResultPayload.tool -and $ResultPayload.tool -ne $Plan.tool) { throw "result tool mismatch: $($ResultPayload.tool)" }
+    [pscustomobject]@{
+        ok = ($ResultPayload.ok -eq $true)
+        status = if ($ResultPayload.ok -eq $true) { 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED' } else { 'DISPATCHER_TRANSPORT_RESULT_FAILED' }
+        payloadPath = $PayloadPath
+        resultPath = $ResultPath
+        tool = $Plan.tool
+        arguments = $Plan.arguments
+        toolCall = @{
+            name = $Plan.tool
+            arguments = $Plan.arguments
+        }
+        result = $ResultPayload
+        nextAction = 'feed_result_to_runner_intake'
+    } | ConvertTo-Json -Depth 40
+    exit 0
+}
 
 $Boundary = [ordered]@{
     ok = $true
