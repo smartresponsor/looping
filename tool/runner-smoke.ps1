@@ -65,6 +65,19 @@ if ($HostBridgePayload.invocationCount -ne 2) { throw "host bridge invocation co
 if ($HostBridgePayload.invocations[0].tool -ne 'console.write.engine.reply.draft') { throw "host bridge draft invocation was not canonical" }
 if ($HostBridgePayload.invocations[1].tool -ne 'console.write.engine.reply.submit') { throw "host bridge submit invocation was not canonical" }
 
+$HostResultPath = Join-Path $Root 'var/runner/host-bridge-result-smoke.json'
+[pscustomobject]@{
+    results = @(
+        @{ ok = $true; tool = 'console.write.engine.reply.draft'; status = 'ENGINE_REPLY_BACK_DRAFTED' },
+        @{ ok = $true; tool = 'console.write.engine.reply.submit'; status = 'ENGINE_REPLY_BACK_SUBMITTED' }
+    )
+} | ConvertTo-Json -Depth 20 | Set-Content -Path $HostResultPath -Encoding UTF8
+$HostResultRaw = & $HostBridge -PayloadPath $HostPayloadPath -ResultPath $HostResultPath 2>&1
+$HostResultPayload = $HostResultRaw | ConvertFrom-Json
+
+if ($HostResultPayload.status -ne 'HOST_BRIDGE_RESULT_ACCEPTED') { throw "host bridge result was not accepted" }
+if ($HostResultPayload.nextAction -ne 'continue_after_host_invocation') { throw "host bridge did not continue after host invocation" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'

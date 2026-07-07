@@ -1,5 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$PayloadPath,
+    [string]$ResultPath,
     [switch]$DryRun,
     [switch]$Invoke
 )
@@ -34,6 +35,33 @@ for ($Index = 0; $Index -lt $Items.Count; $Index++) {
         arguments = $ToolCall.arguments
         sourceStatus = $Item.status
     }
+}
+
+if ($ResultPath) {
+    if (-not (Test-Path $ResultPath)) { throw "result file not found: $ResultPath" }
+    $ResultPayload = Get-Content -Raw -Path $ResultPath | ConvertFrom-Json
+    $Results = @($ResultPayload)
+    if ($ResultPayload.results) { $Results = @($ResultPayload.results) }
+    if ($Results.Count -ne $Invocation.Count) { throw "host bridge result count mismatch" }
+
+    for ($Index = 0; $Index -lt $Invocation.Count; $Index++) {
+        $Expected = $Invocation[$Index]
+        $Actual = $Results[$Index]
+        if ([string]$Actual.tool -ne [string]$Expected.tool) { throw "host bridge result tool mismatch at index $Index" }
+        if ($Actual.ok -ne $true) { throw "host bridge result not ok at index $Index" }
+    }
+
+    [pscustomobject]@{
+        ok = $true
+        status = 'HOST_BRIDGE_RESULT_ACCEPTED'
+        payloadPath = $PayloadPath
+        resultPath = $ResultPath
+        invocationCount = $Invocation.Count
+        invocations = $Invocation
+        results = $Results
+        nextAction = 'continue_after_host_invocation'
+    } | ConvertTo-Json -Depth 40
+    exit 0
 }
 
 $Plan = [ordered]@{
