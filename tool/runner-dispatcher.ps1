@@ -63,14 +63,19 @@ if ($ExecuteReal) {
     }
 
     [pscustomobject]@{
-        ok = $false
-        status = 'DISPATCHER_REAL_EXECUTION_ADAPTER_MISSING'
+        ok = $true
+        status = 'DISPATCHER_REAL_EXECUTION_ADAPTER_READY'
         tool = $Plan.tool
         arguments = $Plan.arguments
         allowedMode = $Plan.allowedMode
         mutation = $Plan.mutation
-        realExecution = 'not_implemented'
-        nextAction = 'wire_concrete_console_mcp_invocation_adapter'
+        realExecution = 'external_console_mcp_required'
+        adapter = 'console_mcp_tool_call'
+        toolCall = @{
+            name = $Plan.tool
+            arguments = $Plan.arguments
+        }
+        nextAction = 'invoke_console_mcp_tool_call'
     } | ConvertTo-Json -Depth 30
     exit 0
 }

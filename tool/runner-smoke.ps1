@@ -40,6 +40,20 @@ if (-not $RealBlockedPayload.responseDispatcherPayload) { throw 'real blocked re
 if ($RealBlockedPayload.responseDispatcherPayload[0].status -ne 'DISPATCHER_REAL_EXECUTION_ENV_REQUIRED') { throw "real execution did not require env guard: $($RealBlockedPayload.responseDispatcherPayload[0].status)" }
 if ($RealBlockedPayload.responseDispatcherPayload[0].realExecution -ne 'blocked') { throw "real execution was not blocked: $($RealBlockedPayload.responseDispatcherPayload[0].realExecution)" }
 
+$PreviousRealExecutionEnv = $env:CHATGPT_LOOP_REAL_EXECUTION
+try {
+    $env:CHATGPT_LOOP_REAL_EXECUTION = '1'
+    $RealReadyRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -ExecuteReal -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' 2>&1
+    $RealReadyPayload = $RealReadyRaw | ConvertFrom-Json
+} finally {
+    $env:CHATGPT_LOOP_REAL_EXECUTION = $PreviousRealExecutionEnv
+}
+
+if (-not $RealReadyPayload.responseDispatcherPayload) { throw 'real ready responseDispatcherPayload missing' }
+if ($RealReadyPayload.responseDispatcherPayload[0].status -ne 'DISPATCHER_REAL_EXECUTION_ADAPTER_READY') { throw "real execution adapter was not ready" }
+if ($RealReadyPayload.responseDispatcherPayload[0].toolCall.name -ne 'console.write.engine.reply.draft') { throw "real draft tool call was not canonical" }
+if ($RealReadyPayload.responseDispatcherPayload[1].toolCall.name -ne 'console.write.engine.reply.submit') { throw "real submit tool call was not canonical" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'
