@@ -18,6 +18,7 @@ if ($Plan.ok -ne $true) { throw "runnerExecutionPlan not ready: $($Plan.status)"
 
 $AllowedTools = @{
     'console.read_.browser.chatgpt.entrypoint.plan' = 'read_only'
+    'console.read_.repo.context.capture' = 'read_only'
     'console.write.engine.task.enqueue' = 'write'
     'console.write.engine.worker.tick' = 'write'
     'console.write.engine.chat.bind' = 'write'
