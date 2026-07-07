@@ -85,6 +85,12 @@ $AdapterCommand = @(
 )
 if ($UntilRc) { $AdapterCommand += '-UntilRc' }
 $HandoffPath = $FirstPayload.path + '.handoff.json'
+$Runbook = @(
+    [ordered]@{ step = 1; action = 'invoke_tool_call'; toolCall = ([pscustomobject]$ToolCall); outputPath = $ExpectedResultPath }
+    [ordered]@{ step = 2; action = 'write_executor_result'; path = $ExpectedResultPath; requiredFields = @('ok', 'tool', 'status') }
+    [ordered]@{ step = 3; action = 'run_transport_adapter'; command = $AdapterCommand }
+    [ordered]@{ step = 4; action = 'run_daemon_again'; command = @('tool/runner-daemon.ps1', '-Task', $Task, '-MaxIterations', [string]$MaxIterations) }
+)
 $Handoff = [ordered]@{
     ok = $true
     status = 'RUNNER_EXECUTOR_HANDOFF_READY'
@@ -95,6 +101,7 @@ $Handoff = [ordered]@{
     toolCall = ([pscustomobject]$ToolCall)
     expectedResultPath = $ExpectedResultPath
     adapterCommand = $AdapterCommand
+    runbook = $Runbook
     nextAction = 'invoke_tool_call_write_result_then_run_adapter'
 }
 [pscustomobject]$Handoff | ConvertTo-Json -Depth 40 | Set-Content -Path $HandoffPath -Encoding UTF8

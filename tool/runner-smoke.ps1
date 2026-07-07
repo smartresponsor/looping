@@ -285,6 +285,10 @@ $DaemonHandoff = Get-Content -Raw -Path $DaemonPayload.handoffPath | ConvertFrom
 if ($DaemonHandoff.status -ne 'RUNNER_EXECUTOR_HANDOFF_READY') { throw "runner daemon handoff status mismatch" }
 if ($DaemonHandoff.toolCall.name -ne $DaemonPayload.toolCall.name) { throw "runner daemon handoff tool call mismatch" }
 if (@($DaemonHandoff.adapterCommand).Count -lt 8) { throw "runner daemon handoff adapter command too short" }
+if (@($DaemonHandoff.runbook).Count -ne 4) { throw "runner daemon handoff runbook count mismatch" }
+if ($DaemonHandoff.runbook[0].action -ne 'invoke_tool_call') { throw "runner daemon runbook step 1 mismatch" }
+if (@($DaemonHandoff.runbook[1].requiredFields) -notcontains 'tool') { throw "runner daemon runbook required fields mismatch" }
+if ($DaemonHandoff.runbook[2].action -ne 'run_transport_adapter') { throw "runner daemon runbook step 3 mismatch" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8
