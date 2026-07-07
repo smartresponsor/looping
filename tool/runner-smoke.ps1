@@ -176,6 +176,18 @@ $WorkerStopPayload = $WorkerStopRaw | ConvertFrom-Json
 if ($WorkerStopPayload.finalActionResult.status -ne 'FINAL_ACTION_WORKER_STOP') { throw "worker stop final action mismatch" }
 if ($WorkerStopPayload.workerStopPlan.status -ne 'WORKER_TICK_STOP_PLAN_READY') { throw "worker stop plan was not ready" }
 
+$ClosedFlow = @(
+    @{ step = 'reply_back'; status = $HostResultPayload.status; next = $AdapterHostResultPayload.nextDispatchContract.tool },
+    @{ step = 'answer_capture'; status = $AnswerCapturedPayload.finalActionResult.status; next = $AnswerCapturedPayload.nextDispatchContract.tool },
+    @{ step = 'gateway_decide'; status = $GatewayContinuePayload.finalActionResult.status; next = $GatewayContinuePayload.nextDispatchContract.tool },
+    @{ step = 'worker_tick'; status = $WorkerStopPayload.finalActionResult.status; next = $WorkerStopPayload.workerStopPlan.nextAction }
+)
+
+if ($ClosedFlow[0].next -ne 'console.write.engine.answer.capture') { throw "closed flow did not advance from reply to answer capture" }
+if ($ClosedFlow[1].next -ne 'console.write.engine.gateway.decide') { throw "closed flow did not advance from answer capture to gateway decision" }
+if ($ClosedFlow[2].next -ne 'console.write.engine.worker.tick') { throw "closed flow did not advance from gateway continue to worker tick" }
+if ($ClosedFlow[3].next -ne 'stop_loop') { throw "closed flow did not stop on worker idle" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'
@@ -183,4 +195,5 @@ if ($WorkerStopPayload.workerStopPlan.status -ne 'WORKER_TICK_STOP_PLAN_READY') 
     continueRunId = $Payload.continuePayload.runId
     responseRunId = $ResponsePayload.runId
     responseDispatchStatus = $ResponsePayload.responseDispatcherPayload.status
-} | ConvertTo-Json -Depth 10
+    closedFlow = $ClosedFlow
+} | ConvertTo-Json -Depth 20
