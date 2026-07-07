@@ -17,9 +17,11 @@ if (-not $Payload.continuePayload) { throw 'continuePayload missing' }
 if ($Payload.continuePayload.dispatchResult.status -ne 'DISPATCH_RESULT_ACCEPTED') { throw "dispatch result was not accepted: $($Payload.continuePayload.dispatchResult.status)" }
 if ($Payload.continuePayload.resumeState.status -ne 'RESUME_STATE_ADVANCED') { throw "resume state did not advance: $($Payload.continuePayload.resumeState.status)" }
 
-$ResponseRaw = & $Runner -Task $Task -MaxIterations 1 -Dispatch -DryRun -ResponseDispatch -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseChatId 'smoke-chat-response' -ResponseTargetId 'smoke-target-response' 2>&1
+$ResponseRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseChatId 'smoke-chat-response' -ResponseTargetId 'smoke-target-response' 2>&1
 $ResponsePayload = $ResponseRaw | ConvertFrom-Json
 
+if ($ResponsePayload.runnerMode -ne 'auto_final_action') { throw "runner did not use auto final action mode: $($ResponsePayload.runnerMode)" }
+if ($ResponsePayload.finalActionSelected -ne 'dispatch_chat_response') { throw "final action did not select response dispatch: $($ResponsePayload.finalActionSelected)" }
 if (-not $ResponsePayload.chatResponsePayload) { throw 'chatResponsePayload missing' }
 if ($ResponsePayload.chatResponsePayload.shouldSend -ne $true) { throw 'chatResponsePayload shouldSend was not true' }
 if (-not $ResponsePayload.chatResponseDispatchContract) { throw 'chatResponseDispatchContract missing' }
