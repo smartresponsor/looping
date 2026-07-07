@@ -54,6 +54,17 @@ if ($RealReadyPayload.responseDispatcherPayload[0].status -ne 'DISPATCHER_REAL_E
 if ($RealReadyPayload.responseDispatcherPayload[0].toolCall.name -ne 'console.write.engine.reply.draft') { throw "real draft tool call was not canonical" }
 if ($RealReadyPayload.responseDispatcherPayload[1].toolCall.name -ne 'console.write.engine.reply.submit') { throw "real submit tool call was not canonical" }
 
+$HostBridge = Join-Path $Root 'tool/runner-host-bridge.ps1'
+$HostPayloadPath = Join-Path $Root 'var/runner/host-bridge-smoke.json'
+$RealReadyPayload | ConvertTo-Json -Depth 40 | Set-Content -Path $HostPayloadPath -Encoding UTF8
+$HostBridgeRaw = & $HostBridge -PayloadPath $HostPayloadPath -DryRun 2>&1
+$HostBridgePayload = $HostBridgeRaw | ConvertFrom-Json
+
+if ($HostBridgePayload.status -ne 'HOST_BRIDGE_INVOCATION_PLAN_READY') { throw "host bridge plan was not ready" }
+if ($HostBridgePayload.invocationCount -ne 2) { throw "host bridge invocation count mismatch" }
+if ($HostBridgePayload.invocations[0].tool -ne 'console.write.engine.reply.draft') { throw "host bridge draft invocation was not canonical" }
+if ($HostBridgePayload.invocations[1].tool -ne 'console.write.engine.reply.submit') { throw "host bridge submit invocation was not canonical" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'
