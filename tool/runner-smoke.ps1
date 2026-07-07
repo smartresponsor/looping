@@ -84,6 +84,10 @@ $AdapterHostResultPayload = $AdapterHostResultRaw | ConvertFrom-Json
 if ($AdapterHostResultPayload.runnerMode -ne 'host_bridge_result') { throw "runner did not enter host bridge result mode" }
 if ($AdapterHostResultPayload.finalActionResult.status -ne 'FINAL_ACTION_HOST_RESULT_ACCEPTED') { throw "runner did not accept host bridge result" }
 if ($AdapterHostResultPayload.hostBridgeResult.status -ne 'HOST_BRIDGE_RESULT_ACCEPTED') { throw "runner host bridge result was not accepted" }
+if ($AdapterHostResultPayload.nextLoopTickPlan.status -ne 'NEXT_LOOP_TICK_PLAN_READY') { throw "next loop tick plan was not ready" }
+if ($AdapterHostResultPayload.nextLoopTickPlan.stage -ne 'answer_capture') { throw "next loop tick stage was not answer_capture" }
+if ($AdapterHostResultPayload.nextLoopTickPlan.phase -ne 'reply_watch') { throw "next loop tick phase was not reply_watch" }
+if ($AdapterHostResultPayload.nextLoopTickPlan.action -ne 'capture_next_answer') { throw "next loop tick action was not capture_next_answer" }
 
 [pscustomobject]@{
     ok = $true

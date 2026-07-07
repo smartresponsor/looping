@@ -77,7 +77,21 @@ if ($HostBridgeResultPath) {
     $HostBridgePayload = $HostBridgeRaw | ConvertFrom-Json
     if ($HostBridgePayload.status -ne 'HOST_BRIDGE_RESULT_ACCEPTED') { throw "host bridge result not accepted: $($HostBridgePayload.status)" }
     $Payload | Add-Member -NotePropertyName hostBridgePayloadPath -NotePropertyValue $HostPayloadPath -Force
+    $NextLoopTickPlan = [ordered]@{
+        ok = $true
+        status = 'NEXT_LOOP_TICK_PLAN_READY'
+        reason = 'Canonical reply-back was accepted by the host bridge; wait for the next assistant answer before continuing evidence and gate evaluation.'
+        stage = 'answer_capture'
+        phase = 'reply_watch'
+        action = 'capture_next_answer'
+        taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($HostBridgePayload.invocations[0].arguments.taskId) { $HostBridgePayload.invocations[0].arguments.taskId } else { $null }
+        targetId = if ($ResponseTargetId) { $ResponseTargetId } elseif ($HostBridgePayload.invocations[0].arguments.expectedTargetId) { $HostBridgePayload.invocations[0].arguments.expectedTargetId } else { $null }
+        maxIterations = $MaxIterations
+        untilRc = [bool]$UntilRc
+        nextCommand = 'run_answer_capture_then_continue_loop'
+    }
     $Payload | Add-Member -NotePropertyName hostBridgeResult -NotePropertyValue $HostBridgePayload -Force
+    $Payload | Add-Member -NotePropertyName nextLoopTickPlan -NotePropertyValue ([pscustomobject]$NextLoopTickPlan) -Force
     $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
         ok = $true
         status = 'FINAL_ACTION_HOST_RESULT_ACCEPTED'
