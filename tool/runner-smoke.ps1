@@ -112,6 +112,31 @@ $AnswerNotReadyPayload = $AnswerNotReadyRaw | ConvertFrom-Json
 if ($AnswerNotReadyPayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAPTURE_WAIT') { throw "answer capture wait final action mismatch" }
 if ($AnswerNotReadyPayload.answerCaptureWaitPlan.status -ne 'ANSWER_CAPTURE_WAIT_PLAN_READY') { throw "answer capture wait plan was not ready" }
 
+$GatewayContinuePath = Join-Path $Root 'var/runner/gateway-continue-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayContinuePath -Encoding UTF8
+$GatewayContinueRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayContinuePath 2>&1
+$GatewayContinuePayload = $GatewayContinueRaw | ConvertFrom-Json
+
+if ($GatewayContinuePayload.runnerMode -ne 'gateway_decision_result') { throw "runner did not enter gateway decision result mode" }
+if ($GatewayContinuePayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_CONTINUE') { throw "gateway continue final action mismatch" }
+if ($GatewayContinuePayload.gatewayContinuePlan.status -ne 'GATEWAY_CONTINUE_PLAN_READY') { throw "gateway continue plan was not ready" }
+
+$GatewayReplyPath = Join-Path $Root 'var/runner/gateway-reply-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'REVISE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayReplyPath -Encoding UTF8
+$GatewayReplyRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayReplyPath 2>&1
+$GatewayReplyPayload = $GatewayReplyRaw | ConvertFrom-Json
+
+if ($GatewayReplyPayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_REPLY_BACK') { throw "gateway reply-back final action mismatch" }
+if ($GatewayReplyPayload.gatewayReplyBackPlan.status -ne 'GATEWAY_REPLY_BACK_PLAN_READY') { throw "gateway reply-back plan was not ready" }
+
+$GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8
+$GatewayWaitRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayWaitPath 2>&1
+$GatewayWaitPayload = $GatewayWaitRaw | ConvertFrom-Json
+
+if ($GatewayWaitPayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_WAIT') { throw "gateway wait final action mismatch" }
+if ($GatewayWaitPayload.gatewayWaitPlan.status -ne 'GATEWAY_WAIT_PLAN_READY') { throw "gateway wait plan was not ready" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'

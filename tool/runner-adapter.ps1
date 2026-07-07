@@ -13,6 +13,7 @@ param(
     [switch]$ResponseDispatch,
     [string]$HostBridgeResultPath,
     [string]$AnswerCaptureResultPath,
+    [string]$GatewayDecisionResultPath,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -66,7 +67,73 @@ if ($AutoFinalAction) {
 }
 
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($GatewayDecisionResultPath) {
+    if (-not (Test-Path $GatewayDecisionResultPath)) { throw "gateway decision result file not found: $GatewayDecisionResultPath" }
+    $GatewayDecisionResult = Get-Content -Raw -Path $GatewayDecisionResultPath | ConvertFrom-Json
+    if ($GatewayDecisionResult.status -ne 'ENGINE_GATEWAY_DECISION_RECORDED') { throw "gateway decision result not recorded: $($GatewayDecisionResult.status)" }
+    $DecisionStatus = [string]$GatewayDecisionResult.decision_status
+    if (-not $DecisionStatus) { $DecisionStatus = 'CONTINUE' }
+    $DecisionStatus = $DecisionStatus.ToUpperInvariant()
+
+    if ($DecisionStatus -eq 'CONTINUE' -or $DecisionStatus -eq 'ALLOW') {
+        $ContinuePlan = [ordered]@{
+            ok = $true
+            status = 'GATEWAY_CONTINUE_PLAN_READY'
+            stage = 'bounded_worker_tick'
+            action = 'continue_loop'
+            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($GatewayDecisionResult.task_id) { $GatewayDecisionResult.task_id } else { $null }
+            maxIterations = $MaxIterations
+            untilRc = [bool]$UntilRc
+            nextAction = 'continue_loop'
+        }
+        $Payload | Add-Member -NotePropertyName gatewayDecisionResult -NotePropertyValue $GatewayDecisionResult -Force
+        $Payload | Add-Member -NotePropertyName gatewayContinuePlan -NotePropertyValue ([pscustomobject]$ContinuePlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_GATEWAY_CONTINUE'
+            action = 'continue_loop'
+            nextAction = 'continue_loop'
+        } -Force
+    } elseif ($DecisionStatus -eq 'WAIT' -or $DecisionStatus -eq 'RETRY') {
+        $WaitPlan = [ordered]@{
+            ok = $true
+            status = 'GATEWAY_WAIT_PLAN_READY'
+            stage = 'gateway_decision'
+            action = 'retry_gateway_decision'
+            nextAction = 'retry_gateway_decision'
+        }
+        $Payload | Add-Member -NotePropertyName gatewayDecisionResult -NotePropertyValue $GatewayDecisionResult -Force
+        $Payload | Add-Member -NotePropertyName gatewayWaitPlan -NotePropertyValue ([pscustomobject]$WaitPlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_GATEWAY_WAIT'
+            action = 'retry_gateway_decision'
+            nextAction = 'retry_gateway_decision'
+        } -Force
+    } else {
+        $ReplyPlan = [ordered]@{
+            ok = $true
+            status = 'GATEWAY_REPLY_BACK_PLAN_READY'
+            stage = 'reply_back'
+            action = 'dispatch_chat_response'
+            decisionStatus = $DecisionStatus
+            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($GatewayDecisionResult.task_id) { $GatewayDecisionResult.task_id } else { $null }
+            nextAction = 'dispatch_chat_response'
+        }
+        $Payload | Add-Member -NotePropertyName gatewayDecisionResult -NotePropertyValue $GatewayDecisionResult -Force
+        $Payload | Add-Member -NotePropertyName gatewayReplyBackPlan -NotePropertyValue ([pscustomobject]$ReplyPlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = ($DecisionStatus -ne 'BLOCK')
+            status = if ($DecisionStatus -eq 'BLOCK') { 'FINAL_ACTION_GATEWAY_BLOCK' } else { 'FINAL_ACTION_GATEWAY_REPLY_BACK' }
+            action = 'dispatch_chat_response'
+            nextAction = 'dispatch_chat_response'
+        } -Force
+    }
+    $Payload | ConvertTo-Json -Depth 40
+    exit 0
+}
 
 if ($AnswerCaptureResultPath) {
     if (-not (Test-Path $AnswerCaptureResultPath)) { throw "answer capture result file not found: $AnswerCaptureResultPath" }
