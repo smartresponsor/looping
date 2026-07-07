@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$PayloadPath,
     [switch]$Simulate,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$ExecuteReal
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,6 +44,33 @@ $Boundary = [ordered]@{
 
 if ($DryRun) {
     [pscustomobject]$Boundary | ConvertTo-Json -Depth 30
+    exit 0
+}
+
+if ($ExecuteReal) {
+    if (($env:CHATGPT_LOOP_REAL_EXECUTION) -ne '1') {
+        [pscustomobject]@{
+            ok = $false
+            status = 'DISPATCHER_REAL_EXECUTION_ENV_REQUIRED'
+            tool = $Plan.tool
+            allowedMode = $Plan.allowedMode
+            mutation = $Plan.mutation
+            realExecution = 'blocked'
+            requiredEnv = 'CHATGPT_LOOP_REAL_EXECUTION=1'
+        } | ConvertTo-Json -Depth 30
+        exit 0
+    }
+
+    [pscustomobject]@{
+        ok = $false
+        status = 'DISPATCHER_REAL_EXECUTION_ADAPTER_MISSING'
+        tool = $Plan.tool
+        arguments = $Plan.arguments
+        allowedMode = $Plan.allowedMode
+        mutation = $Plan.mutation
+        realExecution = 'not_implemented'
+        nextAction = 'wire_concrete_console_mcp_invocation_adapter'
+    } | ConvertTo-Json -Depth 30
     exit 0
 }
 

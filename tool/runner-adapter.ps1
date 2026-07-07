@@ -9,6 +9,7 @@ param(
     [switch]$Dispatch,
     [switch]$DryRun,
     [switch]$AutoFinalAction,
+    [switch]$ExecuteReal,
     [switch]$ResponseDispatch,
     [string]$HostResultOk,
     [string]$HostTaskId,
@@ -136,7 +137,7 @@ if ($Dispatch) {
         }
         $ResponsePayloadPath = Join-Path $PayloadDir ($Payload.runId + '.response.json')
         $ResponsePayload | ConvertTo-Json -Depth 30 | Set-Content -Path $ResponsePayloadPath -Encoding UTF8
-        if ($SimulateHost) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -Simulate 2>&1 } else { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -DryRun 2>&1 }
+        if ($ExecuteReal) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -ExecuteReal 2>&1 } elseif ($SimulateHost) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -Simulate 2>&1 } else { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -DryRun 2>&1 }
         $Payload | Add-Member -NotePropertyName responseDispatchPayloadPath -NotePropertyValue $ResponsePayloadPath -Force
         $Payload | Add-Member -NotePropertyName responseDispatcherPayload -NotePropertyValue ($ResponseDispatchRaw | ConvertFrom-Json) -Force
     }
