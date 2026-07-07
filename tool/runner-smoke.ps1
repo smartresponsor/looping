@@ -190,6 +190,11 @@ $TransportJournalPath = Join-Path $Root 'var/runner/journal/runner.ndjson'
 if (-not (Test-Path $TransportJournalPath)) { throw "transport adapter journal file missing" }
 $TransportJournalRaw = Get-Content -Raw -Path $TransportJournalPath
 if ($TransportJournalRaw -notlike '*RUNNER_TRANSPORT_ADAPTER_FED*') { throw "transport adapter journal fed event missing" }
+$JournalInspectRaw = & (Join-Path $Root 'tool/runner-journal-inspect.ps1') -Tail 5 2>&1
+$JournalInspectPayload = $JournalInspectRaw | ConvertFrom-Json
+if ($JournalInspectPayload.status -ne 'RUNNER_JOURNAL_INSPECTED') { throw "runner journal inspect status mismatch" }
+if ($JournalInspectPayload.totalEvents -lt 1) { throw "runner journal inspect total event mismatch" }
+if (@($JournalInspectPayload.summary).Count -lt 1) { throw "runner journal inspect summary missing" }
 
 $InvalidTransportResultPath = Join-Path $Root 'var/runner/transport-adapter-invalid-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_CHAT_BIND_RECOVERED' } | ConvertTo-Json -Depth 20 | Set-Content -Path $InvalidTransportResultPath -Encoding UTF8
