@@ -128,6 +128,10 @@ $GatewayReplyPayload = $GatewayReplyRaw | ConvertFrom-Json
 
 if ($GatewayReplyPayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_REPLY_BACK') { throw "gateway reply-back final action mismatch" }
 if ($GatewayReplyPayload.gatewayReplyBackPlan.status -ne 'GATEWAY_REPLY_BACK_PLAN_READY') { throw "gateway reply-back plan was not ready" }
+if ($GatewayReplyPayload.gatewayReplyBackContract.status -ne 'GATEWAY_REPLY_BACK_CONTRACT_READY') { throw "gateway reply-back contract was not ready" }
+if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].tool -ne 'console.write.engine.reply.draft') { throw "gateway reply-back draft tool mismatch" }
+if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[1].tool -ne 'console.write.engine.reply.submit') { throw "gateway reply-back submit tool mismatch" }
+if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].arguments.taskId -ne 'smoke-engine-task') { throw "gateway reply-back task id mismatch" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8

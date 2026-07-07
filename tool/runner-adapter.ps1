@@ -122,8 +122,41 @@ if ($GatewayDecisionResultPath) {
             taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($GatewayDecisionResult.task_id) { $GatewayDecisionResult.task_id } else { $null }
             nextAction = 'dispatch_chat_response'
         }
+        $ReplyBackContract = [ordered]@{
+            ok = $true
+            status = 'GATEWAY_REPLY_BACK_CONTRACT_READY'
+            sequence = @(
+                [ordered]@{
+                    stage = 'reply_draft'
+                    tool = 'console.write.engine.reply.draft'
+                    arguments = [ordered]@{
+                        taskId = $ReplyPlan.taskId
+                        expectedTargetId = if ($ResponseTargetId) { $ResponseTargetId } else { $null }
+                        allowOverwrite = $false
+                        confirmDraft = $true
+                    }
+                    mutation = 'write'
+                    confirmationRequired = $false
+                    execution = 'external_console_mcp_required'
+                },
+                [ordered]@{
+                    stage = 'reply_submit'
+                    tool = 'console.write.engine.reply.submit'
+                    arguments = [ordered]@{
+                        taskId = $ReplyPlan.taskId
+                        expectedTargetId = if ($ResponseTargetId) { $ResponseTargetId } else { $null }
+                        confirmSubmit = $true
+                    }
+                    mutation = 'write'
+                    confirmationRequired = $false
+                    execution = 'external_console_mcp_required'
+                }
+            )
+            nextAction = 'dispatch_chat_response'
+        }
         $Payload | Add-Member -NotePropertyName gatewayDecisionResult -NotePropertyValue $GatewayDecisionResult -Force
         $Payload | Add-Member -NotePropertyName gatewayReplyBackPlan -NotePropertyValue ([pscustomobject]$ReplyPlan) -Force
+        $Payload | Add-Member -NotePropertyName gatewayReplyBackContract -NotePropertyValue ([pscustomobject]$ReplyBackContract) -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
             ok = ($DecisionStatus -ne 'BLOCK')
             status = if ($DecisionStatus -eq 'BLOCK') { 'FINAL_ACTION_GATEWAY_BLOCK' } else { 'FINAL_ACTION_GATEWAY_REPLY_BACK' }
