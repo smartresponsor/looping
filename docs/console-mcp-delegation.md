@@ -25,7 +25,6 @@ It must not duplicate browser, composer, answer capture, gateway, or engine-bank
 - `console.write.engine.gateway.decide`
 - `console.write.engine.reply.draft`
 - `console.write.engine.reply.submit`
-- `console.write.engine.reply.draft_submit`
 
 ## Recovery capabilities
 

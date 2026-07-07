@@ -17,26 +17,53 @@ final class ChatGptLoopChatResponseDispatchContract
             ];
         }
 
-        $chatId = $this->stringOrNull($options['response-chat-id'] ?? $options['external-chat-id'] ?? $options['host-chat-id'] ?? null);
+        $taskId = $this->stringOrNull($options['response-task-id'] ?? $options['external-task-id'] ?? $options['host-task-id'] ?? null);
         $targetId = $this->stringOrNull($options['response-target-id'] ?? $options['external-target-id'] ?? $options['host-target-id'] ?? null);
 
+        if ($taskId === null) {
+            return [
+                'ok' => false,
+                'status' => 'CHAT_RESPONSE_DISPATCH_TASK_MISSING',
+                'reason' => 'Engine task id is required before dispatching a canonical reply-back response.',
+                'envelope' => null,
+                'sequence' => [],
+                'nextAction' => 'provide_response_task_id',
+            ];
+        }
+
         return [
-            'ok' => $chatId !== null,
-            'status' => $chatId === null ? 'CHAT_RESPONSE_DISPATCH_TARGET_MISSING' : 'CHAT_RESPONSE_DISPATCH_CONTRACT_READY',
-            'reason' => $chatId === null ? 'Response chat id is required before dispatching a chat response.' : 'Chat response dispatch envelope is ready.',
-            'envelope' => [
-                'tool' => 'console.write.engine.reply.draft_submit',
-                'arguments' => [
-                    'chatId' => $chatId,
-                    'targetId' => $targetId,
-                    'message' => (string) ($chatResponsePayload['message'] ?? ''),
-                    'action' => $chatResponsePayload['action'] ?? null,
+            'ok' => true,
+            'status' => 'CHAT_RESPONSE_DISPATCH_CONTRACT_READY',
+            'reason' => 'Canonical engine reply-back draft and submit sequence is ready.',
+            'envelope' => null,
+            'sequence' => [
+                [
+                    'stage' => 'reply_draft',
+                    'tool' => 'console.write.engine.reply.draft',
+                    'arguments' => [
+                        'taskId' => $taskId,
+                        'expectedTargetId' => $targetId,
+                        'allowOverwrite' => false,
+                        'confirmDraft' => true,
+                    ],
+                    'mutation' => 'write',
+                    'confirmationRequired' => false,
+                    'execution' => 'external_console_mcp_required',
                 ],
-                'mutation' => 'write',
-                'confirmationRequired' => false,
-                'execution' => 'external_console_mcp_required',
+                [
+                    'stage' => 'reply_submit',
+                    'tool' => 'console.write.engine.reply.submit',
+                    'arguments' => [
+                        'taskId' => $taskId,
+                        'expectedTargetId' => $targetId,
+                        'confirmSubmit' => true,
+                    ],
+                    'mutation' => 'write',
+                    'confirmationRequired' => false,
+                    'execution' => 'external_console_mcp_required',
+                ],
             ],
-            'nextAction' => $chatId === null ? 'provide_response_chat_id' : 'dispatch_chat_response',
+            'nextAction' => 'dispatch_chat_response',
         ];
     }
 

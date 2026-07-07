@@ -12,14 +12,14 @@ final class ChatGptLoopFinalActionResolver
         $askAction = (string) ($askGatewayDecision['action'] ?? $loopAction);
         $shouldSend = ($chatResponsePayload['shouldSend'] ?? false) === true;
         $dispatchReady = ($chatResponseDispatchContract['status'] ?? null) === 'CHAT_RESPONSE_DISPATCH_CONTRACT_READY';
-        $dispatchMissingTarget = ($chatResponseDispatchContract['status'] ?? null) === 'CHAT_RESPONSE_DISPATCH_TARGET_MISSING';
+        $dispatchTaskMissing = ($chatResponseDispatchContract['status'] ?? null) === 'CHAT_RESPONSE_DISPATCH_TASK_MISSING';
 
-        if ($shouldSend && $dispatchMissingTarget) {
-            return $this->action(false, 'FINAL_ACTION_RESPONSE_TARGET_REQUIRED', 'provide_response_chat_id', 'A chat response must be sent, but response chat id is missing.');
+        if ($shouldSend && $dispatchTaskMissing) {
+            return $this->action(false, 'FINAL_ACTION_RESPONSE_TASK_REQUIRED', 'provide_response_task_id', 'A canonical reply-back response must be sent, but engine task id is missing.');
         }
 
         if ($shouldSend && $dispatchReady) {
-            return $this->action(true, 'FINAL_ACTION_DISPATCH_CHAT_RESPONSE', 'dispatch_chat_response', 'A chat response payload is ready and has a dispatch envelope.');
+            return $this->action(true, 'FINAL_ACTION_DISPATCH_CHAT_RESPONSE', 'dispatch_chat_response', 'A canonical engine reply-back draft and submit sequence is ready.');
         }
 
         if (in_array($askAction, ['stop_blocked_by_policy', 'return_revision_request_to_chat', 'return_warning_then_continue', 'return_invalid_ask_result'], true)) {

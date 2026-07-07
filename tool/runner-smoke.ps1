@@ -17,7 +17,7 @@ if (-not $Payload.continuePayload) { throw 'continuePayload missing' }
 if ($Payload.continuePayload.dispatchResult.status -ne 'DISPATCH_RESULT_ACCEPTED') { throw "dispatch result was not accepted: $($Payload.continuePayload.dispatchResult.status)" }
 if ($Payload.continuePayload.resumeState.status -ne 'RESUME_STATE_ADVANCED') { throw "resume state did not advance: $($Payload.continuePayload.resumeState.status)" }
 
-$ResponseRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseChatId 'smoke-chat-response' -ResponseTargetId 'smoke-target-response' 2>&1
+$ResponseRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' 2>&1
 $ResponsePayload = $ResponseRaw | ConvertFrom-Json
 
 if ($ResponsePayload.runnerMode -ne 'auto_final_action') { throw "runner did not use auto final action mode: $($ResponsePayload.runnerMode)" }
@@ -27,16 +27,18 @@ if ($ResponsePayload.chatResponsePayload.shouldSend -ne $true) { throw 'chatResp
 if (-not $ResponsePayload.chatResponseDispatchContract) { throw 'chatResponseDispatchContract missing' }
 if ($ResponsePayload.chatResponseDispatchContract.status -ne 'CHAT_RESPONSE_DISPATCH_CONTRACT_READY') { throw "chat response dispatch contract was not ready: $($ResponsePayload.chatResponseDispatchContract.status)" }
 if (-not $ResponsePayload.responseDispatcherPayload) { throw 'responseDispatcherPayload missing' }
-if ($ResponsePayload.responseDispatcherPayload.status -ne 'DISPATCHER_BOUNDARY_READY') { throw "response dispatcher boundary was not ready: $($ResponsePayload.responseDispatcherPayload.status)" }
-if ($ResponsePayload.responseDispatcherPayload.tool -ne 'console.write.engine.reply.draft_submit') { throw "unexpected response dispatch tool: $($ResponsePayload.responseDispatcherPayload.tool)" }
-if ($ResponsePayload.responseDispatcherPayload.realExecution -ne 'disabled') { throw "response dispatch real execution is not disabled: $($ResponsePayload.responseDispatcherPayload.realExecution)" }
+if ($ResponsePayload.responseDispatcherPayload[0].status -ne 'DISPATCHER_BOUNDARY_READY') { throw "response draft boundary was not ready" }
+if ($ResponsePayload.responseDispatcherPayload[1].status -ne 'DISPATCHER_BOUNDARY_READY') { throw "response submit boundary was not ready" }
+if ($ResponsePayload.responseDispatcherPayload[0].tool -ne 'console.write.engine.reply.draft') { throw "unexpected response draft tool" }
+if ($ResponsePayload.responseDispatcherPayload[1].tool -ne 'console.write.engine.reply.submit') { throw "unexpected response submit tool" }
+if ($ResponsePayload.responseDispatcherPayload[0].realExecution -ne 'disabled') { throw "response dispatch real execution is not disabled: $($ResponsePayload.responseDispatcherPayload[0].realExecution)" }
 
-$RealBlockedRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -ExecuteReal -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseChatId 'smoke-chat-response' -ResponseTargetId 'smoke-target-response' 2>&1
+$RealBlockedRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -ExecuteReal -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' 2>&1
 $RealBlockedPayload = $RealBlockedRaw | ConvertFrom-Json
 
 if (-not $RealBlockedPayload.responseDispatcherPayload) { throw 'real blocked responseDispatcherPayload missing' }
-if ($RealBlockedPayload.responseDispatcherPayload.status -ne 'DISPATCHER_REAL_EXECUTION_ENV_REQUIRED') { throw "real execution did not require env guard: $($RealBlockedPayload.responseDispatcherPayload.status)" }
-if ($RealBlockedPayload.responseDispatcherPayload.realExecution -ne 'blocked') { throw "real execution was not blocked: $($RealBlockedPayload.responseDispatcherPayload.realExecution)" }
+if ($RealBlockedPayload.responseDispatcherPayload[0].status -ne 'DISPATCHER_REAL_EXECUTION_ENV_REQUIRED') { throw "real execution did not require env guard: $($RealBlockedPayload.responseDispatcherPayload[0].status)" }
+if ($RealBlockedPayload.responseDispatcherPayload[0].realExecution -ne 'blocked') { throw "real execution was not blocked: $($RealBlockedPayload.responseDispatcherPayload[0].realExecution)" }
 
 [pscustomobject]@{
     ok = $true

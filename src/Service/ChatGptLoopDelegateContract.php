@@ -77,7 +77,8 @@ final class ChatGptLoopDelegateContract
             'prompt_draft_submit' => ['capability' => 'engine.prompt.draft_submit', 'mutation' => 'browser_composer', 'confirmation' => true],
             'answer_capture' => ['capability' => 'engine.answer.capture', 'mutation' => 'engine_bank', 'confirmation' => true],
             'gateway_decision' => ['capability' => 'engine.gateway.decide', 'mutation' => 'engine_bank', 'confirmation' => true],
-            'reply_back' => ['capability' => 'engine.reply.draft_submit', 'mutation' => 'browser_composer', 'confirmation' => true],
+            'reply_back' => ['capability' => 'engine.reply.sequence', 'mutation' => 'browser_composer', 'confirmation' => true],
             'recovery_or_prune' => ['capability' => 'browser.session.run.loop.recover', 'mutation' => 'engine_bank', 'confirmation' => true],
         ];
     }
+}

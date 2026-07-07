@@ -20,6 +20,7 @@ param(
     [string]$AskPolicyReferences,
     [string]$AskMessageToChat,
     [string]$AskNextAction,
+    [string]$ResponseTaskId,
     [string]$ResponseChatId,
     [string]$ResponseTargetId
 )
@@ -40,6 +41,7 @@ if ($AskRisks) { $ArgsList += "--ask-risks=$AskRisks" }
 if ($AskPolicyReferences) { $ArgsList += "--ask-policy-references=$AskPolicyReferences" }
 if ($AskMessageToChat) { $ArgsList += "--ask-message-to-chat=$AskMessageToChat" }
 if ($AskNextAction) { $ArgsList += "--ask-next-action=$AskNextAction" }
+if ($ResponseTaskId) { $ArgsList += "--response-task-id=$ResponseTaskId" }
 if ($ResponseChatId) { $ArgsList += "--response-chat-id=$ResponseChatId" }
 if ($ResponseTargetId) { $ArgsList += "--response-target-id=$ResponseTargetId" }
 
@@ -64,7 +66,7 @@ if ($AutoFinalAction) {
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
 $Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
 
-if ($AutoFinalAction -and $FinalAction -in @('wait_for_ask_gateway_result', 'provide_response_chat_id', 'wait_or_review')) {
+if ($AutoFinalAction -and $FinalAction -in @('wait_for_ask_gateway_result', 'provide_response_chat_id', 'provide_response_task_id', 'wait_or_review')) {
     $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
         ok = $true
         status = 'FINAL_ACTION_WAITING'
@@ -110,8 +112,9 @@ if ($Dispatch) {
         $Payload | Add-Member -NotePropertyName continuePayload -NotePropertyValue ($ContinueRaw | ConvertFrom-Json) -Force
     }
     if ($ResponseDispatch) {
-        $ResponseEnvelope = $Payload.chatResponseDispatchContract.envelope
-        if (-not $ResponseEnvelope) { throw 'chat response dispatch envelope missing' }
+        $ResponseSequence = @($Payload.chatResponseDispatchContract.sequence)
+        if ($ResponseSequence.Count -lt 1) { throw 'chat response dispatch sequence missing' }
+        $ResponseEnvelope = $ResponseSequence[0]
         $ResponsePayload = [ordered]@{
             ok = $true
             runId = $Payload.runId
@@ -138,8 +141,23 @@ if ($Dispatch) {
         $ResponsePayloadPath = Join-Path $PayloadDir ($Payload.runId + '.response.json')
         $ResponsePayload | ConvertTo-Json -Depth 30 | Set-Content -Path $ResponsePayloadPath -Encoding UTF8
         if ($ExecuteReal) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -ExecuteReal 2>&1 } elseif ($SimulateHost) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -Simulate 2>&1 } else { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -DryRun 2>&1 }
+        $ResponseDispatcherPayloads = @()
+        $ResponseDispatcherPayloads += ($ResponseDispatchRaw | ConvertFrom-Json)
+        if ($ResponseSequence.Count -gt 1) {
+            for ($Index = 1; $Index -lt $ResponseSequence.Count; $Index++) {
+                $ResponseEnvelope = $ResponseSequence[$Index]
+                $ResponsePayload.runnerExecutionPlan.tool = $ResponseEnvelope.tool
+                $ResponsePayload.runnerExecutionPlan.arguments = $ResponseEnvelope.arguments
+                $ResponsePayload.runnerExecutionPlan.mutation = $ResponseEnvelope.mutation
+                $ResponsePayload.runnerExecutionPlan.confirmationRequired = $ResponseEnvelope.confirmationRequired
+                $ResponsePayloadPath = Join-Path $PayloadDir ($Payload.runId + '.response.' + $Index + '.json')
+                $ResponsePayload | ConvertTo-Json -Depth 30 | Set-Content -Path $ResponsePayloadPath -Encoding UTF8
+                if ($ExecuteReal) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -ExecuteReal 2>&1 } elseif ($SimulateHost) { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -Simulate 2>&1 } else { $ResponseDispatchRaw = & $Dispatcher -PayloadPath $ResponsePayloadPath -DryRun 2>&1 }
+                $ResponseDispatcherPayloads += ($ResponseDispatchRaw | ConvertFrom-Json)
+            }
+        }
         $Payload | Add-Member -NotePropertyName responseDispatchPayloadPath -NotePropertyValue $ResponsePayloadPath -Force
-        $Payload | Add-Member -NotePropertyName responseDispatcherPayload -NotePropertyValue ($ResponseDispatchRaw | ConvertFrom-Json) -Force
+        $Payload | Add-Member -NotePropertyName responseDispatcherPayload -NotePropertyValue $ResponseDispatcherPayloads -Force
     }
     $Payload | ConvertTo-Json -Depth 30
     exit 0
