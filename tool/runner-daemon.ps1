@@ -171,3 +171,4 @@ Exit-RunnerLock -LockPath $RunnerLockPath
     nextDispatchBoundary = $Payload.nextDispatchBoundary
     nextAction = 'invoke_console_mcp_tool_call_then_feed_transport_result'
 } | ConvertTo-Json -Depth 40
+
