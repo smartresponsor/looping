@@ -92,6 +92,7 @@ if ($AdapterHostResultPayload.nextLoopTickContract.status -ne 'NEXT_LOOP_TICK_CO
 if ($AdapterHostResultPayload.nextLoopTickContract.tool -ne 'console.write.engine.answer.capture') { throw "next loop tick contract tool was not answer capture" }
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.taskId -ne 'smoke-engine-task') { throw "next loop tick contract task id mismatch" }
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.confirmCapture -ne $true) { throw "next loop tick contract confirmCapture was not true" }
+if ($AdapterHostResultPayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "next dispatch contract did not expose answer capture" }
 
 $AnswerCapturedPath = Join-Path $Root 'var/runner/answer-captured-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerCapturedPath -Encoding UTF8
@@ -103,6 +104,7 @@ if ($AnswerCapturedPayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAP
 if ($AnswerCapturedPayload.gatewayDecisionContract.status -ne 'GATEWAY_DECISION_CONTRACT_READY') { throw "gateway decision contract was not ready" }
 if ($AnswerCapturedPayload.gatewayDecisionContract.tool -ne 'console.write.engine.gateway.decide') { throw "gateway decision contract tool mismatch" }
 if ($AnswerCapturedPayload.gatewayDecisionContract.arguments.confirmDecision -ne $true) { throw "gateway decision confirmDecision was not true" }
+if ($AnswerCapturedPayload.nextDispatchContract.tool -ne 'console.write.engine.gateway.decide') { throw "next dispatch contract did not expose gateway decision" }
 
 $AnswerNotReadyPath = Join-Path $Root 'var/runner/answer-not-ready-smoke.json'
 [pscustomobject]@{ ok = $false; status = 'ENGINE_ANSWER_CAPTURE_NOT_READY'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerNotReadyPath -Encoding UTF8
@@ -123,6 +125,7 @@ if ($GatewayContinuePayload.gatewayContinuePlan.status -ne 'GATEWAY_CONTINUE_PLA
 if ($GatewayContinuePayload.gatewayContinueContract.status -ne 'GATEWAY_CONTINUE_CONTRACT_READY') { throw "gateway continue contract was not ready" }
 if ($GatewayContinuePayload.gatewayContinueContract.tool -ne 'console.write.engine.worker.tick') { throw "gateway continue contract tool mismatch" }
 if ($GatewayContinuePayload.gatewayContinueContract.arguments.maxTicks -ne 1) { throw "gateway continue maxTicks mismatch" }
+if ($GatewayContinuePayload.nextDispatchContract.tool -ne 'console.write.engine.worker.tick') { throw "next dispatch contract did not expose worker tick" }
 
 $GatewayReplyPath = Join-Path $Root 'var/runner/gateway-reply-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'REVISE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayReplyPath -Encoding UTF8
@@ -135,6 +138,8 @@ if ($GatewayReplyPayload.gatewayReplyBackContract.status -ne 'GATEWAY_REPLY_BACK
 if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].tool -ne 'console.write.engine.reply.draft') { throw "gateway reply-back draft tool mismatch" }
 if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[1].tool -ne 'console.write.engine.reply.submit') { throw "gateway reply-back submit tool mismatch" }
 if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].arguments.taskId -ne 'smoke-engine-task') { throw "gateway reply-back task id mismatch" }
+if ($GatewayReplyPayload.nextDispatchContract.sequence[0].tool -ne 'console.write.engine.reply.draft') { throw "next dispatch contract did not expose reply draft" }
+if ($GatewayReplyPayload.nextDispatchContract.sequence[1].tool -ne 'console.write.engine.reply.submit') { throw "next dispatch contract did not expose reply submit" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8

@@ -183,6 +183,7 @@ if ($GatewayDecisionResultPath) {
         $Payload | Add-Member -NotePropertyName gatewayDecisionResult -NotePropertyValue $GatewayDecisionResult -Force
         $Payload | Add-Member -NotePropertyName gatewayContinuePlan -NotePropertyValue ([pscustomobject]$ContinuePlan) -Force
         $Payload | Add-Member -NotePropertyName gatewayContinueContract -NotePropertyValue ([pscustomobject]$ContinueContract) -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue ([pscustomobject]$ContinueContract) -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
             ok = $true
             status = 'FINAL_ACTION_GATEWAY_CONTINUE'
@@ -250,6 +251,7 @@ if ($GatewayDecisionResultPath) {
         $Payload | Add-Member -NotePropertyName gatewayDecisionResult -NotePropertyValue $GatewayDecisionResult -Force
         $Payload | Add-Member -NotePropertyName gatewayReplyBackPlan -NotePropertyValue ([pscustomobject]$ReplyPlan) -Force
         $Payload | Add-Member -NotePropertyName gatewayReplyBackContract -NotePropertyValue ([pscustomobject]$ReplyBackContract) -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue ([pscustomobject]$ReplyBackContract) -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
             ok = ($DecisionStatus -ne 'BLOCK')
             status = if ($DecisionStatus -eq 'BLOCK') { 'FINAL_ACTION_GATEWAY_BLOCK' } else { 'FINAL_ACTION_GATEWAY_REPLY_BACK' }
@@ -285,6 +287,7 @@ if ($AnswerCaptureResultPath) {
         }
         $Payload | Add-Member -NotePropertyName answerCaptureResult -NotePropertyValue $AnswerCaptureResult -Force
         $Payload | Add-Member -NotePropertyName gatewayDecisionContract -NotePropertyValue ([pscustomobject]$GatewayDecisionContract) -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue ([pscustomobject]$GatewayDecisionContract) -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
             ok = $true
             status = 'FINAL_ACTION_ANSWER_CAPTURED'
@@ -356,6 +359,7 @@ if ($HostBridgeResultPath) {
     $Payload | Add-Member -NotePropertyName hostBridgeResult -NotePropertyValue $HostBridgePayload -Force
     $Payload | Add-Member -NotePropertyName nextLoopTickPlan -NotePropertyValue ([pscustomobject]$NextLoopTickPlan) -Force
     $Payload | Add-Member -NotePropertyName nextLoopTickContract -NotePropertyValue ([pscustomobject]$NextLoopTickContract) -Force
+    $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue ([pscustomobject]$NextLoopTickContract) -Force
     $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
         ok = $true
         status = 'FINAL_ACTION_HOST_RESULT_ACCEPTED'
