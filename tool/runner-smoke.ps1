@@ -161,6 +161,9 @@ if ($AnswerRetryExhaustedPayload.retryPolicy.status -ne 'RETRY_POLICY_EXHAUSTED'
 if ($AnswerRetryExhaustedPayload.retryPolicy.attempt -ne 5) { throw "answer capture exhausted attempt mismatch" }
 if ($AnswerRetryExhaustedPayload.recoveryPlan.action -ne 'recover_browser_target') { throw "answer capture recovery plan mismatch" }
 if ($AnswerRetryExhaustedPayload.finalActionResult.action -ne 'recover_browser_target') { throw "answer capture final recovery action mismatch" }
+if ($AnswerRetryExhaustedPayload.recoveryPlan.dispatchContract.tool -ne 'console.write.engine.chat.bind') { throw "answer capture recovery dispatch contract mismatch" }
+if ($AnswerRetryExhaustedPayload.nextDispatchContract.tool -ne 'console.write.engine.chat.bind') { throw "answer capture recovery next dispatch mismatch" }
+if ($AnswerRetryExhaustedPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "answer capture recovery next dispatch boundary not ready" }
 
 $GatewayContinuePath = Join-Path $Root 'var/runner/gateway-continue-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayContinuePath -Encoding UTF8

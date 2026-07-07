@@ -118,14 +118,21 @@ function Add-RetryPolicy {
                 'retry_worker_tick' { 'recover_worker_state' }
                 default { 'stop_hard' }
             }
+            $RecoveryContract = switch ($RecoveryAction) {
+                'recover_browser_target' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'console.write.engine.chat.bind'; arguments = [ordered]@{ taskId = if ($ResponseTaskId) { $ResponseTaskId } else { $null }; requireVisibleTarget = $true; refreshBinding = $true; recoveryMode = 'browser_target' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_chat_bind' } }
+                'recover_chat_binding' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'console.write.engine.chat.bind'; arguments = [ordered]@{ taskId = if ($ResponseTaskId) { $ResponseTaskId } else { $null }; requireVisibleTarget = $true; refreshBinding = $true; recoveryMode = 'chat_binding' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_chat_bind' } }
+                'recover_worker_state' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'console.write.engine.worker.tick'; arguments = [ordered]@{ maxTicks = 1; stopOnIdle = $true; stopOnWaitingUser = $true; recoveryMode = 'worker_state' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_worker_tick' } }
+                default { $null }
+            }
             $Payload | Add-Member -NotePropertyName recoveryPlan -NotePropertyValue ([pscustomobject]@{
                 ok = $true
                 status = 'RECOVERY_PLAN_READY'
                 action = $RecoveryAction
                 reason = 'Retry policy was exhausted and requires recovery planning.'
+                dispatchContract = $RecoveryContract
                 nextAction = $RecoveryAction
             }) -Force
-            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue ($(if ($RecoveryContract) { [pscustomobject]$RecoveryContract } else { $null })) -Force
             $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
                 ok = $false
                 status = 'FINAL_ACTION_RETRY_EXHAUSTED'
