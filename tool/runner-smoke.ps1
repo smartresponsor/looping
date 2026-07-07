@@ -237,6 +237,13 @@ $WorkerStopPayload = $WorkerStopRaw | ConvertFrom-Json
 if ($WorkerStopPayload.finalActionResult.status -ne 'FINAL_ACTION_WORKER_STOP') { throw "worker stop final action mismatch" }
 if ($WorkerStopPayload.workerStopPlan.status -ne 'WORKER_TICK_STOP_PLAN_READY') { throw "worker stop plan was not ready" }
 
+$WorkerRcPath = Join-Path $Root 'var/runner/worker-rc-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_WORKER_TICK_RC_REACHED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerRcPath -Encoding UTF8
+$WorkerRcRaw = & $Runner -Task $Task -UntilRc -ResponseTaskId 'smoke-engine-task' -WorkerTickResultPath $WorkerRcPath 2>&1
+$WorkerRcPayload = $WorkerRcRaw | ConvertFrom-Json
+if ($WorkerRcPayload.finalActionResult.status -ne 'FINAL_ACTION_RC_REACHED') { throw "until-rc worker signal did not stop as RC reached" }
+if ($WorkerRcPayload.nextDispatchContract) { throw "RC reached should not produce next dispatch contract" }
+
 $ClosedFlow = @(
     @{ step = 'reply_back'; status = $HostResultPayload.status; next = $AdapterHostResultPayload.nextDispatchContract.tool },
     @{ step = 'answer_capture'; status = $AnswerCapturedPayload.finalActionResult.status; next = $AnswerCapturedPayload.nextDispatchContract.tool },

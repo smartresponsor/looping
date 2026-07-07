@@ -97,8 +97,23 @@ function Update-RunnerBudget {
     param([Parameter(Mandatory=$true)]$Payload)
 
     if (-not $Payload.budget) { return }
-    if ($Payload.budget.untilRc -eq $true) { return }
     if (-not $Payload.finalActionResult) { return }
+
+    if ($Payload.budget.untilRc -eq $true) {
+        $Signal = ''
+        if ($Payload.workerTickResult) { $Signal = [string]$Payload.workerTickResult.status }
+        if ($Payload.gatewayDecisionResult -and -not $Signal) { $Signal = [string]$Payload.gatewayDecisionResult.decision_status }
+        if ($Signal -in @('RC_REACHED', 'ENGINE_WORKER_TICK_RC_REACHED', 'RELEASE_READY', 'GA_READY')) {
+            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+            $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+                ok = $true
+                status = 'FINAL_ACTION_RC_REACHED'
+                action = 'stop_loop'
+                nextAction = 'stop_loop'
+            } -Force
+        }
+        return
+    }
 
     $SpendActions = @(
         'FINAL_ACTION_WORKER_CONTINUE',
@@ -358,7 +373,7 @@ if ($WorkerTickResultPath) {
             action = 'wait_for_user_or_reply'
             nextAction = 'wait_for_user_or_reply'
         } -Force
-    } elseif ($WorkerStatus -eq 'ENGINE_WORKER_TICK_IDLE' -or $WorkerStatus -eq 'ENGINE_WORKER_TICK_STOPPED') {
+    } elseif ($WorkerStatus -eq 'ENGINE_WORKER_TICK_IDLE' -or $WorkerStatus -eq 'ENGINE_WORKER_TICK_STOPPED' -or $WorkerStatus -eq 'ENGINE_WORKER_TICK_RC_REACHED' -or $WorkerStatus -eq 'RC_REACHED' -or $WorkerStatus -eq 'RELEASE_READY' -or $WorkerStatus -eq 'GA_READY') {
         $WorkerStopPlan = [ordered]@{
             ok = $true
             status = 'WORKER_TICK_STOP_PLAN_READY'
