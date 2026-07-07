@@ -144,6 +144,31 @@ $GatewayWaitPayload = $GatewayWaitRaw | ConvertFrom-Json
 if ($GatewayWaitPayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_WAIT') { throw "gateway wait final action mismatch" }
 if ($GatewayWaitPayload.gatewayWaitPlan.status -ne 'GATEWAY_WAIT_PLAN_READY') { throw "gateway wait plan was not ready" }
 
+$WorkerContinuePath = Join-Path $Root 'var/runner/worker-continue-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_WORKER_TICK_CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerContinuePath -Encoding UTF8
+$WorkerContinueRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -WorkerTickResultPath $WorkerContinuePath 2>&1
+$WorkerContinuePayload = $WorkerContinueRaw | ConvertFrom-Json
+
+if ($WorkerContinuePayload.runnerMode -ne 'worker_tick_result') { throw "runner did not enter worker tick result mode" }
+if ($WorkerContinuePayload.finalActionResult.status -ne 'FINAL_ACTION_WORKER_CONTINUE') { throw "worker continue final action mismatch" }
+if ($WorkerContinuePayload.workerContinuePlan.status -ne 'WORKER_TICK_CONTINUE_PLAN_READY') { throw "worker continue plan was not ready" }
+
+$WorkerWaitPath = Join-Path $Root 'var/runner/worker-wait-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_WORKER_TICK_WAITING_USER'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerWaitPath -Encoding UTF8
+$WorkerWaitRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -WorkerTickResultPath $WorkerWaitPath 2>&1
+$WorkerWaitPayload = $WorkerWaitRaw | ConvertFrom-Json
+
+if ($WorkerWaitPayload.finalActionResult.status -ne 'FINAL_ACTION_WORKER_WAITING_USER') { throw "worker waiting-user final action mismatch" }
+if ($WorkerWaitPayload.workerWaitPlan.status -ne 'WORKER_TICK_WAITING_USER_PLAN_READY') { throw "worker wait plan was not ready" }
+
+$WorkerStopPath = Join-Path $Root 'var/runner/worker-stop-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_WORKER_TICK_IDLE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerStopPath -Encoding UTF8
+$WorkerStopRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -WorkerTickResultPath $WorkerStopPath 2>&1
+$WorkerStopPayload = $WorkerStopRaw | ConvertFrom-Json
+
+if ($WorkerStopPayload.finalActionResult.status -ne 'FINAL_ACTION_WORKER_STOP') { throw "worker stop final action mismatch" }
+if ($WorkerStopPayload.workerStopPlan.status -ne 'WORKER_TICK_STOP_PLAN_READY') { throw "worker stop plan was not ready" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'

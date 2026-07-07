@@ -14,6 +14,7 @@ param(
     [string]$HostBridgeResultPath,
     [string]$AnswerCaptureResultPath,
     [string]$GatewayDecisionResultPath,
+    [string]$WorkerTickResultPath,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -67,7 +68,81 @@ if ($AutoFinalAction) {
 }
 
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($WorkerTickResultPath) { 'worker_tick_result' } elseif ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($WorkerTickResultPath) {
+    if (-not (Test-Path $WorkerTickResultPath)) { throw "worker tick result file not found: $WorkerTickResultPath" }
+    $WorkerTickResult = Get-Content -Raw -Path $WorkerTickResultPath | ConvertFrom-Json
+    $WorkerStatus = [string]$WorkerTickResult.status
+    if ($WorkerStatus -eq 'ENGINE_WORKER_TICK_ACCEPTED' -or $WorkerStatus -eq 'ENGINE_WORKER_TICK_CONTINUE') {
+        $WorkerContinuePlan = [ordered]@{
+            ok = $true
+            status = 'WORKER_TICK_CONTINUE_PLAN_READY'
+            stage = 'bounded_worker_tick'
+            action = 'continue_loop'
+            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($WorkerTickResult.task_id) { $WorkerTickResult.task_id } else { $null }
+            nextAction = 'continue_loop'
+        }
+        $Payload | Add-Member -NotePropertyName workerTickResult -NotePropertyValue $WorkerTickResult -Force
+        $Payload | Add-Member -NotePropertyName workerContinuePlan -NotePropertyValue ([pscustomobject]$WorkerContinuePlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_WORKER_CONTINUE'
+            action = 'continue_loop'
+            nextAction = 'continue_loop'
+        } -Force
+    } elseif ($WorkerStatus -eq 'ENGINE_WORKER_TICK_WAITING_USER') {
+        $WorkerWaitPlan = [ordered]@{
+            ok = $true
+            status = 'WORKER_TICK_WAITING_USER_PLAN_READY'
+            stage = 'bounded_worker_tick'
+            action = 'wait_for_user_or_reply'
+            nextAction = 'wait_for_user_or_reply'
+        }
+        $Payload | Add-Member -NotePropertyName workerTickResult -NotePropertyValue $WorkerTickResult -Force
+        $Payload | Add-Member -NotePropertyName workerWaitPlan -NotePropertyValue ([pscustomobject]$WorkerWaitPlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_WORKER_WAITING_USER'
+            action = 'wait_for_user_or_reply'
+            nextAction = 'wait_for_user_or_reply'
+        } -Force
+    } elseif ($WorkerStatus -eq 'ENGINE_WORKER_TICK_IDLE' -or $WorkerStatus -eq 'ENGINE_WORKER_TICK_STOPPED') {
+        $WorkerStopPlan = [ordered]@{
+            ok = $true
+            status = 'WORKER_TICK_STOP_PLAN_READY'
+            stage = 'bounded_worker_tick'
+            action = 'stop_loop'
+            nextAction = 'stop_loop'
+        }
+        $Payload | Add-Member -NotePropertyName workerTickResult -NotePropertyValue $WorkerTickResult -Force
+        $Payload | Add-Member -NotePropertyName workerStopPlan -NotePropertyValue ([pscustomobject]$WorkerStopPlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_WORKER_STOP'
+            action = 'stop_loop'
+            nextAction = 'stop_loop'
+        } -Force
+    } else {
+        $WorkerRetryPlan = [ordered]@{
+            ok = $true
+            status = 'WORKER_TICK_RETRY_PLAN_READY'
+            stage = 'bounded_worker_tick'
+            action = 'retry_worker_tick'
+            nextAction = 'retry_worker_tick'
+        }
+        $Payload | Add-Member -NotePropertyName workerTickResult -NotePropertyValue $WorkerTickResult -Force
+        $Payload | Add-Member -NotePropertyName workerRetryPlan -NotePropertyValue ([pscustomobject]$WorkerRetryPlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_WORKER_RETRY'
+            action = 'retry_worker_tick'
+            nextAction = 'retry_worker_tick'
+        } -Force
+    }
+    $Payload | ConvertTo-Json -Depth 40
+    exit 0
+}
 
 if ($GatewayDecisionResultPath) {
     if (-not (Test-Path $GatewayDecisionResultPath)) { throw "gateway decision result file not found: $GatewayDecisionResultPath" }
