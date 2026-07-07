@@ -31,6 +31,13 @@ if ($ResponsePayload.responseDispatcherPayload.status -ne 'DISPATCHER_BOUNDARY_R
 if ($ResponsePayload.responseDispatcherPayload.tool -ne 'console.write.engine.reply.draft_submit') { throw "unexpected response dispatch tool: $($ResponsePayload.responseDispatcherPayload.tool)" }
 if ($ResponsePayload.responseDispatcherPayload.realExecution -ne 'disabled') { throw "response dispatch real execution is not disabled: $($ResponsePayload.responseDispatcherPayload.realExecution)" }
 
+$RealBlockedRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -ExecuteReal -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseChatId 'smoke-chat-response' -ResponseTargetId 'smoke-target-response' 2>&1
+$RealBlockedPayload = $RealBlockedRaw | ConvertFrom-Json
+
+if (-not $RealBlockedPayload.responseDispatcherPayload) { throw 'real blocked responseDispatcherPayload missing' }
+if ($RealBlockedPayload.responseDispatcherPayload.status -ne 'DISPATCHER_REAL_EXECUTION_ENV_REQUIRED') { throw "real execution did not require env guard: $($RealBlockedPayload.responseDispatcherPayload.status)" }
+if ($RealBlockedPayload.responseDispatcherPayload.realExecution -ne 'blocked') { throw "real execution was not blocked: $($RealBlockedPayload.responseDispatcherPayload.realExecution)" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'
