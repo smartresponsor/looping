@@ -17,6 +17,7 @@ param(
     [string]$GatewayDecisionResultPath,
     [string]$WorkerTickResultPath,
     [string]$TransportResultPath,
+    [string]$ReplySequenceResultPath,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -156,7 +157,62 @@ if ($AutoFinalAction) {
 }
 
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($TransportResultPath) { 'transport_result' } elseif ($WorkerTickResultPath) { 'worker_tick_result' } elseif ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($ReplySequenceResultPath) { 'reply_sequence_result' } elseif ($TransportResultPath) { 'transport_result' } elseif ($WorkerTickResultPath) { 'worker_tick_result' } elseif ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($ReplySequenceResultPath) {
+    if (-not (Test-Path $ReplySequenceResultPath)) { throw "reply sequence result file not found: $ReplySequenceResultPath" }
+    $ReplySequenceResult = Get-Content -Raw -Path $ReplySequenceResultPath | ConvertFrom-Json
+    $ReplyResults = @($ReplySequenceResult.results)
+    if ($ReplyResults.Count -ne 2) { throw "reply sequence result count mismatch: $($ReplyResults.Count)" }
+    if ($ReplyResults[0].tool -ne 'console.write.engine.reply.draft') { throw "reply sequence draft result tool mismatch" }
+    if ($ReplyResults[1].tool -ne 'console.write.engine.reply.submit') { throw "reply sequence submit result tool mismatch" }
+    if ($ReplyResults[0].ok -ne $true -or $ReplyResults[1].ok -ne $true) { throw "reply sequence result was not successful" }
+
+    $ReplyTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($ReplyResults[1].task_id) { $ReplyResults[1].task_id } elseif ($ReplyResults[0].task_id) { $ReplyResults[0].task_id } else { $null }
+    $ReplyTargetId = if ($ResponseTargetId) { $ResponseTargetId } elseif ($ReplyResults[1].target_id) { $ReplyResults[1].target_id } elseif ($ReplyResults[0].target_id) { $ReplyResults[0].target_id } else { $null }
+    $NextLoopTickPlan = [ordered]@{
+        ok = $true
+        status = 'REPLY_SEQUENCE_ACCEPTED_PLAN_READY'
+        stage = 'answer_capture'
+        phase = 'reply_watch'
+        action = 'capture_next_answer'
+        taskId = $ReplyTaskId
+        targetId = $ReplyTargetId
+        maxIterations = $MaxIterations
+        untilRc = [bool]$UntilRc
+        nextAction = 'dispatch_answer_capture'
+    }
+    $NextLoopTickContract = [ordered]@{
+        ok = $true
+        status = 'REPLY_SEQUENCE_NEXT_CAPTURE_CONTRACT_READY'
+        stage = 'answer_capture'
+        tool = 'console.write.engine.answer.capture'
+        arguments = [ordered]@{
+            taskId = $NextLoopTickPlan.taskId
+            preferredChatId = if ($ResponseChatId) { $ResponseChatId } else { $null }
+            requireChatId = $true
+            readinessProfile = 'rc_gate'
+            confirmCapture = $true
+        }
+        mutation = 'write'
+        confirmationRequired = $false
+        execution = 'external_console_mcp_required'
+        nextAction = 'dispatch_answer_capture'
+    }
+    $Payload | Add-Member -NotePropertyName replySequenceResult -NotePropertyValue $ReplySequenceResult -Force
+    $Payload | Add-Member -NotePropertyName nextLoopTickPlan -NotePropertyValue ([pscustomobject]$NextLoopTickPlan) -Force
+    $Payload | Add-Member -NotePropertyName nextLoopTickContract -NotePropertyValue ([pscustomobject]$NextLoopTickContract) -Force
+    $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue ([pscustomobject]$NextLoopTickContract) -Force
+    $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+        ok = $true
+        status = 'FINAL_ACTION_REPLY_SEQUENCE_ACCEPTED'
+        action = 'continue_after_reply_sequence'
+        nextAction = 'dispatch_answer_capture'
+    } -Force
+    Write-RunnerState -Payload $Payload
+    $Payload | ConvertTo-Json -Depth 40
+    exit 0
+}
 
 if ($TransportResultPath) {
     if (-not (Test-Path $TransportResultPath)) { throw "transport result file not found: $TransportResultPath" }

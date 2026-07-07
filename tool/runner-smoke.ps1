@@ -180,6 +180,20 @@ if ($GatewayReplyPayload.nextDispatchBoundary.Count -ne 2) { throw "reply-back n
 if ($GatewayReplyPayload.nextDispatchBoundary[0].tool -ne 'console.write.engine.reply.draft') { throw "reply-back next dispatch draft boundary mismatch" }
 if ($GatewayReplyPayload.nextDispatchBoundary[1].tool -ne 'console.write.engine.reply.submit') { throw "reply-back next dispatch submit boundary mismatch" }
 
+$ReplySequenceResultPath = Join-Path $Root 'var/runner/reply-sequence-result-smoke.json'
+[pscustomobject]@{
+    results = @(
+        @{ ok = $true; tool = 'console.write.engine.reply.draft'; status = 'ENGINE_REPLY_BACK_DRAFTED'; task_id = 'smoke-engine-task'; target_id = 'smoke-target-response' },
+        @{ ok = $true; tool = 'console.write.engine.reply.submit'; status = 'ENGINE_REPLY_BACK_SUBMITTED'; task_id = 'smoke-engine-task'; target_id = 'smoke-target-response' }
+    )
+} | ConvertTo-Json -Depth 20 | Set-Content -Path $ReplySequenceResultPath -Encoding UTF8
+$ReplySequenceRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' -ReplySequenceResultPath $ReplySequenceResultPath 2>&1
+$ReplySequencePayload = $ReplySequenceRaw | ConvertFrom-Json
+if ($ReplySequencePayload.runnerMode -ne 'reply_sequence_result') { throw "runner did not enter reply sequence result mode" }
+if ($ReplySequencePayload.finalActionResult.status -ne 'FINAL_ACTION_REPLY_SEQUENCE_ACCEPTED') { throw "reply sequence was not accepted" }
+if ($ReplySequencePayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "reply sequence did not advance to answer capture" }
+if ($ReplySequencePayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "reply sequence next dispatch boundary was not ready" }
+
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8
 $GatewayWaitRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayWaitPath 2>&1
