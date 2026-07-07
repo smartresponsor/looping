@@ -179,6 +179,14 @@ if ($RecoveryResultPayload.nextDispatchContract.tool -ne 'console.write.engine.a
 if ($RecoveryResultPayload.nextDispatchContract.arguments.retryAttempt -ne 0) { throw "recovery result did not reset retry attempt" }
 if ($RecoveryResultPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "recovery result next dispatch boundary not ready" }
 
+$TransportAdapterResultPath = Join-Path $Root 'var/runner/transport-adapter-result-smoke.json'
+[pscustomobject]@{ ok = $true; tool = 'console.write.engine.chat.bind'; status = 'ENGINE_CHAT_BIND_RECOVERED'; task_id = 'smoke-engine-task'; chat_id = 'smoke-chat-adapter' } | ConvertTo-Json -Depth 20 | Set-Content -Path $TransportAdapterResultPath -Encoding UTF8
+$TransportAdapterRaw = & (Join-Path $Root 'tool/runner-transport-adapter.ps1') -Task $Task -MaxIterations 1 -PayloadPath $AnswerRetryExhaustedPayload.nextDispatchPayload[0].path -ResultPath $TransportAdapterResultPath 2>&1
+$TransportAdapterPayload = $TransportAdapterRaw | ConvertFrom-Json
+if ($TransportAdapterPayload.status -ne 'RUNNER_TRANSPORT_ADAPTER_FED') { throw "transport adapter did not feed result" }
+if ($TransportAdapterPayload.feed.finalActionResult.status -ne 'FINAL_ACTION_RECOVERY_RESULT_ACCEPTED') { throw "transport adapter feed final action mismatch" }
+if ($TransportAdapterPayload.feed.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "transport adapter feed next dispatch mismatch" }
+
 $WorkerRecoveryTransportPath = Join-Path $Root 'var/runner/worker-recovery-transport-smoke.json'
 [pscustomobject]@{
     ok = $true
