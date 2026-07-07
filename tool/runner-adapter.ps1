@@ -93,6 +93,23 @@ function Add-NextDispatchEnvelope {
     $Payload | Add-Member -NotePropertyName nextDispatchExecutionMode -NotePropertyValue ($(if ($NextDispatchExecuteReal) { 'execute_real' } else { 'dry_run' })) -Force
 }
 
+function Add-RetryPolicy {
+    param([Parameter(Mandatory=$true)]$Payload)
+
+    if (-not $Payload.finalActionResult) { return }
+    $Status = [string]$Payload.finalActionResult.status
+    $Policy = switch ($Status) {
+        'FINAL_ACTION_ANSWER_CAPTURE_WAIT' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_READY'; action = 'retry_answer_capture'; strategy = 'bounded_retry'; nextAction = 'retry_answer_capture'; maxAttempts = 5 } }
+        'FINAL_ACTION_GATEWAY_WAIT' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_READY'; action = 'retry_gateway_decision'; strategy = 'bounded_retry'; nextAction = 'retry_gateway_decision'; maxAttempts = 3 } }
+        'FINAL_ACTION_WORKER_RETRY' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_READY'; action = 'retry_worker_tick'; strategy = 'bounded_retry'; nextAction = 'retry_worker_tick'; maxAttempts = 3 } }
+        'FINAL_ACTION_WORKER_WAITING_USER' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_WAITING_USER'; action = 'wait_for_user_or_reply'; strategy = 'external_wait'; nextAction = 'wait_for_user_or_reply'; maxAttempts = 0 } }
+        'FINAL_ACTION_BUDGET_EXHAUSTED' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_STOP'; action = 'stop_loop'; strategy = 'terminal'; nextAction = 'stop_loop'; maxAttempts = 0 } }
+        'FINAL_ACTION_RC_REACHED' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_STOP'; action = 'stop_loop'; strategy = 'terminal'; nextAction = 'stop_loop'; maxAttempts = 0 } }
+        default { $null }
+    }
+    if ($Policy) { $Payload | Add-Member -NotePropertyName retryPolicy -NotePropertyValue ([pscustomobject]$Policy) -Force }
+}
+
 function Update-RunnerBudget {
     param([Parameter(Mandatory=$true)]$Payload)
 
@@ -141,6 +158,7 @@ function Write-RunnerState {
     param([Parameter(Mandatory=$true)]$Payload)
 
     Update-RunnerBudget -Payload $Payload
+    Add-RetryPolicy -Payload $Payload
     Add-NextDispatchEnvelope -Payload $Payload
 
     $StateDir = Join-Path $Root 'var/runner/state'
@@ -156,6 +174,7 @@ function Write-RunnerState {
         finalActionResult = $Payload.finalActionResult
         nextDispatchContract = $Payload.nextDispatchContract
         budget = if ($Payload.budget) { $Payload.budget } else { [ordered]@{ mode = 'single_step'; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
+        retryPolicy = $Payload.retryPolicy
         updatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
 

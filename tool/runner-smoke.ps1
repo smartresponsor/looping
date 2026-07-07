@@ -149,6 +149,8 @@ $AnswerNotReadyPayload = $AnswerNotReadyRaw | ConvertFrom-Json
 
 if ($AnswerNotReadyPayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAPTURE_WAIT') { throw "answer capture wait final action mismatch" }
 if ($AnswerNotReadyPayload.answerCaptureWaitPlan.status -ne 'ANSWER_CAPTURE_WAIT_PLAN_READY') { throw "answer capture wait plan was not ready" }
+if ($AnswerNotReadyPayload.retryPolicy.action -ne 'retry_answer_capture') { throw "answer capture wait retry policy mismatch" }
+if ($AnswerNotReadyPayload.retryPolicy.strategy -ne 'bounded_retry') { throw "answer capture wait retry strategy mismatch" }
 
 $GatewayContinuePath = Join-Path $Root 'var/runner/gateway-continue-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayContinuePath -Encoding UTF8
@@ -211,6 +213,7 @@ $GatewayWaitPayload = $GatewayWaitRaw | ConvertFrom-Json
 
 if ($GatewayWaitPayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_WAIT') { throw "gateway wait final action mismatch" }
 if ($GatewayWaitPayload.gatewayWaitPlan.status -ne 'GATEWAY_WAIT_PLAN_READY') { throw "gateway wait plan was not ready" }
+if ($GatewayWaitPayload.retryPolicy.action -ne 'retry_gateway_decision') { throw "gateway wait retry policy mismatch" }
 
 $WorkerContinuePath = Join-Path $Root 'var/runner/worker-continue-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_WORKER_TICK_CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerContinuePath -Encoding UTF8
@@ -220,6 +223,7 @@ $WorkerContinuePayload = $WorkerContinueRaw | ConvertFrom-Json
 if ($WorkerContinuePayload.runnerMode -ne 'worker_tick_result') { throw "runner did not enter worker tick result mode" }
 if ($WorkerContinuePayload.finalActionResult.status -ne 'FINAL_ACTION_BUDGET_EXHAUSTED') { throw "worker continue did not exhaust one-step budget" }
 if ($WorkerContinuePayload.budget.remaining -ne 0) { throw "worker continue budget did not decrement to zero" }
+if ($WorkerContinuePayload.retryPolicy.strategy -ne 'terminal') { throw "budget exhausted retry policy was not terminal" }
 
 $WorkerWaitPath = Join-Path $Root 'var/runner/worker-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_WORKER_TICK_WAITING_USER'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerWaitPath -Encoding UTF8
@@ -243,6 +247,7 @@ $WorkerRcRaw = & $Runner -Task $Task -UntilRc -ResponseTaskId 'smoke-engine-task
 $WorkerRcPayload = $WorkerRcRaw | ConvertFrom-Json
 if ($WorkerRcPayload.finalActionResult.status -ne 'FINAL_ACTION_RC_REACHED') { throw "until-rc worker signal did not stop as RC reached" }
 if ($WorkerRcPayload.nextDispatchContract) { throw "RC reached should not produce next dispatch contract" }
+if ($WorkerRcPayload.retryPolicy.strategy -ne 'terminal') { throw "RC reached retry policy was not terminal" }
 
 $ClosedFlow = @(
     @{ step = 'reply_back'; status = $HostResultPayload.status; next = $AdapterHostResultPayload.nextDispatchContract.tool },
