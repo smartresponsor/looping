@@ -93,6 +93,8 @@ if ($AdapterHostResultPayload.nextLoopTickContract.tool -ne 'console.write.engin
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.taskId -ne 'smoke-engine-task') { throw "next loop tick contract task id mismatch" }
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.confirmCapture -ne $true) { throw "next loop tick contract confirmCapture was not true" }
 if ($AdapterHostResultPayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "next dispatch contract did not expose answer capture" }
+if ($AdapterHostResultPayload.runnerStateStatus -ne 'RUNNER_STATE_PERSISTED') { throw "runner state was not persisted" }
+if (-not (Test-Path $AdapterHostResultPayload.runnerStatePath)) { throw "runner state path does not exist" }
 
 $AnswerCapturedPath = Join-Path $Root 'var/runner/answer-captured-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerCapturedPath -Encoding UTF8

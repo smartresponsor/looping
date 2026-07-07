@@ -31,6 +31,33 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+
+function Write-RunnerState {
+    param([Parameter(Mandatory=$true)]$Payload)
+
+    $StateDir = Join-Path $Root 'var/runner/state'
+    if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir | Out-Null }
+
+    $State = [ordered]@{
+        ok = $true
+        status = 'RUNNER_STATE_PERSISTED'
+        runId = $Payload.runId
+        taskId = $Payload.taskId
+        runnerMode = $Payload.runnerMode
+        finalActionSelected = $Payload.finalActionSelected
+        finalActionResult = $Payload.finalActionResult
+        nextDispatchContract = $Payload.nextDispatchContract
+        updatedAt = (Get-Date).ToUniversalTime().ToString('o')
+    }
+
+    $LatestPath = Join-Path $StateDir 'latest.json'
+    $RunPath = Join-Path $StateDir (($Payload.runId) + '.json')
+    [pscustomobject]$State | ConvertTo-Json -Depth 40 | Set-Content -Path $LatestPath -Encoding UTF8
+    [pscustomobject]$State | ConvertTo-Json -Depth 40 | Set-Content -Path $RunPath -Encoding UTF8
+    $Payload | Add-Member -NotePropertyName runnerStatePath -NotePropertyValue $LatestPath -Force
+    $Payload | Add-Member -NotePropertyName runnerStateStatus -NotePropertyValue 'RUNNER_STATE_PERSISTED' -Force
+}
+
 $ArgsList = @('bin/console', 'chatgpt-loop:run', "--task=$Task", "--mode=$Mode")
 
 if ($UntilRc) { $ArgsList += '--until-rc=1' } else { $ArgsList += "--max-iterations=$MaxIterations" }
@@ -140,6 +167,7 @@ if ($WorkerTickResultPath) {
             nextAction = 'retry_worker_tick'
         } -Force
     }
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 40
     exit 0
 }
@@ -259,6 +287,7 @@ if ($GatewayDecisionResultPath) {
             nextAction = 'dispatch_chat_response'
         } -Force
     }
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 40
     exit 0
 }
@@ -312,6 +341,7 @@ if ($AnswerCaptureResultPath) {
             nextAction = 'retry_answer_capture'
         } -Force
     }
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 40
     exit 0
 }
@@ -366,6 +396,7 @@ if ($HostBridgeResultPath) {
         action = 'continue_after_host_invocation'
         nextAction = $HostBridgePayload.nextAction
     } -Force
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 40
     exit 0
 }
@@ -377,6 +408,7 @@ if ($AutoFinalAction -and $FinalAction -in @('wait_for_ask_gateway_result', 'pro
         action = $FinalAction
         reason = $Payload.finalAction.reason
     } -Force
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 30
     exit 0
 }
@@ -388,6 +420,7 @@ if ($AutoFinalAction -and $FinalAction -like 'stop*') {
         action = $FinalAction
         reason = $Payload.finalAction.reason
     } -Force
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 30
     exit 0
 }
@@ -463,6 +496,7 @@ if ($Dispatch) {
         $Payload | Add-Member -NotePropertyName responseDispatchPayloadPath -NotePropertyValue $ResponsePayloadPath -Force
         $Payload | Add-Member -NotePropertyName responseDispatcherPayload -NotePropertyValue $ResponseDispatcherPayloads -Force
     }
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 30
     exit 0
 }
@@ -479,6 +513,7 @@ if ($SimulateHost) {
     $ContinueRaw = & php @ContinueArgs 2>&1
     $Payload | Add-Member -NotePropertyName simulatedHostPayload -NotePropertyValue $SimPayload -Force
     $Payload | Add-Member -NotePropertyName continuePayload -NotePropertyValue ($ContinueRaw | ConvertFrom-Json) -Force
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 30
     exit 0
 }
@@ -489,11 +524,13 @@ if ($Continue) {
     $ContinueArgs = @($Payload.hostResultBridge.continueArgs)
     $ContinueRaw = & php @ContinueArgs 2>&1
     $Payload | Add-Member -NotePropertyName continuePayload -NotePropertyValue ($ContinueRaw | ConvertFrom-Json) -Force
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 30
     exit 0
 }
 
 if (-not $Execute) {
+    Write-RunnerState -Payload $Payload
     $Payload | ConvertTo-Json -Depth 20
     exit 0
 }
@@ -510,4 +547,5 @@ $Payload | Add-Member -NotePropertyName executionResult -NotePropertyValue @{
     confirmationGate = $Payload.runnerExecutionPlan.confirmationGate
     reason = 'Host runner must invoke the allowlisted Console MCP tool with these arguments.'
 } -Force
+Write-RunnerState -Payload $Payload
 $Payload | ConvertTo-Json -Depth 20
