@@ -267,6 +267,11 @@ if ($DaemonPayload.toolCall.name -ne $DaemonPayload.dispatchTool) { throw "runne
 if (-not $DaemonPayload.toolCall.arguments) { throw "runner daemon tool call arguments missing" }
 if (-not $DaemonPayload.expectedResultPath) { throw "runner daemon expected result path missing" }
 if (@($DaemonPayload.adapterCommand).Count -lt 8) { throw "runner daemon adapter command too short" }
+if (-not (Test-Path $DaemonPayload.handoffPath)) { throw "runner daemon handoff manifest missing" }
+$DaemonHandoff = Get-Content -Raw -Path $DaemonPayload.handoffPath | ConvertFrom-Json
+if ($DaemonHandoff.status -ne 'RUNNER_EXECUTOR_HANDOFF_READY') { throw "runner daemon handoff status mismatch" }
+if ($DaemonHandoff.toolCall.name -ne $DaemonPayload.toolCall.name) { throw "runner daemon handoff tool call mismatch" }
+if (@($DaemonHandoff.adapterCommand).Count -lt 8) { throw "runner daemon handoff adapter command too short" }
 
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8

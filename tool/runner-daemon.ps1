@@ -84,6 +84,20 @@ $AdapterCommand = @(
     $ExpectedResultPath
 )
 if ($UntilRc) { $AdapterCommand += '-UntilRc' }
+$HandoffPath = $FirstPayload.path + '.handoff.json'
+$Handoff = [ordered]@{
+    ok = $true
+    status = 'RUNNER_EXECUTOR_HANDOFF_READY'
+    task = $Task
+    statePath = $Payload.runnerStatePath
+    dispatchPayloadPath = $FirstPayload.path
+    dispatchTool = $FirstPayload.tool
+    toolCall = ([pscustomobject]$ToolCall)
+    expectedResultPath = $ExpectedResultPath
+    adapterCommand = $AdapterCommand
+    nextAction = 'invoke_tool_call_write_result_then_run_adapter'
+}
+[pscustomobject]$Handoff | ConvertTo-Json -Depth 40 | Set-Content -Path $HandoffPath -Encoding UTF8
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_DAEMON_DISPATCH_READY'
@@ -97,6 +111,8 @@ if ($UntilRc) { $AdapterCommand += '-UntilRc' }
     toolCall = ([pscustomobject]$ToolCall)
     expectedResultPath = $ExpectedResultPath
     adapterCommand = $AdapterCommand
+    handoffPath = $HandoffPath
+    handoff = ([pscustomobject]$Handoff)
     nextDispatchPayload = $Payload.nextDispatchPayload
     nextDispatchBoundary = $Payload.nextDispatchBoundary
     nextAction = 'invoke_console_mcp_tool_call_then_feed_transport_result'
