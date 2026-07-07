@@ -194,6 +194,13 @@ if ($ReplySequencePayload.finalActionResult.status -ne 'FINAL_ACTION_REPLY_SEQUE
 if ($ReplySequencePayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "reply sequence did not advance to answer capture" }
 if ($ReplySequencePayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "reply sequence next dispatch boundary was not ready" }
 
+$ResumeRaw = & $Runner -Task $Task -MaxIterations 1 -ResumeLatest 2>&1
+$ResumePayload = $ResumeRaw | ConvertFrom-Json
+if ($ResumePayload.runnerMode -ne 'resume_latest') { throw "runner did not enter resume latest mode" }
+if ($ResumePayload.finalActionResult.status -ne 'FINAL_ACTION_RESUME_LATEST') { throw "resume latest final action mismatch" }
+if ($ResumePayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "resume latest did not restore answer capture next dispatch" }
+if ($ResumePayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "resume latest next dispatch boundary was not ready" }
+
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8
 $GatewayWaitRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayWaitPath 2>&1

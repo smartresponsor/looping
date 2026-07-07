@@ -11,6 +11,7 @@ param(
     [switch]$AutoFinalAction,
     [switch]$ExecuteReal,
     [switch]$NextDispatchExecuteReal,
+    [switch]$ResumeLatest,
     [switch]$ResponseDispatch,
     [string]$HostBridgeResultPath,
     [string]$AnswerCaptureResultPath,
@@ -118,6 +119,32 @@ function Write-RunnerState {
     [pscustomobject]$State | ConvertTo-Json -Depth 40 | Set-Content -Path $RunPath -Encoding UTF8
     $Payload | Add-Member -NotePropertyName runnerStatePath -NotePropertyValue $LatestPath -Force
     $Payload | Add-Member -NotePropertyName runnerStateStatus -NotePropertyValue 'RUNNER_STATE_PERSISTED' -Force
+}
+
+if ($ResumeLatest) {
+    $StatePath = Join-Path $Root 'var/runner/state/latest.json'
+    if (-not (Test-Path $StatePath)) { throw "latest runner state not found: $StatePath" }
+    $State = Get-Content -Raw -Path $StatePath | ConvertFrom-Json
+    if ($State.status -ne 'RUNNER_STATE_PERSISTED') { throw "latest runner state is not persisted: $($State.status)" }
+    $Payload = [pscustomobject]@{
+        ok = $true
+        runId = $State.runId
+        taskId = $State.taskId
+        runnerMode = 'resume_latest'
+        finalActionSelected = $State.finalActionSelected
+        finalActionResult = @{
+            ok = $true
+            status = 'FINAL_ACTION_RESUME_LATEST'
+            action = 'resume_latest'
+            nextAction = 'dispatch_next_from_state'
+        }
+        nextDispatchContract = $State.nextDispatchContract
+        resumeState = $State
+        resumeStatePath = $StatePath
+    }
+    Write-RunnerState -Payload $Payload
+    $Payload | ConvertTo-Json -Depth 40
+    exit 0
 }
 
 $ArgsList = @('bin/console', 'chatgpt-loop:run', "--task=$Task", "--mode=$Mode")
