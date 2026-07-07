@@ -93,6 +93,25 @@ if ($AdapterHostResultPayload.nextLoopTickContract.tool -ne 'console.write.engin
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.taskId -ne 'smoke-engine-task') { throw "next loop tick contract task id mismatch" }
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.confirmCapture -ne $true) { throw "next loop tick contract confirmCapture was not true" }
 
+$AnswerCapturedPath = Join-Path $Root 'var/runner/answer-captured-smoke.json'
+[pscustomobject]@{ ok = $true; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerCapturedPath -Encoding UTF8
+$AnswerCapturedRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -AnswerCaptureResultPath $AnswerCapturedPath 2>&1
+$AnswerCapturedPayload = $AnswerCapturedRaw | ConvertFrom-Json
+
+if ($AnswerCapturedPayload.runnerMode -ne 'answer_capture_result') { throw "runner did not enter answer capture result mode" }
+if ($AnswerCapturedPayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAPTURED') { throw "answer capture final action was not captured" }
+if ($AnswerCapturedPayload.gatewayDecisionContract.status -ne 'GATEWAY_DECISION_CONTRACT_READY') { throw "gateway decision contract was not ready" }
+if ($AnswerCapturedPayload.gatewayDecisionContract.tool -ne 'console.write.engine.gateway.decide') { throw "gateway decision contract tool mismatch" }
+if ($AnswerCapturedPayload.gatewayDecisionContract.arguments.confirmDecision -ne $true) { throw "gateway decision confirmDecision was not true" }
+
+$AnswerNotReadyPath = Join-Path $Root 'var/runner/answer-not-ready-smoke.json'
+[pscustomobject]@{ ok = $false; status = 'ENGINE_ANSWER_CAPTURE_NOT_READY'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerNotReadyPath -Encoding UTF8
+$AnswerNotReadyRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -AnswerCaptureResultPath $AnswerNotReadyPath 2>&1
+$AnswerNotReadyPayload = $AnswerNotReadyRaw | ConvertFrom-Json
+
+if ($AnswerNotReadyPayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAPTURE_WAIT') { throw "answer capture wait final action mismatch" }
+if ($AnswerNotReadyPayload.answerCaptureWaitPlan.status -ne 'ANSWER_CAPTURE_WAIT_PLAN_READY') { throw "answer capture wait plan was not ready" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'

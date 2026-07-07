@@ -12,6 +12,7 @@ param(
     [switch]$ExecuteReal,
     [switch]$ResponseDispatch,
     [string]$HostBridgeResultPath,
+    [string]$AnswerCaptureResultPath,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -65,7 +66,59 @@ if ($AutoFinalAction) {
 }
 
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($AnswerCaptureResultPath) {
+    if (-not (Test-Path $AnswerCaptureResultPath)) { throw "answer capture result file not found: $AnswerCaptureResultPath" }
+    $AnswerCaptureResult = Get-Content -Raw -Path $AnswerCaptureResultPath | ConvertFrom-Json
+    $AnswerReady = ($AnswerCaptureResult.ok -eq $true -and $AnswerCaptureResult.status -eq 'ENGINE_ANSWER_CAPTURED')
+    if ($AnswerReady) {
+        $GatewayDecisionContract = [ordered]@{
+            ok = $true
+            status = 'GATEWAY_DECISION_CONTRACT_READY'
+            stage = 'gateway_decision'
+            tool = 'console.write.engine.gateway.decide'
+            arguments = [ordered]@{
+                taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($AnswerCaptureResult.task_id) { $AnswerCaptureResult.task_id } else { $null }
+                maxOutputTokens = 900
+                temperature = 0.1
+                raw = $false
+                confirmDecision = $true
+            }
+            mutation = 'write'
+            confirmationRequired = $false
+            execution = 'external_console_mcp_required'
+            nextAction = 'dispatch_gateway_decision'
+        }
+        $Payload | Add-Member -NotePropertyName answerCaptureResult -NotePropertyValue $AnswerCaptureResult -Force
+        $Payload | Add-Member -NotePropertyName gatewayDecisionContract -NotePropertyValue ([pscustomobject]$GatewayDecisionContract) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_ANSWER_CAPTURED'
+            action = 'dispatch_gateway_decision'
+            nextAction = 'dispatch_gateway_decision'
+        } -Force
+    } else {
+        $WaitPlan = [ordered]@{
+            ok = $true
+            status = 'ANSWER_CAPTURE_WAIT_PLAN_READY'
+            stage = 'answer_capture'
+            action = 'retry_answer_capture'
+            reason = 'Answer capture is not ready yet; keep the loop in bounded wait/retry mode.'
+            nextAction = 'retry_answer_capture'
+        }
+        $Payload | Add-Member -NotePropertyName answerCaptureResult -NotePropertyValue $AnswerCaptureResult -Force
+        $Payload | Add-Member -NotePropertyName answerCaptureWaitPlan -NotePropertyValue ([pscustomobject]$WaitPlan) -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_ANSWER_CAPTURE_WAIT'
+            action = 'retry_answer_capture'
+            nextAction = 'retry_answer_capture'
+        } -Force
+    }
+    $Payload | ConvertTo-Json -Depth 40
+    exit 0
+}
 
 if ($HostBridgeResultPath) {
     $PayloadDir = Join-Path $Root 'var/runner'
