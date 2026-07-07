@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$TargetRepo,
     [int]$MaxIterations = 3,
-    [string]$Name = 'repo-smoke'
+    [string]$Name = 'repo-smoke',
+    [string]$CaptureResultPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,8 +30,10 @@ $Raw = & $Daemon -Task $Task -MaxIterations $MaxIterations 2>&1
 $Payload = $Raw | ConvertFrom-Json
 $AdapterPayload = $null
 if ($Payload.status -eq 'RUNNER_DAEMON_DISPATCH_READY' -and [string]$Payload.dispatchTool -eq 'console.read_.repo.context.capture') {
-    $Result = [pscustomobject]@{ ok = $true; tool = 'console.read_.repo.context.capture'; status = 'REPO_CONTEXT_CAPTURED'; workspacePath = $TargetRepo; mode = 'read_only'; capturedAt = (Get-Date).ToUniversalTime().ToString('o') }
-    $Result | ConvertTo-Json -Depth 20 | Set-Content -Path $Payload.expectedResultPath -Encoding UTF8
+    $CapturePayload = if ($CaptureResultPath -and (Test-Path $CaptureResultPath)) { Get-Content -Raw -Path $CaptureResultPath | ConvertFrom-Json } else { $null }
+    $CaptureMode = if ($CapturePayload) { 'external' } else { 'synthetic' }
+    $Result = [pscustomobject]@{ ok = $true; tool = 'console.read_.repo.context.capture'; status = 'REPO_CONTEXT_CAPTURED'; workspacePath = $TargetRepo; mode = 'read_only'; captureMode = $CaptureMode; capturedAt = (Get-Date).ToUniversalTime().ToString('o'); capture = $CapturePayload }
+    $Result | ConvertTo-Json -Depth 80 | Set-Content -Path $Payload.expectedResultPath -Encoding UTF8
     $Adapter = Join-Path $Root 'tool/runner-transport-adapter.ps1'
     $AdapterRaw = & $Adapter -Task $Task -MaxIterations $MaxIterations -PayloadPath $Payload.dispatchPayloadPath -ResultPath $Payload.expectedResultPath 2>&1
     $AdapterPayload = $AdapterRaw | ConvertFrom-Json
@@ -77,5 +80,6 @@ if ($Payload.status -eq 'RUNNER_DAEMON_STATE_TASK_MISMATCH') {
     adapterStatus = if ($AdapterPayload) { [string]$AdapterPayload.status } else { $null }
     adapterNextAction = if ($AdapterPayload) { [string]$AdapterPayload.nextAction } else { $null }
     autoFed = [bool]$AdapterPayload
+    captureMode = if ($CaptureResultPath) { 'external_or_requested' } else { 'synthetic' }
     nextAction = if ($AdapterPayload) { 'repo_context_capture_auto_fed' } else { $NextAction }
 } | ConvertTo-Json -Depth 40
