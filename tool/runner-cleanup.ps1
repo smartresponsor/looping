@@ -43,3 +43,5 @@ if (Test-Path $JournalPath) {
     keepJournalLines = $KeepJournalLines
     deletedCount = @($Deleted).Count
     deleted = $Deleted
+    journalTrimmed = $JournalTrimmed
+} | ConvertTo-Json -Depth 40
