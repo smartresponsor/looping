@@ -112,12 +112,25 @@ function Add-RetryPolicy {
         $Policy.attempt = $RetryAttempt
         $Policy.nextAttempt = if ([int]$Policy.maxAttempts -gt 0) { $RetryAttempt + 1 } else { $RetryAttempt }
         if ([int]$Policy.maxAttempts -gt 0 -and $RetryAttempt -ge [int]$Policy.maxAttempts) {
+            $RecoveryAction = switch ([string]$Policy.action) {
+                'retry_answer_capture' { 'recover_browser_target' }
+                'retry_gateway_decision' { 'recover_chat_binding' }
+                'retry_worker_tick' { 'recover_worker_state' }
+                default { 'stop_hard' }
+            }
+            $Payload | Add-Member -NotePropertyName recoveryPlan -NotePropertyValue ([pscustomobject]@{
+                ok = $true
+                status = 'RECOVERY_PLAN_READY'
+                action = $RecoveryAction
+                reason = 'Retry policy was exhausted and requires recovery planning.'
+                nextAction = $RecoveryAction
+            }) -Force
             $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
             $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
                 ok = $false
                 status = 'FINAL_ACTION_RETRY_EXHAUSTED'
-                action = 'stop_or_recover'
-                nextAction = 'stop_or_recover'
+                action = $RecoveryAction
+                nextAction = $RecoveryAction
             } -Force
             $Policy.status = 'RETRY_POLICY_EXHAUSTED'
             $Policy.action = 'stop_or_recover'
@@ -194,6 +207,7 @@ function Write-RunnerState {
         budget = if ($Payload.budget) { $Payload.budget } else { [ordered]@{ mode = 'single_step'; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
         retryPolicy = $Payload.retryPolicy
         retryAttempt = $RetryAttempt
+        recoveryPlan = $Payload.recoveryPlan
         updatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
 

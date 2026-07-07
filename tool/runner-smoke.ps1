@@ -159,6 +159,8 @@ $AnswerRetryExhaustedPayload = $AnswerRetryExhaustedRaw | ConvertFrom-Json
 if ($AnswerRetryExhaustedPayload.finalActionResult.status -ne 'FINAL_ACTION_RETRY_EXHAUSTED') { throw "answer capture retry exhaustion final action mismatch" }
 if ($AnswerRetryExhaustedPayload.retryPolicy.status -ne 'RETRY_POLICY_EXHAUSTED') { throw "answer capture retry policy was not exhausted" }
 if ($AnswerRetryExhaustedPayload.retryPolicy.attempt -ne 5) { throw "answer capture exhausted attempt mismatch" }
+if ($AnswerRetryExhaustedPayload.recoveryPlan.action -ne 'recover_browser_target') { throw "answer capture recovery plan mismatch" }
+if ($AnswerRetryExhaustedPayload.finalActionResult.action -ne 'recover_browser_target') { throw "answer capture final recovery action mismatch" }
 
 $GatewayContinuePath = Join-Path $Root 'var/runner/gateway-continue-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'CONTINUE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayContinuePath -Encoding UTF8
