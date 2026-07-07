@@ -64,8 +64,8 @@ if ($Accepted.status -ne 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED') {
 $AcceptedPath = Join-Path (Split-Path -Parent $ResultPath) ('accepted-' + (Split-Path -Leaf $ResultPath))
 $Accepted | ConvertTo-Json -Depth 40 | Set-Content -Path $AcceptedPath -Encoding UTF8
 
-$RunnerArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations, '-RetryAttempt', $RetryAttempt, '-TransportResultPath', $AcceptedPath)
-if ($UntilRc) { $RunnerArgs += '-UntilRc' }
+$RunnerArgs = @{ Task = $Task; MaxIterations = $MaxIterations; RetryAttempt = $RetryAttempt; TransportResultPath = $AcceptedPath }
+if ($UntilRc) { $RunnerArgs.UntilRc = $true }
 $FeedRaw = & $Runner @RunnerArgs 2>&1
 $Feed = $FeedRaw | ConvertFrom-Json
 $JournalPath = Write-RunnerJournalEvent ([ordered]@{ component = 'runner-transport-adapter'; status = 'RUNNER_TRANSPORT_ADAPTER_FED'; action = 'transport_result_accepted_and_fed'; task = $Task; expectedTool = $ExpectedTool; payloadPath = $PayloadPath; resultPath = $ResultPath; acceptedPath = $AcceptedPath })
