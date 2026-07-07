@@ -8,6 +8,7 @@ param(
     [switch]$SimulateHost,
     [switch]$Dispatch,
     [switch]$DryRun,
+    [switch]$AutoFinalAction,
     [switch]$ResponseDispatch,
     [string]$HostResultOk,
     [string]$HostTaskId,
@@ -48,7 +49,41 @@ if (-not $Payload.dispatchEnvelope) { throw 'dispatchEnvelope missing' }
 if (-not $Payload.runnerExecutionPlan) { throw 'runnerExecutionPlan missing' }
 if ($Payload.runnerExecutionPlan.ok -ne $true) { throw "runner execution plan not ready: $($Payload.runnerExecutionPlan.status)" }
 
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$FinalAction = if ($Payload.finalAction) { [string]$Payload.finalAction.action } else { 'unknown' }
+if ($AutoFinalAction) {
+    if ($FinalAction -eq 'dispatch_chat_response') {
+        $Dispatch = $true
+        $ResponseDispatch = $true
+        $DryRun = $true
+    } elseif ($FinalAction -eq 'continue_loop') {
+        $Continue = $true
+    }
+}
+
+$Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($AutoFinalAction -and $FinalAction -in @('wait_for_ask_gateway_result', 'provide_response_chat_id', 'wait_or_review')) {
+    $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+        ok = $true
+        status = 'FINAL_ACTION_WAITING'
+        action = $FinalAction
+        reason = $Payload.finalAction.reason
+    } -Force
+    $Payload | ConvertTo-Json -Depth 30
+    exit 0
+}
+
+if ($AutoFinalAction -and $FinalAction -like 'stop*') {
+    $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+        ok = $false
+        status = 'FINAL_ACTION_STOPPED'
+        action = $FinalAction
+        reason = $Payload.finalAction.reason
+    } -Force
+    $Payload | ConvertTo-Json -Depth 30
+    exit 0
+}
 
 if ($Dispatch) {
     $PayloadDir = Join-Path $Root 'var/runner'
