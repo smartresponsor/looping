@@ -11,6 +11,7 @@ param(
     [switch]$AutoFinalAction,
     [switch]$ExecuteReal,
     [switch]$ResponseDispatch,
+    [string]$HostBridgeResultPath,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -64,7 +65,28 @@ if ($AutoFinalAction) {
 }
 
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($HostBridgeResultPath) {
+    $PayloadDir = Join-Path $Root 'var/runner'
+    if (-not (Test-Path $PayloadDir)) { New-Item -ItemType Directory -Path $PayloadDir | Out-Null }
+    $HostPayloadPath = Join-Path $PayloadDir ($Payload.runId + '.host-bridge.json')
+    $Payload | ConvertTo-Json -Depth 40 | Set-Content -Path $HostPayloadPath -Encoding UTF8
+    $HostBridge = Join-Path $Root 'tool/runner-host-bridge.ps1'
+    $HostBridgeRaw = & $HostBridge -PayloadPath $HostPayloadPath -ResultPath $HostBridgeResultPath 2>&1
+    $HostBridgePayload = $HostBridgeRaw | ConvertFrom-Json
+    if ($HostBridgePayload.status -ne 'HOST_BRIDGE_RESULT_ACCEPTED') { throw "host bridge result not accepted: $($HostBridgePayload.status)" }
+    $Payload | Add-Member -NotePropertyName hostBridgePayloadPath -NotePropertyValue $HostPayloadPath -Force
+    $Payload | Add-Member -NotePropertyName hostBridgeResult -NotePropertyValue $HostBridgePayload -Force
+    $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+        ok = $true
+        status = 'FINAL_ACTION_HOST_RESULT_ACCEPTED'
+        action = 'continue_after_host_invocation'
+        nextAction = $HostBridgePayload.nextAction
+    } -Force
+    $Payload | ConvertTo-Json -Depth 40
+    exit 0
+}
 
 if ($AutoFinalAction -and $FinalAction -in @('wait_for_ask_gateway_result', 'provide_response_chat_id', 'provide_response_task_id', 'wait_or_review')) {
     $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{

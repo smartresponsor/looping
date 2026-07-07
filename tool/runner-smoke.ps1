@@ -78,6 +78,13 @@ $HostResultPayload = $HostResultRaw | ConvertFrom-Json
 if ($HostResultPayload.status -ne 'HOST_BRIDGE_RESULT_ACCEPTED') { throw "host bridge result was not accepted" }
 if ($HostResultPayload.nextAction -ne 'continue_after_host_invocation') { throw "host bridge did not continue after host invocation" }
 
+$AdapterHostResultRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -ExecuteReal -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' -HostBridgeResultPath $HostResultPath 2>&1
+$AdapterHostResultPayload = $AdapterHostResultRaw | ConvertFrom-Json
+
+if ($AdapterHostResultPayload.runnerMode -ne 'host_bridge_result') { throw "runner did not enter host bridge result mode" }
+if ($AdapterHostResultPayload.finalActionResult.status -ne 'FINAL_ACTION_HOST_RESULT_ACCEPTED') { throw "runner did not accept host bridge result" }
+if ($AdapterHostResultPayload.hostBridgeResult.status -ne 'HOST_BRIDGE_RESULT_ACCEPTED') { throw "runner host bridge result was not accepted" }
+
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_SMOKE_PASSED'
