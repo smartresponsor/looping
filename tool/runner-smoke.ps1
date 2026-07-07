@@ -250,6 +250,12 @@ if ($ResumePayload.resumeState.schemaVersion -ne 2) { throw "resume latest schem
 if ($ResumePayload.resumeState.runtimeVersion -ne '2026.07.runner-loop') { throw "resume latest runtime version mismatch" }
 if ($ResumePayload.resumeState.capabilities.recoveryResult -ne $true) { throw "resume latest capabilities missing recovery result" }
 
+$DaemonRaw = & (Join-Path $Root 'tool/runner-daemon.ps1') -Task $Task -MaxIterations 1 2>&1
+$DaemonPayload = $DaemonRaw | ConvertFrom-Json
+if ($DaemonPayload.status -ne 'RUNNER_DAEMON_DISPATCH_READY') { throw "runner daemon dispatch was not ready" }
+if (-not $DaemonPayload.dispatchPayloadPath) { throw "runner daemon dispatch payload path missing" }
+if (-not $DaemonPayload.dispatchTool) { throw "runner daemon dispatch tool missing" }
+
 $GatewayWaitPath = Join-Path $Root 'var/runner/gateway-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'WAIT'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayWaitPath -Encoding UTF8
 $GatewayWaitRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -GatewayDecisionResultPath $GatewayWaitPath 2>&1
