@@ -88,8 +88,26 @@ if ($GatewayDecisionResultPath) {
             untilRc = [bool]$UntilRc
             nextAction = 'continue_loop'
         }
+        $ContinueContract = [ordered]@{
+            ok = $true
+            status = 'GATEWAY_CONTINUE_CONTRACT_READY'
+            stage = 'bounded_worker_tick'
+            tool = 'console.write.engine.worker.tick'
+            arguments = [ordered]@{
+                maxTicks = 1
+                stopOnIdle = $true
+                stopOnWaitingUser = $true
+                budgetMode = if ($UntilRc) { 'until_rc' } else { 'single_step' }
+                remainingBudget = $MaxIterations
+            }
+            mutation = 'write'
+            confirmationRequired = $false
+            execution = 'external_console_mcp_required'
+            nextAction = 'dispatch_worker_tick'
+        }
         $Payload | Add-Member -NotePropertyName gatewayDecisionResult -NotePropertyValue $GatewayDecisionResult -Force
         $Payload | Add-Member -NotePropertyName gatewayContinuePlan -NotePropertyValue ([pscustomobject]$ContinuePlan) -Force
+        $Payload | Add-Member -NotePropertyName gatewayContinueContract -NotePropertyValue ([pscustomobject]$ContinueContract) -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
             ok = $true
             status = 'FINAL_ACTION_GATEWAY_CONTINUE'

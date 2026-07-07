@@ -120,6 +120,9 @@ $GatewayContinuePayload = $GatewayContinueRaw | ConvertFrom-Json
 if ($GatewayContinuePayload.runnerMode -ne 'gateway_decision_result') { throw "runner did not enter gateway decision result mode" }
 if ($GatewayContinuePayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_CONTINUE') { throw "gateway continue final action mismatch" }
 if ($GatewayContinuePayload.gatewayContinuePlan.status -ne 'GATEWAY_CONTINUE_PLAN_READY') { throw "gateway continue plan was not ready" }
+if ($GatewayContinuePayload.gatewayContinueContract.status -ne 'GATEWAY_CONTINUE_CONTRACT_READY') { throw "gateway continue contract was not ready" }
+if ($GatewayContinuePayload.gatewayContinueContract.tool -ne 'console.write.engine.worker.tick') { throw "gateway continue contract tool mismatch" }
+if ($GatewayContinuePayload.gatewayContinueContract.arguments.maxTicks -ne 1) { throw "gateway continue maxTicks mismatch" }
 
 $GatewayReplyPath = Join-Path $Root 'var/runner/gateway-reply-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'REVISE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayReplyPath -Encoding UTF8
