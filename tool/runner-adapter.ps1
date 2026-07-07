@@ -10,6 +10,7 @@ param(
     [switch]$DryRun,
     [switch]$AutoFinalAction,
     [switch]$ExecuteReal,
+    [switch]$NextDispatchExecuteReal,
     [switch]$ResponseDispatch,
     [string]$HostBridgeResultPath,
     [string]$AnswerCaptureResultPath,
@@ -70,14 +71,23 @@ function Add-NextDispatchEnvelope {
         }
         $DispatchPath = Join-Path $DispatchDir ($Payload.runId + '.' + $Index + '.json')
         [pscustomobject]$DispatchPayload | ConvertTo-Json -Depth 40 | Set-Content -Path $DispatchPath -Encoding UTF8
-        $DispatchRaw = & $Dispatcher -PayloadPath $DispatchPath -DryRun 2>&1
+        if ($NextDispatchExecuteReal) {
+            $DispatchRaw = & $Dispatcher -PayloadPath $DispatchPath -ExecuteReal 2>&1
+        } else {
+            $DispatchRaw = & $Dispatcher -PayloadPath $DispatchPath -DryRun 2>&1
+        }
         $DispatchPayloads += [pscustomobject]@{ index = $Index; path = $DispatchPath; tool = $Contract.tool }
         $DispatchResults += ($DispatchRaw | ConvertFrom-Json)
     }
 
+    $RealEnvRequired = @($DispatchResults | Where-Object { $_.status -eq 'DISPATCHER_REAL_EXECUTION_ENV_REQUIRED' }).Count -gt 0
+    $RealAdapterReady = ($DispatchResults.Count -gt 0) -and ((@($DispatchResults | Where-Object { $_.status -eq 'DISPATCHER_REAL_EXECUTION_ADAPTER_READY' }).Count) -eq $DispatchResults.Count)
+    $DispatchStatus = if ($NextDispatchExecuteReal -and $RealAdapterReady) { 'NEXT_DISPATCH_REAL_ADAPTER_READY' } elseif ($NextDispatchExecuteReal -and $RealEnvRequired) { 'NEXT_DISPATCH_REAL_ENV_REQUIRED' } else { 'NEXT_DISPATCH_BOUNDARY_READY' }
+
     $Payload | Add-Member -NotePropertyName nextDispatchPayload -NotePropertyValue $DispatchPayloads -Force
     $Payload | Add-Member -NotePropertyName nextDispatchBoundary -NotePropertyValue $DispatchResults -Force
-    $Payload | Add-Member -NotePropertyName nextDispatchStatus -NotePropertyValue 'NEXT_DISPATCH_BOUNDARY_READY' -Force
+    $Payload | Add-Member -NotePropertyName nextDispatchStatus -NotePropertyValue $DispatchStatus -Force
+    $Payload | Add-Member -NotePropertyName nextDispatchExecutionMode -NotePropertyValue ($(if ($NextDispatchExecuteReal) { 'execute_real' } else { 'dry_run' })) -Force
 }
 
 function Write-RunnerState {

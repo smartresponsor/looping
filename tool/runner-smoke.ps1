@@ -99,6 +99,22 @@ if ($AdapterHostResultPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_REA
 if ($AdapterHostResultPayload.nextDispatchBoundary[0].status -ne 'DISPATCHER_BOUNDARY_READY') { throw "next dispatch boundary result was not ready" }
 if (-not (Test-Path $AdapterHostResultPayload.nextDispatchPayload[0].path)) { throw "next dispatch payload path does not exist" }
 
+$NextDispatchBlockedRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' -HostBridgeResultPath $HostResultPath -NextDispatchExecuteReal 2>&1
+$NextDispatchBlockedPayload = $NextDispatchBlockedRaw | ConvertFrom-Json
+if ($NextDispatchBlockedPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_REAL_ENV_REQUIRED') { throw "next dispatch real env guard did not block" }
+if ($NextDispatchBlockedPayload.nextDispatchBoundary[0].status -ne 'DISPATCHER_REAL_EXECUTION_ENV_REQUIRED') { throw "next dispatch dispatcher env guard mismatch" }
+
+$PreviousNextDispatchEnv = $env:CHATGPT_LOOP_REAL_EXECUTION
+try {
+    $env:CHATGPT_LOOP_REAL_EXECUTION = '1'
+    $NextDispatchReadyRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' -HostBridgeResultPath $HostResultPath -NextDispatchExecuteReal 2>&1
+    $NextDispatchReadyPayload = $NextDispatchReadyRaw | ConvertFrom-Json
+} finally {
+    $env:CHATGPT_LOOP_REAL_EXECUTION = $PreviousNextDispatchEnv
+}
+if ($NextDispatchReadyPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_REAL_ADAPTER_READY') { throw "next dispatch real adapter was not ready" }
+if ($NextDispatchReadyPayload.nextDispatchBoundary[0].toolCall.name -ne 'console.write.engine.answer.capture') { throw "next dispatch toolCall was not answer capture" }
+
 $AnswerCapturedPath = Join-Path $Root 'var/runner/answer-captured-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerCapturedPath -Encoding UTF8
 $AnswerCapturedRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -AnswerCaptureResultPath $AnswerCapturedPath 2>&1
