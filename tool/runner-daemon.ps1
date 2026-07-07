@@ -3,7 +3,8 @@ param(
     [int]$MaxIterations = 1,
     [int]$RetryAttempt = 0,
     [switch]$UntilRc,
-    [switch]$NextDispatchExecuteReal
+    [switch]$NextDispatchExecuteReal,
+    [switch]$ResetState
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,6 +50,18 @@ function Write-RunnerJournalEvent {
 }
 
 $RunnerLockPath = Enter-RunnerLock -Owner 'runner-daemon'
+if ($ResetState -and (Test-Path $StatePath)) {
+    Move-Item -Path $StatePath -Destination ($StatePath + '.reset.bak') -Force
+}
+
+if (Test-Path $StatePath) {
+    $ExistingState = Get-Content -Raw -Path $StatePath | ConvertFrom-Json
+    if ($ExistingState.taskId -and [string]$ExistingState.taskId -ne $Task) {
+        Exit-RunnerLock -LockPath $RunnerLockPath
+        [pscustomobject]@{ ok = $false; status = 'RUNNER_DAEMON_STATE_TASK_MISMATCH'; statePath = $StatePath; existingTaskId = [string]$ExistingState.taskId; requestedTaskId = $Task; nextAction = 'reset_runner_state_or_use_matching_task' } | ConvertTo-Json -Depth 20
+        exit 0
+    }
+}
 
 if (-not (Test-Path $StatePath)) {
     $StartArgs = @{ Task = $Task; MaxIterations = $MaxIterations }
