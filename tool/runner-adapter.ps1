@@ -93,9 +93,39 @@ function Add-NextDispatchEnvelope {
     $Payload | Add-Member -NotePropertyName nextDispatchExecutionMode -NotePropertyValue ($(if ($NextDispatchExecuteReal) { 'execute_real' } else { 'dry_run' })) -Force
 }
 
+function Update-RunnerBudget {
+    param([Parameter(Mandatory=$true)]$Payload)
+
+    if (-not $Payload.budget) { return }
+    if ($Payload.budget.untilRc -eq $true) { return }
+    if (-not $Payload.finalActionResult) { return }
+
+    $SpendActions = @(
+        'FINAL_ACTION_WORKER_CONTINUE',
+        'FINAL_ACTION_WORKER_STOP',
+        'FINAL_ACTION_TRANSPORT_RESULT_FED',
+        'FINAL_ACTION_REPLY_SEQUENCE_ACCEPTED'
+    )
+    if ($SpendActions -notcontains [string]$Payload.finalActionResult.status) { return }
+
+    $Remaining = [int]$Payload.budget.remaining
+    if ($Remaining -gt 0) { $Remaining = $Remaining - 1 }
+    $Payload.budget.remaining = $Remaining
+    if ($Remaining -le 0 -and [string]$Payload.finalActionResult.status -eq 'FINAL_ACTION_WORKER_CONTINUE') {
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_BUDGET_EXHAUSTED'
+            action = 'stop_loop'
+            nextAction = 'stop_loop'
+        } -Force
+    }
+}
+
 function Write-RunnerState {
     param([Parameter(Mandatory=$true)]$Payload)
 
+    Update-RunnerBudget -Payload $Payload
     Add-NextDispatchEnvelope -Payload $Payload
 
     $StateDir = Join-Path $Root 'var/runner/state'

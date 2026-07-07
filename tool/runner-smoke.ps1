@@ -218,8 +218,8 @@ $WorkerContinueRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smo
 $WorkerContinuePayload = $WorkerContinueRaw | ConvertFrom-Json
 
 if ($WorkerContinuePayload.runnerMode -ne 'worker_tick_result') { throw "runner did not enter worker tick result mode" }
-if ($WorkerContinuePayload.finalActionResult.status -ne 'FINAL_ACTION_WORKER_CONTINUE') { throw "worker continue final action mismatch" }
-if ($WorkerContinuePayload.workerContinuePlan.status -ne 'WORKER_TICK_CONTINUE_PLAN_READY') { throw "worker continue plan was not ready" }
+if ($WorkerContinuePayload.finalActionResult.status -ne 'FINAL_ACTION_BUDGET_EXHAUSTED') { throw "worker continue did not exhaust one-step budget" }
+if ($WorkerContinuePayload.budget.remaining -ne 0) { throw "worker continue budget did not decrement to zero" }
 
 $WorkerWaitPath = Join-Path $Root 'var/runner/worker-wait-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_WORKER_TICK_WAITING_USER'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerWaitPath -Encoding UTF8
