@@ -16,6 +16,7 @@ param(
     [string]$AnswerCaptureResultPath,
     [string]$GatewayDecisionResultPath,
     [string]$WorkerTickResultPath,
+    [string]$TransportResultPath,
     [string]$HostResultOk,
     [string]$HostTaskId,
     [string]$HostChatId,
@@ -155,7 +156,54 @@ if ($AutoFinalAction) {
 }
 
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
-$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($WorkerTickResultPath) { 'worker_tick_result' } elseif ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+$Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($TransportResultPath) { 'transport_result' } elseif ($WorkerTickResultPath) { 'worker_tick_result' } elseif ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
+
+if ($TransportResultPath) {
+    if (-not (Test-Path $TransportResultPath)) { throw "transport result file not found: $TransportResultPath" }
+    $TransportResult = Get-Content -Raw -Path $TransportResultPath | ConvertFrom-Json
+    if ($TransportResult.status -ne 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED') { throw "transport result not accepted: $($TransportResult.status)" }
+    $TransportTool = [string]$TransportResult.tool
+    $TransportPayload = $TransportResult.result
+    $TransportPayloadPath = Join-Path (Split-Path -Parent $TransportResultPath) ('transport-intake-' + $TransportTool.Replace('.', '-').Replace('_', '-') + '.json')
+    $TransportPayload | ConvertTo-Json -Depth 40 | Set-Content -Path $TransportPayloadPath -Encoding UTF8
+
+    $IntakeArgs = @('-Task', $Task, '-MaxIterations', $MaxIterations, '-ResponseTaskId', $(if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportPayload.task_id) { $TransportPayload.task_id } else { '' }))
+    if ($TransportTool -eq 'console.write.engine.answer.capture') {
+        $IntakeArgs += @('-AnswerCaptureResultPath', $TransportPayloadPath)
+    } elseif ($TransportTool -eq 'console.write.engine.gateway.decide') {
+        $IntakeArgs += @('-GatewayDecisionResultPath', $TransportPayloadPath)
+    } elseif ($TransportTool -eq 'console.write.engine.worker.tick') {
+        $IntakeArgs += @('-WorkerTickResultPath', $TransportPayloadPath)
+    } elseif ($TransportTool -eq 'console.write.engine.reply.draft' -or $TransportTool -eq 'console.write.engine.reply.submit') {
+        $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+            ok = $true
+            status = 'FINAL_ACTION_TRANSPORT_REPLY_ACCEPTED'
+            action = 'wait_for_reply_sequence_completion'
+            nextAction = 'collect_reply_sequence_result'
+        } -Force
+        Write-RunnerState -Payload $Payload
+        $Payload | ConvertTo-Json -Depth 40
+        exit 0
+    } else {
+        throw "transport result tool is not routable: $TransportTool"
+    }
+
+    $IntakeRaw = & $PSCommandPath @IntakeArgs 2>&1
+    $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
+    $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
+    $Payload | Add-Member -NotePropertyName transportIntakePayload -NotePropertyValue ($IntakeRaw | ConvertFrom-Json) -Force
+    $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
+        ok = $true
+        status = 'FINAL_ACTION_TRANSPORT_RESULT_FED'
+        action = 'transport_result_fed_to_runner_intake'
+        nextAction = 'continue_from_transport_intake_payload'
+    } -Force
+    Write-RunnerState -Payload $Payload
+    $Payload | ConvertTo-Json -Depth 40
+    exit 0
+}
 
 if ($WorkerTickResultPath) {
     if (-not (Test-Path $WorkerTickResultPath)) { throw "worker tick result file not found: $WorkerTickResultPath" }

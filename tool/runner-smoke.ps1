@@ -123,6 +123,13 @@ $TransportResultPayload = $TransportResultRaw | ConvertFrom-Json
 if ($TransportResultPayload.status -ne 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED') { throw "transport result was not accepted" }
 if ($TransportResultPayload.nextAction -ne 'feed_result_to_runner_intake') { throw "transport result next action mismatch" }
 
+$TransportFeedRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -TransportResultPath $TransportResultPath 2>&1
+$TransportFeedPayload = $TransportFeedRaw | ConvertFrom-Json
+if ($TransportFeedPayload.runnerMode -ne 'transport_result') { throw "runner did not enter transport result mode" }
+if ($TransportFeedPayload.finalActionResult.status -ne 'FINAL_ACTION_TRANSPORT_RESULT_FED') { throw "transport result was not fed to runner intake" }
+if ($TransportFeedPayload.transportIntakePayload.runnerMode -ne 'answer_capture_result') { throw "transport result did not route to answer capture intake" }
+if ($TransportFeedPayload.transportIntakePayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAPTURED') { throw "transport answer capture intake did not complete" }
+
 $AnswerCapturedPath = Join-Path $Root 'var/runner/answer-captured-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerCapturedPath -Encoding UTF8
 $AnswerCapturedRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -AnswerCaptureResultPath $AnswerCapturedPath 2>&1
