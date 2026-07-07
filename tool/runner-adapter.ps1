@@ -81,7 +81,7 @@ function Add-NextDispatchEnvelope {
                 status = 'RUNNER_EXECUTION_PLAN_READY'
                 tool = $Contract.tool
                 arguments = $Contract.arguments
-                allowedMode = 'write'
+                allowedMode = if ($Contract.mutation) { [string]$Contract.mutation } else { 'write' }
                 mutation = $Contract.mutation
                 confirmationRequired = $Contract.confirmationRequired
                 confirmationGate = 'disabled'
