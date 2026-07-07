@@ -308,6 +308,10 @@ $DaemonHandoff = Get-Content -Raw -Path $DaemonPayload.handoffPath | ConvertFrom
 if ($DaemonHandoff.status -ne 'RUNNER_EXECUTOR_HANDOFF_READY') { throw "runner daemon handoff status mismatch" }
 if ($DaemonHandoff.toolCall.name -ne $DaemonPayload.toolCall.name) { throw "runner daemon handoff tool call mismatch" }
 if (@($DaemonHandoff.adapterCommand).Count -lt 8) { throw "runner daemon handoff adapter command too short" }
+$CleanupRaw = & (Join-Path $Root 'tool/runner-cleanup.ps1') -KeepFiles 200 -KeepJournalLines 2000 -DryRun 2>&1
+$CleanupPayload = $CleanupRaw | ConvertFrom-Json
+if ($CleanupPayload.status -ne 'RUNNER_CLEANUP_COMPLETED') { throw "runner cleanup status mismatch" }
+if ($CleanupPayload.dryRun -ne $true) { throw "runner cleanup dry run mismatch" }
 if (@($DaemonHandoff.runbook).Count -ne 4) { throw "runner daemon handoff runbook count mismatch" }
 if ($DaemonHandoff.runbook[0].action -ne 'invoke_tool_call') { throw "runner daemon runbook step 1 mismatch" }
 if (@($DaemonHandoff.runbook[1].requiredFields) -notcontains 'tool') { throw "runner daemon runbook required fields mismatch" }

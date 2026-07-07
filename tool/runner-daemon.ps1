@@ -148,6 +148,8 @@ $Handoff = [ordered]@{
 }
 [pscustomobject]$Handoff | ConvertTo-Json -Depth 40 | Set-Content -Path $HandoffPath -Encoding UTF8
 $JournalPath = Write-RunnerJournalEvent ([ordered]@{ component = 'runner-daemon'; status = 'RUNNER_DAEMON_DISPATCH_READY'; action = 'handoff_ready'; task = $Task; dispatchTool = $FirstPayload.tool; dispatchPayloadPath = $FirstPayload.path; handoffPath = $HandoffPath; expectedResultPath = $ExpectedResultPath })
+$CleanupRaw = & (Join-Path $Root 'tool/runner-cleanup.ps1') -KeepFiles 200 -KeepJournalLines 2000 2>&1
+$CleanupPayload = $CleanupRaw | ConvertFrom-Json
 Exit-RunnerLock -LockPath $RunnerLockPath
 [pscustomobject]@{
     ok = $true
