@@ -8,6 +8,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+$RunnerLockPath = $null
+trap {
+    if ($RunnerLockPath -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force }
+    throw $_
+}
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 $StatePath = Join-Path $Root 'var/runner/state/latest.json'
 

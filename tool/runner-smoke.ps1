@@ -208,6 +208,12 @@ $MismatchTransportResultPath = Join-Path $Root 'var/runner/transport-adapter-mis
 $MismatchTransportRaw = & (Join-Path $Root 'tool/runner-transport-adapter.ps1') -Task $Task -MaxIterations 1 -PayloadPath $AnswerRetryExhaustedPayload.nextDispatchPayload[0].path -ResultPath $MismatchTransportResultPath 2>&1
 $MismatchTransportPayload = $MismatchTransportRaw | ConvertFrom-Json
 if ($MismatchTransportPayload.status -ne 'RUNNER_TRANSPORT_RESULT_TOOL_MISMATCH') { throw "transport adapter tool mismatch was not rejected" }
+$StaleLockPath = Join-Path $Root 'var/runner/lock/runner.lock'
+[pscustomobject]@{ owner = 'stale-smoke'; pid = 0; acquiredAt = (Get-Date).AddMinutes(-31).ToUniversalTime().ToString('o') } | ConvertTo-Json -Depth 20 | Set-Content -Path $StaleLockPath -Encoding UTF8
+$StaleLockRaw = & (Join-Path $Root 'tool/runner-daemon.ps1') -Task $Task -MaxIterations 1 2>&1
+$StaleLockPayload = $StaleLockRaw | ConvertFrom-Json
+if ($StaleLockPayload.status -eq 'RUNNER_LOCK_BUSY') { throw "runner stale lock was not replaced" }
+if (Test-Path $StaleLockPath) { throw "runner stale lock was not cleaned" }
 
 $WorkerRecoveryTransportPath = Join-Path $Root 'var/runner/worker-recovery-transport-smoke.json'
 [pscustomobject]@{

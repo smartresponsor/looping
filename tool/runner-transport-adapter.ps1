@@ -9,6 +9,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+$RunnerLockPath = $null
+trap {
+    if ($RunnerLockPath -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force }
+    throw $_
+}
 $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 $LockDir = Join-Path $Root 'var/runner/lock'
