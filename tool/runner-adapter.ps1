@@ -273,6 +273,8 @@ if ($ResumeLatest) {
     exit 0
 }
 
+$DirectIntakeMode = [bool]($ReplySequenceResultPath -or $TransportResultPath -or $WorkerTickResultPath -or $GatewayDecisionResultPath -or $AnswerCaptureResultPath -or $HostBridgeResultPath)
+if (-not $DirectIntakeMode) {
 $ArgsList = @('bin/console', 'chatgpt-loop:run', "--task=$Task", "--mode=$Mode")
 
 if ($UntilRc) { $ArgsList += '--until-rc=1' } else { $ArgsList += "--max-iterations=$MaxIterations" }
@@ -312,6 +314,9 @@ if ($AutoFinalAction) {
 $Payload | Add-Member -NotePropertyName finalActionSelected -NotePropertyValue $FinalAction -Force
 $Payload | Add-Member -NotePropertyName runnerMode -NotePropertyValue ($(if ($ReplySequenceResultPath) { 'reply_sequence_result' } elseif ($TransportResultPath) { 'transport_result' } elseif ($WorkerTickResultPath) { 'worker_tick_result' } elseif ($GatewayDecisionResultPath) { 'gateway_decision_result' } elseif ($AnswerCaptureResultPath) { 'answer_capture_result' } elseif ($HostBridgeResultPath) { 'host_bridge_result' } elseif ($AutoFinalAction) { 'auto_final_action' } elseif ($Dispatch -and $SimulateHost) { 'dispatch_simulate_e2e' } elseif ($Dispatch) { 'dispatch_skeleton' } elseif ($SimulateHost) { 'simulate_host_e2e' } elseif ($Continue) { 'continue' } elseif ($Execute) { 'execute_allowlisted' } else { 'dry_run' })) -Force
 $Payload | Add-Member -NotePropertyName budget -NotePropertyValue ([pscustomobject]@{ mode = if ($UntilRc) { 'until_rc' } else { 'steps' }; remaining = $MaxIterations; untilRc = [bool]$UntilRc }) -Force
+} else {
+    $Payload = [pscustomobject]@{ ok = $true; runId = ('intake-' + ([guid]::NewGuid().ToString('N'))); taskId = $Task; finalActionSelected = 'direct_intake'; runnerMode = 'direct_intake'; budget = [pscustomobject]@{ mode = if ($UntilRc) { 'until_rc' } else { 'steps' }; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
+}
 
 if ($ReplySequenceResultPath) {
     if (-not (Test-Path $ReplySequenceResultPath)) { throw "reply sequence result file not found: $ReplySequenceResultPath" }
