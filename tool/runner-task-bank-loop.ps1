@@ -139,8 +139,8 @@ function Invoke-RunnerDispatch {
     $Result = Read-JsonFile -Path $DaemonPayload.expectedResultPath
     $AdapterRaw = & $TransportAdapter -Task $Task -MaxIterations $MaxIterations -PayloadPath $DaemonPayload.dispatchPayloadPath -ResultPath $DaemonPayload.expectedResultPath 2>&1
     $AdapterPayload = $AdapterRaw | ConvertFrom-Json
-    Append-Journal -TaskId $TaskId -Event 'uiSubmit' -Data ([ordered]@{ tool = $Tool; dispatchStatus = $DaemonPayload.status; bridgeStatus = $BridgePayload.status; resultStatus = $Result.status; adapterStatus = $AdapterPayload.status })
-    [pscustomobject]@{ tool = $Tool; daemon = $DaemonPayload; bridge = $BridgePayload; result = $Result; adapter = $AdapterPayload }
+    Append-Journal -TaskId $TaskId -Event 'uiSubmit' -Data ([ordered]@{ tool = $Tool; dispatchStatus = $DaemonPayload.status; bridgeStatus = $BridgePayload.status; resultStatus = $Result.status; adapterStatus = $AdapterPayload.status; payloadPath = $DaemonPayload.dispatchPayloadPath; resultPath = $DaemonPayload.expectedResultPath })
+    [pscustomobject]@{ tool = $Tool; daemon = $DaemonPayload; bridge = $BridgePayload; result = $Result; adapter = $AdapterPayload; payloadPath = $DaemonPayload.dispatchPayloadPath; resultPath = $DaemonPayload.expectedResultPath }
 }
 
 function Get-AssistantJson {
@@ -322,6 +322,8 @@ while ($true) {
             $Task.status = 'submit_failed'
             $SubmitStatus = Get-OptionalProperty -InputObject $SubmitResult -Name 'status'
             $FinalStatus = if ($SubmitStatus) { [string]$SubmitStatus } else { 'CMCP_GO_SUBMIT_NOT_CONFIRMED' }
+            $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; tool = $Submit.tool; payloadPath = $Submit.payloadPath; resultPath = $Submit.resultPath; adapterStatus = $Submit.adapter.status; bridgeStatus = $Submit.bridge.status; capturedAt = Get-IsoNow }) -Force
+            Append-Journal -TaskId $TaskId -Event 'uiSubmitRejected' -Data ([ordered]@{ tool = $Submit.tool; finalStatus = $FinalStatus; payloadPath = $Submit.payloadPath; resultPath = $Submit.resultPath; adapterStatus = $Submit.adapter.status; bridgeStatus = $Submit.bridge.status })
             Write-JsonFile -Value $Task -Path $TaskPath
             break
         }
