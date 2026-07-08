@@ -22,6 +22,7 @@ $AllowedTools = @{
     'console.read_.repo.workspace.status' = 'read_only'
     'console.read_.repo.memory.graph.plan' = 'read_only'
     'console.write.browser.chatgpt.chat.create.send' = 'write'
+    'console.write.browser.session.cmcp.go' = 'write'
     'console.write.engine.task.enqueue' = 'write'
     'console.write.engine.worker.tick' = 'write'
     'console.write.engine.chat.bind' = 'write'
