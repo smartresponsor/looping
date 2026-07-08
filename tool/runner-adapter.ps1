@@ -39,6 +39,19 @@ $Root = Split-Path -Parent $PSScriptRoot
 $RunnerStateSchemaVersion = 2
 $RunnerRuntimeVersion = '2026.07.runner-loop'
 
+function Get-OptionalProperty {
+    param(
+        [Parameter(Mandatory=$true)]$InputObject,
+        [Parameter(Mandatory=$true)][string]$Name,
+        $DefaultValue = $null
+    )
+
+    if ($InputObject.PSObject.Properties.Name -contains $Name) {
+        return $InputObject.$Name
+    }
+    return $DefaultValue
+}
+
 function New-RunnerStateCapabilities {
     [pscustomobject]@{
         nextDispatch = $true
@@ -55,17 +68,24 @@ function New-RunnerStateCapabilities {
 function Add-NextDispatchEnvelope {
     param([Parameter(Mandatory=$true)]$Payload)
 
-    if (-not $Payload.nextDispatchContract) { return }
+    $NextDispatchContract = Get-OptionalProperty -InputObject $Payload -Name 'nextDispatchContract'
+    if (-not $NextDispatchContract) { return }
 
     $DispatchDir = Join-Path $Root 'var/runner/next-dispatch'
     if (-not (Test-Path $DispatchDir)) { New-Item -ItemType Directory -Path $DispatchDir | Out-Null }
 
     $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
     $Contracts = @()
-    if ($Payload.nextDispatchContract.sequence) {
-        $Contracts += @($Payload.nextDispatchContract.sequence)
+    $NextDispatchProperties = @($NextDispatchContract.PSObject.Properties.Name)
+    $HasSequenceContract = $NextDispatchProperties -contains 'sequence'
+    $HasSingleToolContract = ($NextDispatchProperties -contains 'tool') -and ($NextDispatchProperties -contains 'arguments')
+
+    if ($HasSequenceContract -and $NextDispatchContract.sequence) {
+        $Contracts += @($NextDispatchContract.sequence)
+    } elseif ($HasSingleToolContract) {
+        $Contracts += $NextDispatchContract
     } else {
-        $Contracts += $Payload.nextDispatchContract
+        return
     }
 
     $DispatchPayloads = @()
@@ -223,13 +243,13 @@ function Write-RunnerState {
         runId = $Payload.runId
         taskId = $Payload.taskId
         runnerMode = $Payload.runnerMode
-        finalActionSelected = $Payload.finalActionSelected
-        finalActionResult = $Payload.finalActionResult
-        nextDispatchContract = $Payload.nextDispatchContract
-        budget = if ($Payload.budget) { $Payload.budget } else { [ordered]@{ mode = 'single_step'; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
-        retryPolicy = $Payload.retryPolicy
+        finalActionSelected = Get-OptionalProperty -InputObject $Payload -Name 'finalActionSelected'
+        finalActionResult = Get-OptionalProperty -InputObject $Payload -Name 'finalActionResult'
+        nextDispatchContract = Get-OptionalProperty -InputObject $Payload -Name 'nextDispatchContract'
+        budget = if (Get-OptionalProperty -InputObject $Payload -Name 'budget') { Get-OptionalProperty -InputObject $Payload -Name 'budget' } else { [ordered]@{ mode = 'single_step'; remaining = $MaxIterations; untilRc = [bool]$UntilRc } }
+        retryPolicy = Get-OptionalProperty -InputObject $Payload -Name 'retryPolicy'
         retryAttempt = $RetryAttempt
-        recoveryPlan = $Payload.recoveryPlan
+        recoveryPlan = Get-OptionalProperty -InputObject $Payload -Name 'recoveryPlan'
         updatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
     $State.schemaVersion = $RunnerStateSchemaVersion

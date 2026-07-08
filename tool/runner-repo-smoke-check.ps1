@@ -53,6 +53,11 @@ Assert-True ($TaskBankLoop -match "TOOL_CALL_BLOCKED") 'blocked tool calls must 
 Assert-True ($TaskBankLoop -notmatch 'interactionCount\\s*=\\s*\\[int\\]\\$Task\\.interactionCount \\+ 1[\\s\\S]{0,400}uiSubmit') 'submit alone must not increment interaction count'
 Assert-True ($TaskBankLoop -notmatch "console\\.read_\\.repo\\.workspace\\.status[\\s\\S]{0,300}interactionCount\\s*=") 'repo status must not increment interaction count'
 Assert-True ($TaskBankLoop -notmatch "console\\.read_\\.repo\\.memory\\.graph\\.plan[\\s\\S]{0,300}interactionCount\\s*=") 'memory graph must not increment interaction count'
+Assert-True ($Adapter -match '\$NextDispatchProperties\s*=\s*@\(\$NextDispatchContract\.PSObject\.Properties\.Name\)') 'adapter must inspect nextDispatchContract properties before reading shape-specific members'
+Assert-True ($Adapter -match '\$HasSequenceContract\s*=\s*\$NextDispatchProperties\s+-contains\s+''sequence''') 'adapter must support sequence nextDispatchContract'
+Assert-True ($Adapter -match '\$HasSingleToolContract\s*=\s*\(\$NextDispatchProperties\s+-contains\s+''tool''\)\s+-and\s+\(\$NextDispatchProperties\s+-contains\s+''arguments''\)') 'adapter must support single-tool nextDispatchContract'
+Assert-True ($Adapter -match '\$Contracts\s*\+=\s*\$NextDispatchContract') 'single-tool nextDispatchContract must normalize to one contract'
+Assert-True ($Adapter -match '(?s)elseif \(\$HasSingleToolContract\).*?else \{\s*return\s*\}') 'adapter must skip gracefully when nextDispatchContract has no supported shape'
 
 $RequiredBridgeTools = @(
     'console.write.browser.session.cmcp.go',
@@ -90,6 +95,7 @@ Assert-True (-not ($Adapter -match "console\.write\.browser\.chatgpt\.chat\.crea
         'synthetic_capture_not_used_in_engine_chain',
         'max_iterations_counts_ui_cycles_only',
         'task_bank_chat_bank_persisted',
-        'watcher_tools_reused'
+        'watcher_tools_reused',
+        'single_tool_next_dispatch_contract'
     )
 } | ConvertTo-Json -Depth 20
