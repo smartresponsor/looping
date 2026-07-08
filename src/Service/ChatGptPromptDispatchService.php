@@ -4,6 +4,16 @@ declare(strict_types=1);
 
 /*
  * Copyright (c) 2025 Oleksandr Tishchenko / Marketing America Corp
+ *
+ * NOTE: not currently invoked. bin/console -> ChatGptLoopRunCommand drives an untyped,
+ * array-based state/dispatch model built inline in the command itself. This class instead
+ * belongs to a separate, internally consistent typed model (App\State\ChatGptTaskState,
+ * App\Entity\ChatGptTask, App\Entity\ChatGptLifecycleRun, App\Dto\ChatGptNextAction,
+ * App\Dto\ChatGptTranscriptRef) that isn't wired into the live command path yet. Left in place
+ * rather than deleted, since removing it in isolation would leave that typed model even more
+ * incomplete without actually retiring it. Whoever picks this up next: either finish wiring the
+ * typed model into ChatGptLoopRunCommand and delete the inline array duplicate, or delete this
+ * whole typed side entirely - don't let both keep drifting in parallel.
  */
 
 namespace App\Service;

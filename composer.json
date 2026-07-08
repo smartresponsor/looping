@@ -12,7 +12,9 @@
     }
   },
   "scripts": {
-    "chatgpt-loop:diagnostic": "php bin/console chatgpt-loop:run --task=\"!diagnose lifecycle smoke\" --mode=diagnostic"
+    "chatgpt-loop:diagnostic": "php bin/console chatgpt-loop:run --task=\"!diagnose lifecycle smoke\" --mode=diagnostic",
+    "lint": "php tool/lint-php.php",
+    "test": "php tool/lint-php.php"
   },
   "minimum-stability": "stable",
   "prefer-stable": true

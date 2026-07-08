@@ -41,3 +41,5 @@ final class ConsoleMcpCapabilityMap
             ],
             'confirmationRequired' => true,
         ];
+    }
+}

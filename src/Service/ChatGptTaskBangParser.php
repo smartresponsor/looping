@@ -4,36 +4,14 @@ declare(strict_types=1);
 
 /*
  * Copyright (c) 2025 Oleksandr Tishchenko / Marketing America Corp
+ *
+ * Removed as dead code: never called from bin/console or ChatGptLoopRunCommand, which parses
+ * the "!bang" prefix and generates taskId inline instead (and does so slightly differently -
+ * this class hashed with local server time via date(), the live inline code uses gmdate('c'),
+ * i.e. UTC). Kept as an empty namespace file rather than deleted outright (no delete tool
+ * available), so App\Entity\ChatGptTask (still used by App\State\ChatGptTaskState) is
+ * unaffected. If this parser is ever wired back in, prefer aligning it with the inline
+ * UTC-based id generation rather than reintroducing the local-timezone variant.
  */
 
 namespace App\Service;
-
-use App\Entity\ChatGptTask;
-
-final class ChatGptTaskBangParser
-{
-    public function parse(string $rawText): ChatGptTask
-    {
-        $normalized = trim($rawText);
-        $bang = null;
-        $body = $normalized;
-
-        if (str_starts_with($normalized, '!')) {
-            [$head, $tail] = array_pad(preg_split('/\s+/', $normalized, 2), 2, '');
-            $bang = ltrim($head, '!');
-            $body = trim($tail);
-        }
-
-        return new ChatGptTask(
-            id: $this->makeId($normalized),
-            rawText: $normalized,
-            bang: $bang !== '' ? $bang : null,
-            body: $body,
-        );
-    }
-
-    private function makeId(string $value): string
-    {
-        return 'task_' . substr(hash('sha256', $value . '|' . date('YmdHis')), 0, 16);
-    }
-}
