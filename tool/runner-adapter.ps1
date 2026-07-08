@@ -347,8 +347,12 @@ if ($ReplySequenceResultPath) {
     if ($ReplyResults[1].tool -ne 'console.write.engine.reply.submit') { throw "reply sequence submit result tool mismatch" }
     if ($ReplyResults[0].ok -ne $true -or $ReplyResults[1].ok -ne $true) { throw "reply sequence result was not successful" }
 
-    $ReplyTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($ReplyResults[1].task_id) { $ReplyResults[1].task_id } elseif ($ReplyResults[0].task_id) { $ReplyResults[0].task_id } else { $null }
-    $ReplyTargetId = if ($ResponseTargetId) { $ResponseTargetId } elseif ($ReplyResults[1].target_id) { $ReplyResults[1].target_id } elseif ($ReplyResults[0].target_id) { $ReplyResults[0].target_id } else { $null }
+    $ReplyTaskId1 = Get-OptionalProperty -InputObject $ReplyResults[1] -Name 'task_id'
+    $ReplyTaskId0 = Get-OptionalProperty -InputObject $ReplyResults[0] -Name 'task_id'
+    $ReplyTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($ReplyTaskId1) { $ReplyTaskId1 } elseif ($ReplyTaskId0) { $ReplyTaskId0 } else { $null }
+    $ReplyTargetId1 = Get-OptionalProperty -InputObject $ReplyResults[1] -Name 'target_id'
+    $ReplyTargetId0 = Get-OptionalProperty -InputObject $ReplyResults[0] -Name 'target_id'
+    $ReplyTargetId = if ($ResponseTargetId) { $ResponseTargetId } elseif ($ReplyTargetId1) { $ReplyTargetId1 } elseif ($ReplyTargetId0) { $ReplyTargetId0 } else { $null }
     $NextLoopTickPlan = [ordered]@{
         ok = $true
         status = 'REPLY_SEQUENCE_ACCEPTED_PLAN_READY'
@@ -402,7 +406,8 @@ if ($TransportResultPath) {
     $TransportPayloadPath = Join-Path (Split-Path -Parent $TransportResultPath) ('transport-intake-' + $TransportTool.Replace('.', '-').Replace('_', '-') + '.json')
     $TransportPayload | ConvertTo-Json -Depth 40 | Set-Content -Path $TransportPayloadPath -Encoding UTF8
 
-    $IntakeArgs = @{ Task = $Task; MaxIterations = $MaxIterations; ResponseTaskId = $(if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportPayload.task_id) { $TransportPayload.task_id } else { '' }) }
+    $TransportTaskId = Get-OptionalProperty -InputObject $TransportPayload -Name 'task_id'
+    $IntakeArgs = @{ Task = $Task; MaxIterations = $MaxIterations; ResponseTaskId = $(if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportTaskId) { $TransportTaskId } else { '' }) }
     if ($TransportTool -eq 'console.write.engine.answer.capture') {
         $IntakeArgs.AnswerCaptureResultPath = $TransportPayloadPath
     } elseif ($TransportTool -eq 'console.write.engine.gateway.decide') {
@@ -414,7 +419,7 @@ if ($TransportResultPath) {
             $Payload | Add-Member -NotePropertyName recoveryResult -NotePropertyValue $TransportResult -Force
         }
     } elseif ($TransportTool -eq 'console.write.engine.chat.bind') {
-        $RecoveredTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportPayload.task_id) { $TransportPayload.task_id } else { $null }
+        $RecoveredTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportTaskId) { $TransportTaskId } else { $null }
         $RecoveryCaptureContract = [ordered]@{
             ok = $true
             status = 'RECOVERY_RESULT_NEXT_CAPTURE_CONTRACT_READY'
@@ -525,13 +530,14 @@ if ($WorkerTickResultPath) {
     if (-not (Test-Path $WorkerTickResultPath)) { throw "worker tick result file not found: $WorkerTickResultPath" }
     $WorkerTickResult = Get-Content -Raw -Path $WorkerTickResultPath | ConvertFrom-Json
     $WorkerStatus = [string]$WorkerTickResult.status
+    $WorkerTickTaskId = Get-OptionalProperty -InputObject $WorkerTickResult -Name 'task_id'
     if ($WorkerStatus -eq 'ENGINE_WORKER_TICK_ACCEPTED' -or $WorkerStatus -eq 'ENGINE_WORKER_TICK_CONTINUE') {
         $WorkerContinuePlan = [ordered]@{
             ok = $true
             status = 'WORKER_TICK_CONTINUE_PLAN_READY'
             stage = 'bounded_worker_tick'
             action = 'continue_loop'
-            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($WorkerTickResult.task_id) { $WorkerTickResult.task_id } else { $null }
+            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($WorkerTickTaskId) { $WorkerTickTaskId } else { $null }
             nextAction = 'continue_loop'
         }
         $Payload | Add-Member -NotePropertyName workerTickResult -NotePropertyValue $WorkerTickResult -Force
@@ -599,6 +605,7 @@ if ($WorkerTickResultPath) {
 if ($GatewayDecisionResultPath) {
     if (-not (Test-Path $GatewayDecisionResultPath)) { throw "gateway decision result file not found: $GatewayDecisionResultPath" }
     $GatewayDecisionResult = Get-Content -Raw -Path $GatewayDecisionResultPath | ConvertFrom-Json
+    $GatewayDecisionTaskId = Get-OptionalProperty -InputObject $GatewayDecisionResult -Name 'task_id'
     if ($GatewayDecisionResult.status -ne 'ENGINE_GATEWAY_DECISION_RECORDED') { throw "gateway decision result not recorded: $($GatewayDecisionResult.status)" }
     $DecisionStatus = [string]$GatewayDecisionResult.decision_status
     if (-not $DecisionStatus) { $DecisionStatus = 'CONTINUE' }
@@ -610,7 +617,7 @@ if ($GatewayDecisionResultPath) {
             status = 'GATEWAY_CONTINUE_PLAN_READY'
             stage = 'bounded_worker_tick'
             action = 'continue_loop'
-            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($GatewayDecisionResult.task_id) { $GatewayDecisionResult.task_id } else { $null }
+            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($GatewayDecisionTaskId) { $GatewayDecisionTaskId } else { $null }
             maxIterations = $MaxIterations
             untilRc = [bool]$UntilRc
             nextAction = 'continue_loop'
@@ -665,7 +672,7 @@ if ($GatewayDecisionResultPath) {
             stage = 'reply_back'
             action = 'dispatch_chat_response'
             decisionStatus = $DecisionStatus
-            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($GatewayDecisionResult.task_id) { $GatewayDecisionResult.task_id } else { $null }
+            taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($GatewayDecisionTaskId) { $GatewayDecisionTaskId } else { $null }
             nextAction = 'dispatch_chat_response'
         }
         $ReplyBackContract = [ordered]@{
@@ -719,6 +726,7 @@ if ($GatewayDecisionResultPath) {
 if ($AnswerCaptureResultPath) {
     if (-not (Test-Path $AnswerCaptureResultPath)) { throw "answer capture result file not found: $AnswerCaptureResultPath" }
     $AnswerCaptureResult = Get-Content -Raw -Path $AnswerCaptureResultPath | ConvertFrom-Json
+    $AnswerCaptureTaskId = Get-OptionalProperty -InputObject $AnswerCaptureResult -Name 'task_id'
     $AnswerReady = ($AnswerCaptureResult.ok -eq $true -and $AnswerCaptureResult.status -eq 'ENGINE_ANSWER_CAPTURED')
     if ($AnswerReady) {
         $GatewayDecisionContract = [ordered]@{
@@ -727,7 +735,7 @@ if ($AnswerCaptureResultPath) {
             stage = 'gateway_decision'
             tool = 'console.write.engine.gateway.decide'
             arguments = [ordered]@{
-                taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($AnswerCaptureResult.task_id) { $AnswerCaptureResult.task_id } else { $null }
+                taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($AnswerCaptureTaskId) { $AnswerCaptureTaskId } else { $null }
                 maxOutputTokens = 900
                 temperature = 0.1
                 raw = $false
