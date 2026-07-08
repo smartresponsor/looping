@@ -18,6 +18,7 @@ function Assert-True {
 $RepoSmoke = Read-Text 'tool/runner-repo-smoke.ps1'
 $TaskBankLoop = Read-Text 'tool/runner-task-bank-loop.ps1'
 $Bridge = Read-Text 'tool/runner-console-mcp-bridge.mjs'
+$BridgeWrapper = Read-Text 'tool/runner-console-mcp-bridge.ps1'
 $Adapter = Read-Text 'tool/runner-adapter.ps1'
 $Dispatcher = Read-Text 'tool/runner-dispatcher.ps1'
 
@@ -58,6 +59,14 @@ Assert-True ($Adapter -match '\$HasSequenceContract\s*=\s*\$NextDispatchProperti
 Assert-True ($Adapter -match '\$HasSingleToolContract\s*=\s*\(\$NextDispatchProperties\s+-contains\s+''tool''\)\s+-and\s+\(\$NextDispatchProperties\s+-contains\s+''arguments''\)') 'adapter must support single-tool nextDispatchContract'
 Assert-True ($Adapter -match '\$Contracts\s*\+=\s*\$NextDispatchContract') 'single-tool nextDispatchContract must normalize to one contract'
 Assert-True ($Adapter -match '(?s)elseif \(\$HasSingleToolContract\).*?else \{\s*return\s*\}') 'adapter must skip gracefully when nextDispatchContract has no supported shape'
+Assert-True ($BridgeWrapper -match 'AwsSecretContract\\tool\\secret-runtime\.ps1') 'bridge wrapper must locate AwsSecretContract secret runtime'
+Assert-True ($BridgeWrapper -match 'export-env' -and $BridgeWrapper -match 'Consumer console-mcp' -and $BridgeWrapper -match 'IncludePrevious') 'bridge wrapper must export console-mcp consumer env with previous secret support'
+Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_BEARER_TOKEN_MISSING') 'bridge wrapper must fail explicitly when token is missing'
+Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_ENDPOINT_UNREACHABLE') 'bridge wrapper must fail explicitly when endpoint is unreachable'
+Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_UNAUTHORIZED') 'bridge wrapper must classify Unauthorized responses'
+Assert-True ($BridgeWrapper -notmatch 'Write-(Host|Output|Information|Verbose|Warning|Error)[^\r\n]*CONSOLE_MCP_BEARER_TOKEN') 'bridge wrapper must not print bearer token values'
+Assert-True ($BridgeWrapper -match 'foreach\s*\(\$Port\s+in\s+@\(3333,\s*3334\)\)') 'bridge wrapper endpoint discovery must prefer 3333 before 3334'
+Assert-True ($Bridge -match 'http://127\.0\.0\.1:3333/mcp') 'node bridge fallback endpoint must prefer 3333'
 
 $RequiredBridgeTools = @(
     'console.write.browser.session.cmcp.go',
@@ -96,6 +105,7 @@ Assert-True (-not ($Adapter -match "console\.write\.browser\.chatgpt\.chat\.crea
         'max_iterations_counts_ui_cycles_only',
         'task_bank_chat_bank_persisted',
         'watcher_tools_reused',
-        'single_tool_next_dispatch_contract'
+        'single_tool_next_dispatch_contract',
+        'bridge_secret_runtime_bootstrap'
     )
 } | ConvertTo-Json -Depth 20
