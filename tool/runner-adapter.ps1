@@ -425,7 +425,7 @@ if ($TransportResultPath) {
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.write.browser.session.cmcp.go') {
+    } elseif ($TransportTool -eq 'console.write.browser.chatgpt.chat.create.send' -or $TransportTool -eq 'console.write.browser.session.cmcp.go') {
         $Payload | Add-Member -NotePropertyName engineExecutorResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
