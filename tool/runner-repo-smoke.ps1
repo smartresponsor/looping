@@ -12,6 +12,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Daemon = Join-Path $Root 'tool/runner-daemon.ps1'
 $Adapter = Join-Path $Root 'tool/runner-transport-adapter.ps1'
 $Bridge = Join-Path $Root 'tool/runner-console-mcp-bridge.ps1'
+$TaskBankLoop = Join-Path $Root 'tool/runner-task-bank-loop.ps1'
 $StateDir = Join-Path $Root 'var/runner/state'
 $StatePath = Join-Path $StateDir 'latest.json'
 
@@ -92,6 +93,11 @@ if (-not (Test-Path $TargetRepo)) {
         nextAction = 'provide_existing_target_repo_path'
     } | ConvertTo-Json -Depth 40
     exit 0
+}
+
+if ($EngineExecutor -and $Chain) {
+    & $TaskBankLoop -TargetRepo $TargetRepo -MaxIterations $MaxIterations -Name $Name
+    exit $LASTEXITCODE
 }
 
 if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir | Out-Null }
