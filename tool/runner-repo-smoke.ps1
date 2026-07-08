@@ -3,7 +3,8 @@ param(
     [int]$MaxIterations = 3,
     [string]$Name = 'repo-smoke',
     [string]$CaptureResultPath,
-    [switch]$Chain
+    [switch]$Chain,
+    [switch]$EngineExecutor
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,7 +26,13 @@ if (-not (Test-Path $TargetRepo)) {
 $Task = "Repo loop test. Name: $Name. Target workspace: $TargetRepo. Goal: inspect repo context only; avoid file changes; avoid commits; stop after $MaxIterations loop steps."
 $RunId = 'repo-smoke-' + ([guid]::NewGuid().ToString('N'))
 if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir | Out-Null }
-$Seed = [ordered]@{ ok = $true; status = 'RUNNER_STATE_PERSISTED'; schemaVersion = 2; runtimeVersion = '2026.07.runner-loop'; runId = $RunId; taskId = $Task; runnerMode = 'repo_smoke_seed'; finalActionSelected = 'repo_context_capture'; finalActionResult = [ordered]@{ ok = $true; status = 'FINAL_ACTION_RESUME_LATEST'; action = 'resume_latest'; nextAction = 'dispatch_next_from_state' }; nextDispatchContract = [ordered]@{ ok = $true; status = 'REPO_CONTEXT_CAPTURE_CONTRACT_READY'; stage = 'repo_context'; tool = 'console.read_.repo.context.capture'; arguments = [ordered]@{ workspacePath = $TargetRepo }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_context_capture' }; budget = [ordered]@{ mode = 'steps'; remaining = $MaxIterations; untilRc = $false }; retryPolicy = $null; retryAttempt = 0; recoveryPlan = $null; updatedAt = (Get-Date).ToUniversalTime().ToString('o') }
+$EngineRawCommand = "Run a read-only repository loop smoke for workspace $TargetRepo. Use only safe inspection. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, and summary."
+$InitialDispatchContract = if ($EngineExecutor) {
+    [ordered]@{ ok = $true; status = 'ENGINE_EXECUTOR_CONTRACT_READY'; stage = 'engine_executor'; tool = 'console.write.browser.session.cmcp.go'; arguments = [ordered]@{ rawCommand = $EngineRawCommand; workspacePath = $TargetRepo; componentName = $Name; maxAutoIterations = $MaxIterations; activate = $true; confirmGo = $false; allowOverwrite = $false }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_engine_executor' }
+} else {
+    [ordered]@{ ok = $true; status = 'REPO_CONTEXT_CAPTURE_CONTRACT_READY'; stage = 'repo_context'; tool = 'console.read_.repo.context.capture'; arguments = [ordered]@{ workspacePath = $TargetRepo }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_context_capture' }
+}
+$Seed = [ordered]@{ ok = $true; status = 'RUNNER_STATE_PERSISTED'; schemaVersion = 2; runtimeVersion = '2026.07.runner-loop'; runId = $RunId; taskId = $Task; runnerMode = 'repo_smoke_seed'; finalActionSelected = 'repo_context_capture'; finalActionResult = [ordered]@{ ok = $true; status = 'FINAL_ACTION_RESUME_LATEST'; action = 'resume_latest'; nextAction = 'dispatch_next_from_state' }; nextDispatchContract = $InitialDispatchContract; budget = [ordered]@{ mode = 'steps'; remaining = $MaxIterations; untilRc = $false }; retryPolicy = $null; retryAttempt = 0; recoveryPlan = $null; updatedAt = (Get-Date).ToUniversalTime().ToString('o') }
 [pscustomobject]$Seed | ConvertTo-Json -Depth 40 | Set-Content -Path $StatePath -Encoding UTF8
 $Raw = & $Daemon -Task $Task -MaxIterations $MaxIterations 2>&1
 $Payload = $Raw | ConvertFrom-Json
@@ -96,6 +103,7 @@ if ($Payload.status -eq 'RUNNER_DAEMON_STATE_TASK_MISMATCH') {
     adapterNextAction = if ($AdapterPayload) { [string]$AdapterPayload.nextAction } else { $null }
     autoFed = [bool]$AdapterPayload
     chain = [bool]$Chain
+    engineExecutor = [bool]$EngineExecutor
     stepCount = @($Steps).Count
     steps = $Steps
     tools = @($Steps | ForEach-Object { $_.tool })

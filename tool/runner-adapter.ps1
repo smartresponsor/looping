@@ -425,6 +425,15 @@ if ($TransportResultPath) {
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
+    } elseif ($TransportTool -eq 'console.write.browser.session.cmcp.go') {
+        $Payload | Add-Member -NotePropertyName engineExecutorResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = ($TransportResult.ok -eq $true); status = 'FINAL_ACTION_ENGINE_EXECUTOR_ACCEPTED'; action = 'engine_executor_accepted'; nextAction = 'stop_loop' } -Force
+        Write-RunnerState -Payload $Payload
+        $Payload | ConvertTo-Json -Depth 40
+        exit 0
     } elseif ($TransportTool -eq 'console.read_.repo.context.capture') {
         $Payload | Add-Member -NotePropertyName repoContextResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
