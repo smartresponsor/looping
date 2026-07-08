@@ -220,7 +220,7 @@ function ConvertTo-NormalizedAnswer {
         assistantOk = ($Settled.ok -eq $true)
         assistantStatus = $AssistantStatus
         semanticStatus = $SemanticStatus
-        semanticNextAction = if ($SemanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL')) { 'stop_loop' } else { 'continue_or_stop_by_budget' }
+        semanticNextAction = if ($SemanticStatus -eq 'REFUSAL') { 'stop_loop' } else { 'continue_or_stop_by_budget' }
         chatId = $ChatId
         targetId = $TargetId
         capturedAt = Get-IsoNow
@@ -340,7 +340,7 @@ function Write-AcceptanceArtifact {
     if ($AssistantCapturedCount -ne $MaxIterations) { $Failures += 'assistantCapturedCount_mismatch' }
     if (@($AnswerRows | Where-Object { $_.textLength -le 0 -or -not $_.captured }).Count -gt 0) { $Failures += 'empty_answer_capture' }
     if (@($AnswerRows | Where-Object { $_.assistantStatus -eq 'OBSERVATION_WINDOW_EXPIRED' }).Count -gt 0) { $Failures += 'observation_window_expired' }
-    if (@($AnswerRows | Where-Object { $_.semanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL') }).Count -gt 0) { $Failures += 'semantic_block_or_refusal' }
+    if (@($AnswerRows | Where-Object { $_.semanticStatus -eq 'REFUSAL' }).Count -gt 0) { $Failures += 'semantic_refusal' }
     if ($DistinctChatIds.Count -ne 1 -or ($Task.lockedChatId -and $DistinctChatIds[0] -ne $Task.lockedChatId)) { $Failures += 'unstable_chatId' }
     if (-not $RepoStatus.clean) { $Failures += 'target_repo_not_clean' }
 
@@ -641,7 +641,7 @@ while ($true) {
         $DecisionStages += @('runner-adapter','answer-capture-intake')
         $InternalStepCount++
         $Task.interactionCount = [int]$Task.interactionCount + 1
-        $DecisionNextAction = if ($Task.interactionCount -ge $Task.maxInteractions) { 'stop_loop' } elseif ($LastSemanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL')) { 'stop_loop' } else { 'dispatch_next_ui_interaction' }
+        $DecisionNextAction = if ($Task.interactionCount -ge $Task.maxInteractions) { 'stop_loop' } elseif ($LastSemanticStatus -eq 'REFUSAL') { 'stop_loop' } else { 'dispatch_next_ui_interaction' }
         $Task.decisionState = [pscustomobject]@{
             status = if ($DecisionNextAction -eq 'stop_loop') { 'terminal_or_budget' } else { 'next_interaction_ready' }
             adapterStatus = $AdapterResult.finalActionResult.status
@@ -649,7 +649,7 @@ while ($true) {
             nextAction = $DecisionNextAction
             nextDispatchContract = if ($DecisionNextAction -eq 'dispatch_next_ui_interaction') { New-CmcpDispatchContract -RawCommand "Continue the read-only repository loop smoke for workspace $TargetRepo based on the captured assistant answer. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, summary, and nextAction." -ChatId $Task.chatId } else { $null }
         }
-        $Task.status = if ($DecisionNextAction -eq 'stop_loop') { if ($LastSemanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL')) { 'semantic_blocked' } else { 'terminal_success' } } else { 'ready_next_interaction' }
+        $Task.status = if ($DecisionNextAction -eq 'stop_loop') { if ($LastSemanticStatus -eq 'REFUSAL') { 'semantic_refused' } else { 'terminal_success' } } else { 'ready_next_interaction' }
         $Chat.status = $Task.status
         $Task.updatedAt = Get-IsoNow
         Write-JsonFile -Value $Task -Path $TaskPath
@@ -670,7 +670,7 @@ Write-JsonFile -Value $Task -Path $TaskPath
 Write-JsonFile -Value $Chat -Path $ChatPath
 $ActiveTasks = @($Task | Where-Object { $_.status -notin @('terminal_success','terminal_failed','semantic_blocked','interaction_budget_exhausted') })
 $CompletedTasks = @($Task | Where-Object { $_.status -in @('terminal_success','interaction_budget_exhausted') })
-$SemanticFailed = $LastSemanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL')
+$SemanticFailed = $LastSemanticStatus -eq 'REFUSAL'
 $Acceptance = Write-AcceptanceArtifact -Task $Task -Chat $Chat -Answers $AnswerRecords -ObservedChatIds $ObservedChatIds -SubmittedCount $SubmittedCount -AssistantCapturedCount $AssistantCapturedCount -InternalStepCount $InternalStepCount -FinalStatus $FinalStatus
 $AcceptanceArtifact = $Acceptance.artifact
 $AcceptancePath = $Acceptance.path
@@ -678,7 +678,7 @@ $Ok = [bool]$AcceptanceArtifact.ok
 $OutputStatus = if ($Ok) { 'TASK_BANK_LOOP_COMPLETED' } else { 'TASK_BANK_LOOP_FAILED' }
 $OutputFinalStatus = if ($Ok) {
     'M3_ACCEPTANCE_PASS'
-} elseif ($LastSemanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL')) {
+} elseif ($LastSemanticStatus -eq 'REFUSAL') {
     $LastSemanticStatus
 } elseif ($FinalStatus -and $FinalStatus -notin @('TASK_BANK_LOOP_STARTED','TASK_BANK_INTERACTION_BUDGET_EXHAUSTED','TASK_BANK_TASK_TERMINAL')) {
     $FinalStatus
