@@ -430,7 +430,28 @@ if ($TransportResultPath) {
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
         $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
-        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_REPO_CONTEXT_CAPTURE_ACCEPTED'; action = 'repo_context_capture_accepted'; nextAction = 'stop_loop' } -Force
+        $WorkspacePath = if ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } elseif ($TransportResult.capture -and $TransportResult.capture.cwd) { [string]$TransportResult.capture.cwd } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'REPO_WORKSPACE_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_REPO_CONTEXT_CAPTURE_ACCEPTED'; action = 'repo_context_capture_accepted'; nextAction = 'dispatch_next_from_state' } -Force
+        Write-RunnerState -Payload $Payload
+        $Payload | ConvertTo-Json -Depth 40
+        exit 0
+    } elseif ($TransportTool -eq 'console.read_.repo.workspace.status') {
+        $WorkspacePath = if ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
+        $Payload | Add-Member -NotePropertyName repoWorkspaceStatusResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'REPO_MEMORY_GRAPH_PLAN_CONTRACT_READY'; stage = 'repo_memory_graph_plan'; tool = 'console.read_.repo.memory.graph.plan'; arguments = @{ workspacePath = $WorkspacePath; operation = 'search_graph'; implementationFlow = $true }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_memory_graph_plan' } -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_REPO_WORKSPACE_STATUS_ACCEPTED'; action = 'repo_workspace_status_accepted'; nextAction = 'dispatch_next_from_state' } -Force
+        Write-RunnerState -Payload $Payload
+        $Payload | ConvertTo-Json -Depth 40
+        exit 0
+    } elseif ($TransportTool -eq 'console.read_.repo.memory.graph.plan') {
+        $Payload | Add-Member -NotePropertyName repoMemoryGraphPlanResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_REPO_MEMORY_GRAPH_PLAN_ACCEPTED'; action = 'repo_memory_graph_plan_accepted'; nextAction = 'stop_loop' } -Force
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
