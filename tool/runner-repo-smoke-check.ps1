@@ -51,6 +51,14 @@ Assert-True ($TaskBankLoop -match 'chat-bank') 'chat-bank state must be used'
 Assert-True ($TaskBankLoop -match 'answerCaptured') 'answer capture progress must be emitted'
 Assert-True ($TaskBankLoop -match 'decisionApplied') 'decision consumption must happen after answer capture'
 Assert-True ($TaskBankLoop -match "TOOL_CALL_BLOCKED") 'blocked tool calls must be semantic outcomes'
+Assert-True ($TaskBankLoop -match 'lockedChatId') 'task-bank loop must lock one task to one chatId'
+Assert-True ($TaskBankLoop -match 'SINGLE_CHAT_REBIND_FAILED') 'task-bank loop must fail explicitly when single-chat rebind fails'
+Assert-True ($TaskBankLoop -match 'AcceptanceDir' -and $TaskBankLoop -match 'Write-AcceptanceArtifact') 'task-bank loop must write final acceptance artifact'
+Assert-True ($TaskBankLoop -match 'M3_ACCEPTANCE_PASS') 'task-bank loop must expose strict M3 acceptance pass status'
+Assert-True ($TaskBankLoop -match 'acceptanceArtifactPath') 'task-bank loop final JSON must expose acceptance artifact path'
+Assert-True ($TaskBankLoop -match 'OBSERVATION_WINDOW_EXPIRED' -and $TaskBankLoop -match 'ANSWER_CAPTURE_OBSERVATION_WINDOW_EXPIRED') 'expired observation with empty answer must be capture failure'
+Assert-True ($TaskBankLoop -match 'assistantCaptured = \$Captured') 'assistantCaptured must be derived from non-empty answer text'
+Assert-True ($TaskBankLoop -match '\$AssistantCapturedCount\+\+' -and $TaskBankLoop.IndexOf('$AssistantCapturedCount++') -gt $TaskBankLoop.IndexOf('if (-not $Answer.assistantCaptured)')) 'assistantCapturedCount must increment only after capture validation'
 Assert-True ($TaskBankLoop -notmatch 'interactionCount\\s*=\\s*\\[int\\]\\$Task\\.interactionCount \\+ 1[\\s\\S]{0,400}uiSubmit') 'submit alone must not increment interaction count'
 Assert-True ($TaskBankLoop -notmatch "console\\.read_\\.repo\\.workspace\\.status[\\s\\S]{0,300}interactionCount\\s*=") 'repo status must not increment interaction count'
 Assert-True ($TaskBankLoop -notmatch "console\\.read_\\.repo\\.memory\\.graph\\.plan[\\s\\S]{0,300}interactionCount\\s*=") 'memory graph must not increment interaction count'
@@ -106,6 +114,8 @@ Assert-True (-not ($Adapter -match "console\.write\.browser\.chatgpt\.chat\.crea
         'task_bank_chat_bank_persisted',
         'watcher_tools_reused',
         'single_tool_next_dispatch_contract',
-        'bridge_secret_runtime_bootstrap'
+        'bridge_secret_runtime_bootstrap',
+        'single_chat_task_lock',
+        'strict_m3_acceptance_artifact'
     )
 } | ConvertTo-Json -Depth 20

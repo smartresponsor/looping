@@ -17,6 +17,7 @@ $TaskDir = Join-Path $TaskBankRoot 'tasks'
 $JournalDir = Join-Path $TaskBankRoot 'journal'
 $AnswerDir = Join-Path $TaskBankRoot 'answers'
 $BridgeDir = Join-Path $TaskBankRoot 'bridge'
+$AcceptanceDir = Join-Path $TaskBankRoot 'acceptance'
 $ChatBankRoot = Join-Path $Root 'var/runner/chat-bank'
 $ChatDir = Join-Path $ChatBankRoot 'chats'
 
@@ -49,6 +50,16 @@ function Get-OptionalProperty {
     param($InputObject, [string]$Name)
     if ($null -eq $InputObject) { return $null }
     if ($InputObject.PSObject.Properties.Name -contains $Name) { return $InputObject.$Name }
+    return $null
+}
+
+function Get-FirstValue {
+    param([object[]]$Values)
+    foreach ($Value in $Values) {
+        if ($null -ne $Value -and -not [string]::IsNullOrWhiteSpace([string]$Value)) {
+            return [string]$Value
+        }
+    }
     return $null
 }
 
@@ -85,6 +96,36 @@ function New-CmcpDispatchContract {
         execution = 'external_console_mcp_required'
         nextAction = 'dispatch_ui_interaction_submit'
     }
+}
+
+function Get-SubmitChatId {
+    param($SubmitResult)
+
+    $Trace = Get-OptionalProperty -InputObject $SubmitResult -Name 'cmcp_go_trace'
+    $Submitted = Get-OptionalProperty -InputObject $SubmitResult -Name 'submitted'
+    return Get-FirstValue -Values @(
+        (Get-OptionalProperty -InputObject $SubmitResult -Name 'chatId'),
+        (Get-OptionalProperty -InputObject $SubmitResult -Name 'chat_id'),
+        (Get-OptionalProperty -InputObject $SubmitResult -Name 'opened_chat_id'),
+        (Get-OptionalProperty -InputObject $Trace -Name 'opened_chat_id'),
+        (Get-OptionalProperty -InputObject $Submitted -Name 'chatId'),
+        (Get-OptionalProperty -InputObject $Submitted -Name 'chat_id')
+    )
+}
+
+function Get-SubmitTargetId {
+    param($SubmitResult)
+
+    $Trace = Get-OptionalProperty -InputObject $SubmitResult -Name 'cmcp_go_trace'
+    $Submitted = Get-OptionalProperty -InputObject $SubmitResult -Name 'submitted'
+    return Get-FirstValue -Values @(
+        (Get-OptionalProperty -InputObject $SubmitResult -Name 'targetId'),
+        (Get-OptionalProperty -InputObject $SubmitResult -Name 'target_id'),
+        (Get-OptionalProperty -InputObject $SubmitResult -Name 'opened_target_id'),
+        (Get-OptionalProperty -InputObject $Trace -Name 'opened_target_id'),
+        (Get-OptionalProperty -InputObject $Submitted -Name 'targetId'),
+        (Get-OptionalProperty -InputObject $Submitted -Name 'target_id')
+    )
 }
 
 function Invoke-BridgeTool {
@@ -168,11 +209,12 @@ function ConvertTo-NormalizedAnswer {
     $Json = Get-AssistantJson -Text $Text
     $AssistantStatus = [string]$Settled.status
     $SemanticStatus = Get-SemanticStatus -AssistantJson $Json -AssistantText $Text -AssistantStatus $AssistantStatus
+    $Captured = ($Text.Length -gt 0 -and $AssistantStatus -ne 'OBSERVATION_WINDOW_EXPIRED')
     [ordered]@{
         ok = ($Settled.ok -eq $true)
         status = 'ENGINE_ANSWER_CAPTURED'
         task_id = $TaskId
-        assistantCaptured = ($Text.Length -gt 0)
+        assistantCaptured = $Captured
         assistantText = $Text
         assistantJson = $Json
         assistantOk = ($Settled.ok -eq $true)
@@ -216,6 +258,7 @@ function New-TaskRecord {
         status = 'created'
         chatId = $null
         targetId = $null
+        lockedChatId = $null
         lastAssistantHash = $null
         lastAssistantTextLength = 0
         lastSeenTailHash = $null
@@ -249,10 +292,90 @@ function New-ChatRecord {
     }
 }
 
+function Get-RepoCleanStatus {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    $Git = Get-Command git -ErrorAction SilentlyContinue
+    if ($null -eq $Git -or -not (Test-Path -LiteralPath (Join-Path $Path '.git'))) {
+        return [pscustomobject]@{ checked = $false; clean = $false; status = 'GIT_STATUS_UNAVAILABLE'; details = @() }
+    }
+
+    $Raw = & $Git.Source -C $Path status --short 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        return [pscustomobject]@{ checked = $true; clean = $false; status = 'GIT_STATUS_FAILED'; details = @($Raw) }
+    }
+
+    $Items = @($Raw | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    return [pscustomobject]@{ checked = $true; clean = ($Items.Count -eq 0); status = if ($Items.Count -eq 0) { 'GIT_STATUS_CLEAN' } else { 'GIT_STATUS_DIRTY' }; details = $Items }
+}
+
+function Write-AcceptanceArtifact {
+    param(
+        [Parameter(Mandatory=$true)]$Task,
+        [Parameter(Mandatory=$true)]$Chat,
+        [Parameter(Mandatory=$true)][AllowEmptyCollection()][object[]]$Answers,
+        [Parameter(Mandatory=$true)][AllowEmptyCollection()][string[]]$ObservedChatIds,
+        [Parameter(Mandatory=$true)][int]$SubmittedCount,
+        [Parameter(Mandatory=$true)][int]$AssistantCapturedCount,
+        [Parameter(Mandatory=$true)][int]$InternalStepCount,
+        [Parameter(Mandatory=$true)][string]$FinalStatus
+    )
+
+    Ensure-Dir $AcceptanceDir
+    $RepoStatus = Get-RepoCleanStatus -Path $TargetRepo
+    $DistinctChatIds = @($ObservedChatIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -Unique)
+    $AnswerRows = @($Answers | ForEach-Object {
+        [ordered]@{
+            path = $_.path
+            assistantStatus = $_.assistantStatus
+            semanticStatus = $_.semanticStatus
+            textLength = [int]$_.textLength
+            chatId = $_.chatId
+            captured = [bool]$_.captured
+        }
+    })
+    $Failures = @()
+    if ([int]$Task.interactionCount -ne $MaxIterations) { $Failures += 'interactionCycleCount_mismatch' }
+    if ($SubmittedCount -ne $MaxIterations) { $Failures += 'submittedCount_mismatch' }
+    if ($AssistantCapturedCount -ne $MaxIterations) { $Failures += 'assistantCapturedCount_mismatch' }
+    if (@($AnswerRows | Where-Object { $_.textLength -le 0 -or -not $_.captured }).Count -gt 0) { $Failures += 'empty_answer_capture' }
+    if (@($AnswerRows | Where-Object { $_.assistantStatus -eq 'OBSERVATION_WINDOW_EXPIRED' }).Count -gt 0) { $Failures += 'observation_window_expired' }
+    if (@($AnswerRows | Where-Object { $_.semanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL') }).Count -gt 0) { $Failures += 'semantic_block_or_refusal' }
+    if ($DistinctChatIds.Count -ne 1 -or ($Task.lockedChatId -and $DistinctChatIds[0] -ne $Task.lockedChatId)) { $Failures += 'unstable_chatId' }
+    if (-not $RepoStatus.clean) { $Failures += 'target_repo_not_clean' }
+
+    $Status = if ($Failures.Count -eq 0) { 'M3_ACCEPTANCE_PASS' } else { 'M3_ACCEPTANCE_FAIL' }
+    $Artifact = [ordered]@{
+        ok = ($Failures.Count -eq 0)
+        status = $Status
+        failures = @($Failures)
+        targetRepo = $TargetRepo
+        maxIterations = $MaxIterations
+        interactionCycleCount = [int]$Task.interactionCount
+        internalStepCount = $InternalStepCount
+        submittedCount = $SubmittedCount
+        assistantCapturedCount = $AssistantCapturedCount
+        chatId = $Task.chatId
+        lockedChatId = $Task.lockedChatId
+        observedChatIds = @($DistinctChatIds)
+        targetId = $Task.targetId
+        finalStatus = $FinalStatus
+        answerChecks = @($AnswerRows)
+        repoStatus = $RepoStatus
+        taskPath = $TaskPath
+        chatPath = $ChatPath
+        createdAt = Get-IsoNow
+    }
+    $Path = Join-Path $AcceptanceDir ($Task.taskId + '-' + (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ') + '.acceptance.json')
+    Write-JsonFile -Value ([pscustomobject]$Artifact) -Path $Path
+    return [pscustomobject]@{ path = $Path; artifact = ([pscustomobject]$Artifact) }
+}
+
 Ensure-Dir $TaskDir
 Ensure-Dir $JournalDir
 Ensure-Dir $AnswerDir
 Ensure-Dir $BridgeDir
+Ensure-Dir $AcceptanceDir
 Ensure-Dir $ChatDir
 Ensure-Dir $RunnerStateDir
 
@@ -266,6 +389,8 @@ $InitialPrompt = "Run a read-only repository loop smoke for workspace $TargetRep
 $SubmittedCount = 0
 $AssistantCapturedCount = 0
 $InternalStepCount = 0
+$AnswerRecords = @()
+$ObservedChatIds = @()
 $ToolsUsed = @()
 $DecisionStages = @('task-bank', 'chat-bank', 'round-robin-scheduler')
 $LastAssistantStatus = $null
@@ -293,12 +418,35 @@ while ($true) {
     if ($Task.status -in @('terminal_success','terminal_failed','semantic_blocked')) { break }
 
     if ($Task.status -in @('created','ready_next_interaction')) {
+        if ($Task.lockedChatId -and $Task.chatId -and $Task.chatId -ne $Task.lockedChatId) {
+            $Task.status = 'terminal_failed'
+            $FinalStatus = 'SINGLE_CHAT_REBIND_FAILED'
+            $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; expectedChatId = $Task.lockedChatId; actualChatId = $Task.chatId; capturedAt = Get-IsoNow }) -Force
+            Write-JsonFile -Value $Task -Path $TaskPath
+            break
+        }
+
         if ($Task.targetId) {
             $PreflightArgs = [ordered]@{ expectedTargetId = $Task.targetId; timeoutMs = 5000 }
             $Preflight = Invoke-BridgeTool -Tool 'console.read_.browser.chatgpt.composer.preflight' -Arguments $PreflightArgs -TaskId $TaskId
             $ToolsUsed += 'console.read_.browser.chatgpt.composer.preflight'
             $InternalStepCount++
             Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'console.read_.browser.chatgpt.composer.preflight'; status = $Preflight.result.status; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+        } elseif ($Task.lockedChatId) {
+            $Task.chatId = [string]$Task.lockedChatId
+            $Chat.chatId = [string]$Task.lockedChatId
+            $Chat.url = "https://chatgpt.com/c/$($Task.lockedChatId)"
+            $Chat.recoveryAttempt = [int]$Chat.recoveryAttempt + 1
+            $Chat.lastBindAt = Get-IsoNow
+            Write-JsonFile -Value $Task -Path $TaskPath
+            Write-JsonFile -Value $Chat -Path $ChatPath
+            Write-Host ("progress " + ([ordered]@{ event = 'chatRebindScheduled'; chatId = $Task.lockedChatId; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+        } elseif ($Task.interactionCount -gt 0) {
+            $Task.status = 'terminal_failed'
+            $FinalStatus = 'SINGLE_CHAT_REBIND_FAILED'
+            $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; reason = 'target_and_locked_chat_missing'; capturedAt = Get-IsoNow }) -Force
+            Write-JsonFile -Value $Task -Path $TaskPath
+            break
         }
         $RawCommand = if ($Task.interactionCount -eq 0) { $InitialPrompt } else { "Continue the read-only repository loop smoke for workspace $TargetRepo. Use the previous assistant answer as context. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, summary, and nextAction." }
         $Contract = New-CmcpDispatchContract -RawCommand $RawCommand -ChatId $Task.chatId
@@ -330,8 +478,24 @@ while ($true) {
         $SubmittedCount++
         $Task.status = 'waiting_answer'
         $Task.sentAt = Get-IsoNow
-        if ($Submit.result.cmcp_go_trace -and $Submit.result.cmcp_go_trace.opened_target_id) { $Task.targetId = [string]$Submit.result.cmcp_go_trace.opened_target_id }
-        if ($Submit.result.cmcp_go_trace -and $Submit.result.cmcp_go_trace.opened_chat_id) { $Task.chatId = [string]$Submit.result.cmcp_go_trace.opened_chat_id }
+        $SubmittedChatId = Get-SubmitChatId -SubmitResult $Submit.result
+        $SubmittedTargetId = Get-SubmitTargetId -SubmitResult $Submit.result
+        if ($SubmittedTargetId) { $Task.targetId = $SubmittedTargetId }
+        if ($SubmittedChatId) { $Task.chatId = $SubmittedChatId }
+        if ($Task.chatId) {
+            if (-not $Task.lockedChatId) {
+                $Task.lockedChatId = [string]$Task.chatId
+            } elseif ($Task.chatId -ne $Task.lockedChatId) {
+                $Task.status = 'terminal_failed'
+                $FinalStatus = 'SINGLE_CHAT_REBIND_FAILED'
+                $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; expectedChatId = $Task.lockedChatId; actualChatId = $Task.chatId; resultPath = $Submit.resultPath; capturedAt = Get-IsoNow }) -Force
+                Append-Journal -TaskId $TaskId -Event 'singleChatViolation' -Data ([ordered]@{ expectedChatId = $Task.lockedChatId; actualChatId = $Task.chatId; resultPath = $Submit.resultPath })
+                Write-JsonFile -Value $Task -Path $TaskPath
+                Write-JsonFile -Value $Chat -Path $ChatPath
+                break
+            }
+            $ObservedChatIds += [string]$Task.chatId
+        }
         $Chat.targetId = $Task.targetId
         $Chat.chatId = $Task.chatId
         $Chat.url = if ($Task.chatId) { "https://chatgpt.com/c/$($Task.chatId)" } else { 'https://chatgpt.com/' }
@@ -422,15 +586,49 @@ while ($true) {
         $Settled = Invoke-BridgeTool -Tool 'console.read_.browser.chatgpt.answer.settle' -Arguments $SettleArgs -TaskId $TaskId
         $ToolsUsed += 'console.read_.browser.chatgpt.answer.settle'
         $InternalStepCount++
-        if ($Settled.result.selected -and $Settled.result.selected.chat_id) { $Task.chatId = [string]$Settled.result.selected.chat_id; $Chat.chatId = $Task.chatId }
+        if ($Settled.result.selected -and $Settled.result.selected.chat_id) {
+            $SelectedChatId = [string]$Settled.result.selected.chat_id
+            if (-not $Task.lockedChatId) {
+                $Task.lockedChatId = $SelectedChatId
+            } elseif ($SelectedChatId -ne $Task.lockedChatId) {
+                $Task.status = 'terminal_failed'
+                $FinalStatus = 'SINGLE_CHAT_REBIND_FAILED'
+                $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; expectedChatId = $Task.lockedChatId; actualChatId = $SelectedChatId; resultPath = $Settled.resultPath; capturedAt = Get-IsoNow }) -Force
+                Append-Journal -TaskId $TaskId -Event 'singleChatViolation' -Data ([ordered]@{ expectedChatId = $Task.lockedChatId; actualChatId = $SelectedChatId; resultPath = $Settled.resultPath })
+                Write-JsonFile -Value $Task -Path $TaskPath
+                Write-JsonFile -Value $Chat -Path $ChatPath
+                break
+            }
+            $Task.chatId = $SelectedChatId
+            $Chat.chatId = $Task.chatId
+            $ObservedChatIds += $SelectedChatId
+        }
         if ($Settled.result.selected -and $Settled.result.selected.id) { $Task.targetId = [string]$Settled.result.selected.id; $Chat.targetId = $Task.targetId }
 
         $Answer = ConvertTo-NormalizedAnswer -Settled $Settled.result -TaskId $TaskId -ChatId $Task.chatId -TargetId $Task.targetId
         $AnswerPath = Join-Path $AnswerDir ($TaskId + '-' + ([guid]::NewGuid().ToString('N')) + '.answer.json')
         Write-JsonFile -Value ([pscustomobject]$Answer) -Path $AnswerPath
-        $AssistantCapturedCount++
+        $AnswerRecords += [pscustomobject]@{
+            path = $AnswerPath
+            assistantStatus = [string]$Answer.assistantStatus
+            semanticStatus = [string]$Answer.semanticStatus
+            textLength = [int]$Answer.latestAssistantTextLength
+            chatId = $Task.chatId
+            captured = [bool]$Answer.assistantCaptured
+        }
         $LastAssistantStatus = [string]$Answer.assistantStatus
         $LastSemanticStatus = [string]$Answer.semanticStatus
+        if (-not $Answer.assistantCaptured) {
+            $Task.status = 'terminal_failed'
+            $FinalStatus = if ($LastAssistantStatus -eq 'OBSERVATION_WINDOW_EXPIRED') { 'ANSWER_CAPTURE_OBSERVATION_WINDOW_EXPIRED' } else { 'ANSWER_CAPTURE_EMPTY_TEXT' }
+            $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; assistantStatus = $LastAssistantStatus; textLength = [int]$Answer.latestAssistantTextLength; answerPath = $AnswerPath; capturedAt = Get-IsoNow }) -Force
+            Append-Journal -TaskId $TaskId -Event 'answerCaptureRejected' -Data ([ordered]@{ finalStatus = $FinalStatus; assistantStatus = $LastAssistantStatus; textLength = [int]$Answer.latestAssistantTextLength; answerPath = $AnswerPath })
+            Write-JsonFile -Value $Task -Path $TaskPath
+            Write-JsonFile -Value $Chat -Path $ChatPath
+            Write-Host ("progress " + ([ordered]@{ event = 'answerCaptureRejected'; assistantStatus = $LastAssistantStatus; semanticStatus = $LastSemanticStatus; finalStatus = $FinalStatus; answerPath = $AnswerPath; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+            break
+        }
+        $AssistantCapturedCount++
         $Task.lastAssistantHash = [string]$Answer.latestAssistantHash
         $Task.lastAssistantTextLength = [int]$Answer.latestAssistantTextLength
         $Task.lastProgressAt = Get-IsoNow
@@ -473,11 +671,28 @@ Write-JsonFile -Value $Chat -Path $ChatPath
 $ActiveTasks = @($Task | Where-Object { $_.status -notin @('terminal_success','terminal_failed','semantic_blocked','interaction_budget_exhausted') })
 $CompletedTasks = @($Task | Where-Object { $_.status -in @('terminal_success','interaction_budget_exhausted') })
 $SemanticFailed = $LastSemanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL')
-$Ok = (-not $SemanticFailed) -and ($Task.interactionCount -ge [Math]::Min($MaxIterations, [int]$Task.interactionCount)) -and ($Task.status -in @('terminal_success','interaction_budget_exhausted'))
+$Acceptance = Write-AcceptanceArtifact -Task $Task -Chat $Chat -Answers $AnswerRecords -ObservedChatIds $ObservedChatIds -SubmittedCount $SubmittedCount -AssistantCapturedCount $AssistantCapturedCount -InternalStepCount $InternalStepCount -FinalStatus $FinalStatus
+$AcceptanceArtifact = $Acceptance.artifact
+$AcceptancePath = $Acceptance.path
+$Ok = [bool]$AcceptanceArtifact.ok
+$OutputStatus = if ($Ok) { 'TASK_BANK_LOOP_COMPLETED' } else { 'TASK_BANK_LOOP_FAILED' }
+$OutputFinalStatus = if ($Ok) {
+    'M3_ACCEPTANCE_PASS'
+} elseif ($LastSemanticStatus -in @('TOOL_CALL_BLOCKED','REFUSAL')) {
+    $LastSemanticStatus
+} elseif ($FinalStatus -and $FinalStatus -notin @('TASK_BANK_LOOP_STARTED','TASK_BANK_INTERACTION_BUDGET_EXHAUSTED','TASK_BANK_TASK_TERMINAL')) {
+    $FinalStatus
+} elseif (@($AcceptanceArtifact.failures) -contains 'empty_answer_capture') {
+    'ANSWER_CAPTURE_EMPTY_TEXT'
+} elseif (@($AcceptanceArtifact.failures) -contains 'observation_window_expired') {
+    'ANSWER_CAPTURE_OBSERVATION_WINDOW_EXPIRED'
+} else {
+    [string]$AcceptanceArtifact.status
+}
 
 [pscustomobject]@{
     ok = [bool]$Ok
-    status = if ($Ok) { 'TASK_BANK_LOOP_COMPLETED' } else { 'TASK_BANK_LOOP_FAILED' }
+    status = $OutputStatus
     targetRepo = $TargetRepo
     maxIterations = $MaxIterations
     interactionCycleCount = [int]$Task.interactionCount
@@ -493,9 +708,12 @@ $Ok = (-not $SemanticFailed) -and ($Task.interactionCount -ge [Math]::Min($MaxIt
     lastSemanticStatus = $LastSemanticStatus
     decisionStagesUsed = @($DecisionStages | Select-Object -Unique)
     toolsUsed = @($ToolsUsed | Select-Object -Unique)
-    finalStatus = $FinalStatus
+    finalStatus = $OutputFinalStatus
+    acceptanceStatus = [string]$AcceptanceArtifact.status
+    acceptanceFailures = @($AcceptanceArtifact.failures)
+    acceptanceArtifactPath = $AcceptancePath
     taskBankPath = $TaskBankRoot
     chatBankPath = $ChatBankRoot
     runnerStatePath = $RunnerStatePath
-    nextAction = if ($Ok) { 'task_bank_loop_completed' } else { 'inspect_task_bank_loop' }
+    nextAction = if ($Ok) { 'task_bank_loop_completed' } else { 'inspect_acceptance_artifact' }
 } | ConvertTo-Json -Depth 100
