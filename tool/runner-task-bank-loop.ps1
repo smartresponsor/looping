@@ -45,6 +45,13 @@ function Get-Hash {
     ([System.BitConverter]::ToString($Hash)).Replace('-', '').ToLowerInvariant()
 }
 
+function Get-OptionalProperty {
+    param($InputObject, [string]$Name)
+    if ($null -eq $InputObject) { return $null }
+    if ($InputObject.PSObject.Properties.Name -contains $Name) { return $InputObject.$Name }
+    return $null
+}
+
 function Append-Journal {
     param([string]$TaskId, [string]$Event, $Data)
     $Path = Join-Path $JournalDir ($TaskId + '.ndjson')
@@ -304,10 +311,17 @@ while ($true) {
         $ToolsUsed += $Submit.tool
         $DecisionStages += @('runner-daemon','runner-dispatcher','runner-transport-adapter','runner-adapter')
         $InternalStepCount++
-        $Submitted = ($Submit.result.submitted -eq $true -or ($Submit.result.submitted -and $Submit.result.submitted.submitted -eq $true) -or ($Submit.result.cmcp_go_trace -and $Submit.result.cmcp_go_trace.submitted -eq $true))
+        $SubmitResult = Get-OptionalProperty -InputObject $Submit -Name 'result'
+        $SubmitSubmitted = Get-OptionalProperty -InputObject $SubmitResult -Name 'submitted'
+        $SubmitTrace = Get-OptionalProperty -InputObject $SubmitResult -Name 'cmcp_go_trace'
+        $TraceSubmitted = Get-OptionalProperty -InputObject $SubmitTrace -Name 'submitted'
+        $TraceSubmittedStatus = Get-OptionalProperty -InputObject $SubmitTrace -Name 'submitted_status'
+        $NestedSubmitted = Get-OptionalProperty -InputObject $SubmitSubmitted -Name 'submitted'
+        $Submitted = ($SubmitSubmitted -eq $true -or $NestedSubmitted -eq $true -or $TraceSubmitted -eq $true -or $TraceSubmittedStatus -eq 'BROWSER_SESSION_SUBMITTED')
         if (-not $Submitted) {
             $Task.status = 'submit_failed'
-            $FinalStatus = [string]$Submit.result.status
+            $SubmitStatus = Get-OptionalProperty -InputObject $SubmitResult -Name 'status'
+            $FinalStatus = if ($SubmitStatus) { [string]$SubmitStatus } else { 'CMCP_GO_SUBMIT_NOT_CONFIRMED' }
             Write-JsonFile -Value $Task -Path $TaskPath
             break
         }
