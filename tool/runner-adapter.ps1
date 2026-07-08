@@ -425,12 +425,18 @@ if ($TransportResultPath) {
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.write.browser.chatgpt.chat.create.send' -or $TransportTool -eq 'console.write.browser.session.cmcp.go') {
+    } elseif ($TransportTool -eq 'console.write.browser.session.cmcp.go') {
+        $WorkspacePath = if ($TransportPayload.workspace_path) { [string]$TransportPayload.workspace_path } elseif ($TransportPayload.workspacePath) { [string]$TransportPayload.workspacePath } elseif ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
         $Payload | Add-Member -NotePropertyName engineExecutorResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
-        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
-        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = ($TransportResult.ok -eq $true); status = 'FINAL_ACTION_ENGINE_EXECUTOR_ACCEPTED'; action = 'engine_executor_accepted'; nextAction = 'stop_loop' } -Force
+        if ($TransportResult.ok -eq $true) {
+            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
+            $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_ACCEPTED'; action = 'engine_executor_accepted'; nextAction = 'dispatch_next_from_state' } -Force
+        } else {
+            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+            $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $false; status = 'FINAL_ACTION_ENGINE_EXECUTOR_FAILED'; action = 'stop_loop'; nextAction = 'stop_loop' } -Force
+        }
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
@@ -446,7 +452,7 @@ if ($TransportResultPath) {
         $Payload | ConvertTo-Json -Depth 40
         exit 0
     } elseif ($TransportTool -eq 'console.read_.repo.workspace.status') {
-        $WorkspacePath = if ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
+        $WorkspacePath = if ($TransportPayload.workspace_path) { [string]$TransportPayload.workspace_path } elseif ($TransportPayload.workspacePath) { [string]$TransportPayload.workspacePath } elseif ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
         $Payload | Add-Member -NotePropertyName repoWorkspaceStatusResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
