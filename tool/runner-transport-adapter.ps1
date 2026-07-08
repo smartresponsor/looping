@@ -36,6 +36,13 @@ function Write-RunnerJournalEvent {
     return $JournalPath
 }
 
+function Get-OptionalProperty {
+    param($InputObject, [string]$Name)
+    if ($null -eq $InputObject) { return $null }
+    if ($InputObject.PSObject.Properties.Name -contains $Name) { return $InputObject.$Name }
+    return $null
+}
+
 $DispatchPayload = Get-Content -Raw -Path $PayloadPath | ConvertFrom-Json
 $ExpectedTool = [string]$DispatchPayload.runnerExecutionPlan.tool
 $RawResult = Get-Content -Raw -Path $ResultPath | ConvertFrom-Json
@@ -79,5 +86,10 @@ $JournalPath = Write-RunnerJournalEvent ([ordered]@{ component = 'runner-transpo
     acceptedPath = $AcceptedPath
     accepted = $Accepted
     feed = $Feed
-    nextAction = if ($Feed.nextDispatchPayload) { 'invoke_next_dispatch_payload' } elseif ($Feed.finalActionResult) { $Feed.finalActionResult.nextAction } else { 'wait_or_review' }
+    nextAction = $(
+        $FeedNextDispatchPayload = Get-OptionalProperty -InputObject $Feed -Name 'nextDispatchPayload'
+        $FeedFinalActionResult = Get-OptionalProperty -InputObject $Feed -Name 'finalActionResult'
+        $FeedFinalNextAction = Get-OptionalProperty -InputObject $FeedFinalActionResult -Name 'nextAction'
+        if ($FeedNextDispatchPayload) { 'invoke_next_dispatch_payload' } elseif ($FeedFinalNextAction) { $FeedFinalNextAction } else { 'wait_or_review' }
+    )
 } | ConvertTo-Json -Depth 60
