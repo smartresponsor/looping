@@ -409,6 +409,8 @@ $LastAssistantStatus = $null
 $LastSemanticStatus = $null
 $FinalStatus = 'TASK_BANK_LOOP_STARTED'
 $StartedAt = Get-Date
+$PollIntervalSeconds = 3
+$PollIntervalMs = $PollIntervalSeconds * 1000
 
 Write-JsonFile -Value $Task -Path $TaskPath
 Write-JsonFile -Value $Chat -Path $ChatPath
@@ -508,7 +510,7 @@ while ($true) {
         $Chat.url = if ($Task.chatId) { "https://chatgpt.com/c/$($Task.chatId)" } else { 'https://chatgpt.com/' }
         $Chat.status = 'waiting_answer'
         $Chat.lastBindAt = Get-IsoNow
-        $Task.nextPollAt = (Get-Date).AddSeconds(35).ToUniversalTime().ToString('o')
+        $Task.nextPollAt = (Get-Date).AddSeconds($PollIntervalSeconds).ToUniversalTime().ToString('o')
         $Task.updatedAt = Get-IsoNow
         Write-JsonFile -Value $Task -Path $TaskPath
         Write-JsonFile -Value $Chat -Path $ChatPath
@@ -519,7 +521,7 @@ while ($true) {
         $Now = Get-Date
         $Due = [datetime]::Parse($Task.nextPollAt).ToUniversalTime()
         if ($Now.ToUniversalTime() -lt $Due) {
-            $SleepSeconds = [Math]::Min(35, [Math]::Max(1, [int][Math]::Ceiling(($Due - $Now.ToUniversalTime()).TotalSeconds)))
+            $SleepSeconds = [Math]::Min($PollIntervalSeconds, [Math]::Max(1, [int][Math]::Ceiling(($Due - $Now.ToUniversalTime()).TotalSeconds)))
             Write-Host ("progress " + ([ordered]@{ event = 'answerWaiting'; sleepSeconds = $SleepSeconds; nextPollAt = $Task.nextPollAt; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
             Start-Sleep -Seconds $SleepSeconds
         }
@@ -568,8 +570,9 @@ while ($true) {
 
         $Ready = ($Probe.result.decision.next_action -eq 'RUN_STABLE_CAPTURE' -or $StepSummary.result.next_action -eq 'RUN_STABLE_CAPTURE')
         if (-not $Ready) {
-            $NextMs = if ($Probe.result.decision.next_probe_after_ms) { [int]$Probe.result.decision.next_probe_after_ms } else { 35000 }
-            $Task.nextPollAt = (Get-Date).AddMilliseconds([Math]::Max(35000, $NextMs)).ToUniversalTime().ToString('o')
+            $NextMs = if ($Probe.result.decision.next_probe_after_ms) { [int]$Probe.result.decision.next_probe_after_ms } else { $PollIntervalMs }
+            $ClampedNextMs = [Math]::Min([Math]::Max(1000, $NextMs), $PollIntervalMs)
+            $Task.nextPollAt = (Get-Date).AddMilliseconds($ClampedNextMs).ToUniversalTime().ToString('o')
             $Task.updatedAt = Get-IsoNow
             Write-JsonFile -Value $Task -Path $TaskPath
             Write-JsonFile -Value $Chat -Path $ChatPath
