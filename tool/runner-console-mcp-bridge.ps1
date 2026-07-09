@@ -52,33 +52,10 @@ function Test-LocalPortListening {
 }
 
 function Resolve-ConsoleMcpEndpoint {
-    $Current = [Environment]::GetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', 'Process')
-    if (-not [string]::IsNullOrWhiteSpace($Current)) {
-        $CurrentPort = Get-EndpointPort -Endpoint $Current
-        if ($CurrentPort -eq 3333 -and (Test-LocalPortListening -Port 3334)) {
-            $Current = 'http://127.0.0.1:3334/mcp'
-            [Environment]::SetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', $Current, 'Process')
-            Set-Item -Path Env:\CONSOLE_MCP_ENDPOINT -Value $Current
-            return $Current
-        }
-        if ($CurrentPort -gt 0 -and (Test-LocalPortListening -Port $CurrentPort)) {
-            return $Current
-        }
-    }
-
-    foreach ($Port in @(3334, 3333)) {
-        if (Test-LocalPortListening -Port $Port) {
-            $Endpoint = "http://127.0.0.1:$Port/mcp"
-            [Environment]::SetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', $Endpoint, 'Process')
-            Set-Item -Path Env:\CONSOLE_MCP_ENDPOINT -Value $Endpoint
-            return $Endpoint
-        }
-    }
-
-    $Fallback = 'http://127.0.0.1:3334/mcp'
-    [Environment]::SetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', $Fallback, 'Process')
-    Set-Item -Path Env:\CONSOLE_MCP_ENDPOINT -Value $Fallback
-    return $Fallback
+    $Endpoint = 'http://127.0.0.1:3334/mcp'
+    [Environment]::SetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', $Endpoint, 'Process')
+    Set-Item -Path Env:\CONSOLE_MCP_ENDPOINT -Value $Endpoint
+    return $Endpoint
 }
 
 function Get-EndpointPort {
