@@ -1,7 +1,10 @@
 param(
     [Parameter(Mandatory=$true)][string]$TargetRepo,
     [Parameter(Mandatory=$true)][int]$MaxIterations,
-    [Parameter(Mandatory=$true)][string]$Name
+    [Parameter(Mandatory=$true)][string]$Name,
+    [string]$InitialPrompt,
+    [string]$ContinuePrompt,
+    [ValidateSet('raw','enriched')][string]$PromptMode = 'raw'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,7 +83,7 @@ function New-CmcpDispatchContract {
         activate = $true
         confirmGo = $true
         allowOverwrite = $false
-        promptMode = 'raw'
+        promptMode = $PromptMode
         executorMode = 'browser'
         timeoutMs = 30000
     }
@@ -385,7 +388,12 @@ $ChatPath = Join-Path $ChatDir ($TaskId + '.json')
 $Task = New-TaskRecord -TaskId $TaskId
 $Chat = New-ChatRecord -TaskId $TaskId
 $TaskTaskText = "Task-bank product loop. Name: $Name. Target workspace: $TargetRepo. Goal: read-only repository loop smoke; avoid file changes; avoid commits."
-$InitialPrompt = "Run a read-only repository loop smoke for workspace $TargetRepo. Use only safe inspection. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, and summary."
+if ([string]::IsNullOrWhiteSpace($InitialPrompt)) {
+    $InitialPrompt = "Run a read-only repository loop smoke for workspace $TargetRepo. Use only safe inspection. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, and summary."
+}
+if ([string]::IsNullOrWhiteSpace($ContinuePrompt)) {
+    $ContinuePrompt = "Continue the read-only repository loop smoke for workspace $TargetRepo based on the captured assistant answer. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, summary, and nextAction."
+}
 $SubmittedCount = 0
 $AssistantCapturedCount = 0
 $InternalStepCount = 0
@@ -448,7 +456,7 @@ while ($true) {
             Write-JsonFile -Value $Task -Path $TaskPath
             break
         }
-        $RawCommand = if ($Task.interactionCount -eq 0) { $InitialPrompt } else { "Continue the read-only repository loop smoke for workspace $TargetRepo. Use the previous assistant answer as context. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, summary, and nextAction." }
+        $RawCommand = if ($Task.interactionCount -eq 0) { $InitialPrompt } else { $ContinuePrompt }
         $Contract = New-CmcpDispatchContract -RawCommand $RawCommand -ChatId $Task.chatId
         $Task.decisionState = [pscustomobject]@{ status = 'next_interaction_selected'; nextDispatchContract = $Contract; semanticStatus = $LastSemanticStatus; nextAction = 'dispatch_ui_interaction_submit' }
         $Task | Add-Member -NotePropertyName currentCycleBaselineAssistantHash -NotePropertyValue $Task.lastAssistantHash -Force

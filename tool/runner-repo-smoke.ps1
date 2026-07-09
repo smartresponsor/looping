@@ -4,7 +4,10 @@ param(
     [string]$Name = 'repo-smoke',
     [string]$CaptureResultPath,
     [switch]$Chain,
-    [switch]$EngineExecutor
+    [switch]$EngineExecutor,
+    [string]$RawCommand,
+    [string]$ContinueCommand,
+    [ValidateSet('raw','enriched')][string]$PromptMode = 'raw'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,7 +99,15 @@ if (-not (Test-Path $TargetRepo)) {
 }
 
 if ($EngineExecutor -and $Chain) {
-    & $TaskBankLoop -TargetRepo $TargetRepo -MaxIterations $MaxIterations -Name $Name
+    $TaskBankArgs = @{
+        TargetRepo = $TargetRepo
+        MaxIterations = $MaxIterations
+        Name = $Name
+        PromptMode = $PromptMode
+    }
+    if (-not [string]::IsNullOrWhiteSpace($RawCommand)) { $TaskBankArgs.InitialPrompt = $RawCommand }
+    if (-not [string]::IsNullOrWhiteSpace($ContinueCommand)) { $TaskBankArgs.ContinuePrompt = $ContinueCommand }
+    & $TaskBankLoop @TaskBankArgs
     exit $LASTEXITCODE
 }
 
