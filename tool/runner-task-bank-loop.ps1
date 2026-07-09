@@ -409,7 +409,6 @@ $LastAssistantStatus = $null
 $LastSemanticStatus = $null
 $FinalStatus = 'TASK_BANK_LOOP_STARTED'
 $StartedAt = Get-Date
-$MaxElapsedSeconds = [Math]::Max(240, $MaxIterations * 180)
 
 Write-JsonFile -Value $Task -Path $TaskPath
 Write-JsonFile -Value $Chat -Path $ChatPath
@@ -417,11 +416,6 @@ Append-Journal -TaskId $TaskId -Event 'taskCreated' -Data ([ordered]@{ taskPath 
 Write-Host ("progress " + ([ordered]@{ event = 'taskCreated'; taskId = $TaskId; taskBankPath = $TaskPath; chatBankPath = $ChatPath } | ConvertTo-Json -Depth 20 -Compress))
 
 while ($true) {
-    if (((Get-Date) - $StartedAt).TotalSeconds -gt $MaxElapsedSeconds) {
-        $Task.status = 'bounded_timeout'
-        $FinalStatus = 'TASK_BANK_LOOP_BOUNDED_TIMEOUT'
-        break
-    }
     if ($Task.interactionCount -ge $Task.maxInteractions) {
         $Task.status = 'interaction_budget_exhausted'
         $FinalStatus = 'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED'
