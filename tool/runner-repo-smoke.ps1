@@ -7,7 +7,9 @@ param(
     [switch]$EngineExecutor,
     [string]$RawCommand,
     [string]$ContinueCommand,
-    [ValidateSet('raw','enriched')][string]$PromptMode = 'raw'
+    [ValidateSet('raw','enriched')][string]$PromptMode = 'raw',
+    [ValidateSet('raw','enriched')][string]$InitialPromptMode = '',
+    [ValidateSet('raw','enriched')][string]$ContinuePromptMode = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -105,6 +107,8 @@ if ($EngineExecutor -and $Chain) {
         Name = $Name
         PromptMode = $PromptMode
     }
+    if (-not [string]::IsNullOrWhiteSpace($InitialPromptMode)) { $TaskBankArgs.InitialPromptMode = $InitialPromptMode }
+    if (-not [string]::IsNullOrWhiteSpace($ContinuePromptMode)) { $TaskBankArgs.ContinuePromptMode = $ContinuePromptMode }
     if (-not [string]::IsNullOrWhiteSpace($RawCommand)) { $TaskBankArgs.InitialPrompt = $RawCommand }
     if (-not [string]::IsNullOrWhiteSpace($ContinueCommand)) { $TaskBankArgs.ContinuePrompt = $ContinueCommand }
     & $TaskBankLoop @TaskBankArgs
