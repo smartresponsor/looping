@@ -55,6 +55,12 @@ function Resolve-ConsoleMcpEndpoint {
     $Current = [Environment]::GetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', 'Process')
     if (-not [string]::IsNullOrWhiteSpace($Current)) {
         $CurrentPort = Get-EndpointPort -Endpoint $Current
+        if ($CurrentPort -eq 3333 -and (Test-LocalPortListening -Port 3334)) {
+            $Current = 'http://127.0.0.1:3334/mcp'
+            [Environment]::SetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', $Current, 'Process')
+            Set-Item -Path Env:\CONSOLE_MCP_ENDPOINT -Value $Current
+            return $Current
+        }
         if ($CurrentPort -gt 0 -and (Test-LocalPortListening -Port $CurrentPort)) {
             return $Current
         }
