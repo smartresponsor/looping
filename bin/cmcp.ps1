@@ -47,3 +47,13 @@ switch ($Command) {
         }
         if (-not (Get-Command pwsh -ErrorAction SilentlyContinue)) {
             Write-Error 'pwsh was not found in PATH.'
+            $Ok = $false
+        }
+        if ($Ok) { Write-Output 'CMCP_SHIM_READY' }
+        exit ($(if ($Ok) { 0 } else { 1 }))
+    }
+    default {
+        Write-Error "Unsupported cmcp command yet: $Command. Run: cmcp doctor"
+        exit 2
+    }
+}
