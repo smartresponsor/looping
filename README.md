@@ -31,3 +31,19 @@ php bin/console chatgpt-loop:run --task="!diagnose check lifecycle boundary" --m
 When no real ChatGPT dispatch backend is configured, the command returns `BACKEND_NOT_CONFIGURED` and still writes state and transcript reference files.
 
 This keeps the lifecycle safe, repeatable, and observable without pretending that browser dispatch has already been extracted.
+
+## Current-chat adoption execution surface
+
+`chatgpt-loop` owns the deterministic adoption entrypoint. The caller must provide the exact URL of the invoking ChatGPT conversation; the loop never guesses "this chat" from browser inventory.
+
+```powershell
+php bin/console chatgpt-loop:adopt-current-chat --component=Carting --current-chat-url=https://chatgpt.com/c/00000000-0000-0000-0000-000000000000 --max-auto-iterations=13
+```
+
+A non-mutating contract check is available through:
+
+```powershell
+composer run chatgpt-loop:adopt-plan
+```
+
+The execution surface validates component identity, ChatGPT host, conversation UUID, and iteration budget before delegating to `tool/runner-adopt-current-chat.ps1`. A future ChatGPT Loop connector should map `Adopt this chat with M1/M13` to this command and inject the exact current conversation URL.

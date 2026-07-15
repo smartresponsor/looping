@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 
 const allowedTools = new Set([
   "console.write.browser.session.cmcp.go",
+  "console.write.browser.session.title.prefix",
   "console.read_.browser.chatgpt.composer.preflight",
   "console.read_.browser.chatgpt.watch.probe",
   "console.read_.browser.chatgpt.watch.next",
@@ -77,7 +78,7 @@ async function main() {
 
   const token = process.env.CONSOLE_MCP_BEARER_TOKEN ?? "";
   if (!token) throw new Error("CONSOLE_MCP_BEARER_TOKEN is required");
-  const endpoint = new URL(process.env.CONSOLE_MCP_ENDPOINT ?? "http://127.0.0.1:3333/mcp");
+  const endpoint = new URL(process.env.CONSOLE_MCP_ENDPOINT ?? "http://127.0.0.1:3334/mcp");
   const transport = new StreamableHTTPClientTransport(endpoint, {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   });

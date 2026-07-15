@@ -6,7 +6,8 @@ param(
     [string]$ContinuePrompt,
     [ValidateSet('raw','enriched')][string]$PromptMode = 'raw',
     [ValidateSet('raw','enriched')][string]$InitialPromptMode = '',
-    [ValidateSet('raw','enriched')][string]$ContinuePromptMode = ''
+    [ValidateSet('raw','enriched')][string]$ContinuePromptMode = '',
+    [string]$AdoptChatId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -75,6 +76,16 @@ function Append-Journal {
     ($Line | ConvertTo-Json -Depth 80 -Compress) | Add-Content -Path $Path -Encoding UTF8
 }
 
+function Normalize-ChatId {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $Trimmed = $Value.Trim()
+    if ($Trimmed -match 'https://chatgpt\.com/c/([0-9a-fA-F-]{36})') { return $Matches[1].ToLowerInvariant() }
+    if ($Trimmed -match '^/c/([0-9a-fA-F-]{36})$') { return $Matches[1].ToLowerInvariant() }
+    if ($Trimmed -match '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') { return $Trimmed.ToLowerInvariant() }
+    throw "invalid AdoptChatId: $Value"
+}
+
 function New-CmcpDispatchContract {
     param([string]$RawCommand, [string]$ChatId, [string]$EffectivePromptMode)
     $Arguments = [ordered]@{
@@ -87,6 +98,7 @@ function New-CmcpDispatchContract {
         allowOverwrite = $false
         promptMode = $EffectivePromptMode
         executorMode = 'browser'
+        manageLoop = $false
         timeoutMs = 30000
     }
     if ($ChatId) { $Arguments.url = "https://chatgpt.com/c/$ChatId" }
@@ -250,6 +262,52 @@ function Update-TaskAndChatFromProbe {
     $Chat.lastProbeAt = Get-IsoNow
 }
 
+function Test-CaptureReady {
+    param($ProbeResult, $StepResult)
+
+    $ProbeDecision = Get-OptionalProperty -InputObject $ProbeResult -Name 'decision'
+    $ProbeNextAction = Get-FirstValue -Values @(
+        (Get-OptionalProperty -InputObject $ProbeDecision -Name 'next_action'),
+        (Get-OptionalProperty -InputObject $ProbeDecision -Name 'nextAction'),
+        (Get-OptionalProperty -InputObject $ProbeResult -Name 'next_action'),
+        (Get-OptionalProperty -InputObject $ProbeResult -Name 'nextAction')
+    )
+    $StepNextAction = Get-FirstValue -Values @(
+        (Get-OptionalProperty -InputObject $StepResult -Name 'next_action'),
+        (Get-OptionalProperty -InputObject $StepResult -Name 'nextAction')
+    )
+    $ProbeStatus = Get-OptionalProperty -InputObject $ProbeResult -Name 'status'
+    $StepStatus = Get-OptionalProperty -InputObject $StepResult -Name 'status'
+
+    return ($ProbeNextAction -eq 'RUN_STABLE_CAPTURE' -or
+        $StepNextAction -eq 'RUN_STABLE_CAPTURE' -or
+        $ProbeStatus -eq 'READY_FOR_STABLE_CAPTURE' -or
+        $StepStatus -eq 'READY_FOR_STABLE_CAPTURE')
+}
+
+function Test-QuietEmptyCaptureBinding {
+    param($ProbeResult, $StepResult)
+
+    $ProbePayload = Get-OptionalProperty -InputObject $ProbeResult -Name 'probe'
+    $Messages = Get-OptionalProperty -InputObject $ProbeResult -Name 'messages'
+    if ($null -eq $Messages -and $ProbePayload) { $Messages = Get-OptionalProperty -InputObject $ProbePayload -Name 'messages' }
+    $LatestAssistant = Get-OptionalProperty -InputObject $ProbeResult -Name 'latest_assistant'
+    if ($null -eq $LatestAssistant -and $ProbePayload) { $LatestAssistant = Get-OptionalProperty -InputObject $ProbePayload -Name 'latest_assistant' }
+    $Busy = Get-OptionalProperty -InputObject $ProbePayload -Name 'busy'
+    $ComposerStopMode = Get-OptionalProperty -InputObject $ProbePayload -Name 'composer_stop_control_mode'
+    $ComposerActionMode = Get-OptionalProperty -InputObject $ProbePayload -Name 'composer_action_mode'
+    $MessageCount = if ($null -eq $Messages) { 0 } else { @($Messages).Count }
+    $ProbeStatus = [string](Get-OptionalProperty -InputObject $ProbeResult -Name 'status')
+    $StepStatus = [string](Get-OptionalProperty -InputObject $StepResult -Name 'status')
+
+    return (($ProbeStatus -in @('LIKELY_STABLE','READY_FOR_STABLE_CAPTURE') -or $StepStatus -eq 'READY_FOR_STABLE_CAPTURE') -and
+        ($Busy -eq $false -or $null -eq $Busy) -and
+        ($ComposerStopMode -eq 'not_found' -or $null -eq $ComposerStopMode) -and
+        ($ComposerActionMode -eq 'disabled' -or $ComposerActionMode -eq 'send' -or $null -eq $ComposerActionMode) -and
+        $MessageCount -eq 0 -and
+        $null -eq $LatestAssistant)
+}
+
 function New-TaskRecord {
     param([string]$TaskId)
     $Now = Get-IsoNow
@@ -261,9 +319,9 @@ function New-TaskRecord {
         maxInteractions = $MaxIterations
         interactionCount = 0
         status = 'created'
-        chatId = $null
+        chatId = $AdoptedChatId
         targetId = $null
-        lockedChatId = $null
+        lockedChatId = $AdoptedChatId
         lastAssistantHash = $null
         lastAssistantTextLength = 0
         lastSeenTailHash = $null
@@ -283,12 +341,12 @@ function New-TaskRecord {
 function New-ChatRecord {
     param([string]$TaskId)
     [pscustomobject]@{
-        chatId = $null
+        chatId = $AdoptedChatId
         targetId = $null
         taskId = $TaskId
-        url = $null
-        status = 'created'
-        lastBindAt = $null
+        url = if ($AdoptedChatId) { "https://chatgpt.com/c/$AdoptedChatId" } else { $null }
+        status = if ($AdoptedChatId) { 'adopted' } else { 'created' }
+        lastBindAt = if ($AdoptedChatId) { Get-IsoNow } else { $null }
         lastProbeAt = $null
         composerState = $null
         lastAssistantHash = $null
@@ -384,6 +442,7 @@ Ensure-Dir $AcceptanceDir
 Ensure-Dir $ChatDir
 Ensure-Dir $RunnerStateDir
 
+$AdoptedChatId = Normalize-ChatId -Value $AdoptChatId
 $TaskId = 'repo-smoke-' + (Get-Hash ($TargetRepo.ToLowerInvariant() + '|' + $Name)).Substring(0, 16)
 $TaskPath = Join-Path $TaskDir ($TaskId + '.json')
 $ChatPath = Join-Path $ChatDir ($TaskId + '.json')
@@ -411,11 +470,12 @@ $FinalStatus = 'TASK_BANK_LOOP_STARTED'
 $StartedAt = Get-Date
 $PollIntervalSeconds = 3
 $PollIntervalMs = $PollIntervalSeconds * 1000
+$MaxInternalStepsPerInteraction = 120
 
 Write-JsonFile -Value $Task -Path $TaskPath
 Write-JsonFile -Value $Chat -Path $ChatPath
-Append-Journal -TaskId $TaskId -Event 'taskCreated' -Data ([ordered]@{ taskPath = $TaskPath; chatPath = $ChatPath })
-Write-Host ("progress " + ([ordered]@{ event = 'taskCreated'; taskId = $TaskId; taskBankPath = $TaskPath; chatBankPath = $ChatPath } | ConvertTo-Json -Depth 20 -Compress))
+Append-Journal -TaskId $TaskId -Event 'taskCreated' -Data ([ordered]@{ taskPath = $TaskPath; chatPath = $ChatPath; adoptedChatId = $AdoptedChatId })
+Write-Host ("progress " + ([ordered]@{ event = 'taskCreated'; taskId = $TaskId; taskBankPath = $TaskPath; chatBankPath = $ChatPath; adoptedChatId = $AdoptedChatId } | ConvertTo-Json -Depth 20 -Compress))
 
 while ($true) {
     if ($Task.interactionCount -ge $Task.maxInteractions) {
@@ -456,8 +516,9 @@ while ($true) {
             Write-JsonFile -Value $Task -Path $TaskPath
             break
         }
-        $RawCommand = if ($Task.interactionCount -eq 0) { $InitialPrompt } else { $ContinuePrompt }
-        $EffectivePromptMode = if ($Task.interactionCount -eq 0) { $InitialPromptMode } else { $ContinuePromptMode }
+        $UseInitialPrompt = ($Task.interactionCount -eq 0 -and -not $AdoptedChatId)
+        $RawCommand = if ($UseInitialPrompt) { $InitialPrompt } else { $ContinuePrompt }
+        $EffectivePromptMode = if ($UseInitialPrompt) { $InitialPromptMode } else { $ContinuePromptMode }
         $Contract = New-CmcpDispatchContract -RawCommand $RawCommand -ChatId $Task.chatId -EffectivePromptMode $EffectivePromptMode
         $Task.decisionState = [pscustomobject]@{ status = 'next_interaction_selected'; nextDispatchContract = $Contract; semanticStatus = $LastSemanticStatus; nextAction = 'dispatch_ui_interaction_submit' }
         $Task | Add-Member -NotePropertyName currentCycleBaselineAssistantHash -NotePropertyValue $Task.lastAssistantHash -Force
@@ -487,6 +548,7 @@ while ($true) {
         $SubmittedCount++
         $Task.status = 'waiting_answer'
         $Task.sentAt = Get-IsoNow
+        $Task | Add-Member -NotePropertyName currentInteractionStartStep -NotePropertyValue $InternalStepCount -Force
         $SubmittedChatId = Get-SubmitChatId -SubmitResult $Submit.result
         $SubmittedTargetId = Get-SubmitTargetId -SubmitResult $Submit.result
         if ($SubmittedTargetId) { $Task.targetId = $SubmittedTargetId }
@@ -568,7 +630,30 @@ while ($true) {
         $InternalStepCount++
         Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'console.read_.browser.chatgpt.run.loop.step.summary'; status = $StepSummary.result.status; nextAction = $StepSummary.result.next_action; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
 
-        $Ready = ($Probe.result.decision.next_action -eq 'RUN_STABLE_CAPTURE' -or $StepSummary.result.next_action -eq 'RUN_STABLE_CAPTURE')
+        $Ready = Test-CaptureReady -ProbeResult $Probe.result -StepResult $StepSummary.result
+        $QuietEmptyBinding = Test-QuietEmptyCaptureBinding -ProbeResult $Probe.result -StepResult $StepSummary.result
+        $InteractionStepStart = if ($null -ne (Get-OptionalProperty -InputObject $Task -Name 'currentInteractionStartStep')) { [int]$Task.currentInteractionStartStep } else { 0 }
+        $InteractionStepCount = $InternalStepCount - $InteractionStepStart
+        if (-not $Ready -and $QuietEmptyBinding) {
+            $Task.status = 'terminal_failed'
+            $FinalStatus = 'CAPTURE_SELECTOR_EMPTY_OR_BINDING_STALE'
+            $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; chatId = $Task.chatId; targetId = $Task.targetId; capturedAt = Get-IsoNow }) -Force
+            Append-Journal -TaskId $TaskId -Event 'captureSelectorEmptyOrBindingStale' -Data ([ordered]@{ finalStatus = $FinalStatus; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; chatId = $Task.chatId; targetId = $Task.targetId })
+            Write-JsonFile -Value $Task -Path $TaskPath
+            Write-JsonFile -Value $Chat -Path $ChatPath
+            Write-Host ("progress " + ([ordered]@{ event = 'captureSelectorEmptyOrBindingStale'; finalStatus = $FinalStatus; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; chatId = $Task.chatId; targetId = $Task.targetId; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+            break
+        }
+        if (-not $Ready -and $InteractionStepCount -ge $MaxInternalStepsPerInteraction) {
+            $Task.status = 'terminal_failed'
+            $FinalStatus = 'ANSWER_WATCH_INTERNAL_STEP_LIMIT_EXCEEDED'
+            $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; interactionStepCount = $InteractionStepCount; maxInternalStepsPerInteraction = $MaxInternalStepsPerInteraction; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; stepNextAction = $StepSummary.result.next_action; capturedAt = Get-IsoNow }) -Force
+            Append-Journal -TaskId $TaskId -Event 'answerWatchStepLimitExceeded' -Data ([ordered]@{ finalStatus = $FinalStatus; interactionStepCount = $InteractionStepCount; maxInternalStepsPerInteraction = $MaxInternalStepsPerInteraction; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; stepNextAction = $StepSummary.result.next_action })
+            Write-JsonFile -Value $Task -Path $TaskPath
+            Write-JsonFile -Value $Chat -Path $ChatPath
+            Write-Host ("progress " + ([ordered]@{ event = 'answerWatchStepLimitExceeded'; finalStatus = $FinalStatus; interactionStepCount = $InteractionStepCount; maxInternalStepsPerInteraction = $MaxInternalStepsPerInteraction; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+            break
+        }
         if (-not $Ready) {
             $NextMs = if ($Probe.result.decision.next_probe_after_ms) { [int]$Probe.result.decision.next_probe_after_ms } else { $PollIntervalMs }
             $ClampedNextMs = [Math]::Min([Math]::Max(1000, $NextMs), $PollIntervalMs)
@@ -579,7 +664,7 @@ while ($true) {
             continue
         }
 
-        Write-Host ("progress " + ([ordered]@{ event = 'answerReady'; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount; assistantHash = $Task.lastAssistantHash } | ConvertTo-Json -Depth 20 -Compress))
+        Write-Host ("progress " + ([ordered]@{ event = 'answerReady'; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount; assistantHash = $Task.lastAssistantHash; readySource = 'capture_ready_or_status' } | ConvertTo-Json -Depth 20 -Compress))
         $SettleArgs = [ordered]@{
             expectedTargetId = $Task.targetId
             requireChatId = $false

@@ -24,6 +24,7 @@ if (is_file($autoload)) {
     });
 }
 
+use App\Command\ChatGptLoopAdoptCurrentChatCommand;
 use App\Command\ChatGptLoopRunCommand;
 
 $command = $argv[1] ?? null;
@@ -38,8 +39,12 @@ if ($command === 'chatgpt-loop:dispatcher-contract') {
     exit(0);
 }
 
+if ($command === 'chatgpt-loop:adopt-current-chat') {
+    exit((new ChatGptLoopAdoptCurrentChatCommand(dirname(__DIR__)))->run(array_slice($argv, 2)));
+}
+
 if ($command !== 'chatgpt-loop:run') {
-    fwrite(STDERR, "Available commands: chatgpt-loop:run, chatgpt-loop:contract, chatgpt-loop:dispatcher-contract\n");
+    fwrite(STDERR, "Available commands: chatgpt-loop:run, chatgpt-loop:adopt-current-chat, chatgpt-loop:contract, chatgpt-loop:dispatcher-contract\n");
     exit(2);
 }
 

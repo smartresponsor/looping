@@ -21,6 +21,8 @@ $Bridge = Read-Text 'tool/runner-console-mcp-bridge.mjs'
 $BridgeWrapper = Read-Text 'tool/runner-console-mcp-bridge.ps1'
 $Adapter = Read-Text 'tool/runner-adapter.ps1'
 $Dispatcher = Read-Text 'tool/runner-dispatcher.ps1'
+$AdoptRunner = Read-Text 'tool/runner-adopt-current-chat.ps1'
+$CmcpShim = Read-Text 'bin/cmcp.ps1'
 
 $ParseTargets = @(
     'tool/runner-repo-smoke.ps1',
@@ -28,12 +30,46 @@ $ParseTargets = @(
     'tool/runner-feed-result.ps1',
     'tool/runner-adapter.ps1'
     'tool/runner-task-bank-loop.ps1'
+    'tool/runner-adopt-current-chat.ps1'
+    'bin/cmcp.ps1'
 )
 foreach ($Target in $ParseTargets) {
     $Tokens = $null
     $Errors = $null
     [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $Root $Target), [ref]$Tokens, [ref]$Errors) | Out-Null
     Assert-True (@($Errors).Count -eq 0) "$Target has PowerShell parse errors"
+}
+
+$DoctorOutput = & (Join-Path $Root 'bin/cmcp.ps1') doctor 2>&1
+Assert-True ($LASTEXITCODE -eq 0 -and ($DoctorOutput -join "`n") -match 'CMCP_SHIM_READY') 'cmcp doctor must pass'
+
+$CliSandbox = Join-Path ([System.IO.Path]::GetTempPath()) ('cmcp-cli-check-' + [guid]::NewGuid().ToString('N'))
+$CliWorkspaceRoot = Join-Path $CliSandbox 'www'
+$CliRepo = Join-Path $CliWorkspaceRoot 'mcp/chatgpt-loop'
+$CliBin = Join-Path $CliRepo 'bin'
+$CliTool = Join-Path $CliRepo 'tool'
+$CliCapture = Join-Path $CliSandbox 'capture.ndjson'
+try {
+    New-Item -ItemType Directory -Path $CliBin, $CliTool, (Join-Path $CliWorkspaceRoot 'vendoring') -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $Root 'bin/cmcp.ps1') -Destination (Join-Path $CliBin 'cmcp.ps1')
+    @'
+param([string]$TargetRepo,[int]$MaxIterations,[string]$Name,[switch]$Chain,[switch]$EngineExecutor,[string]$RawCommand)
+[pscustomobject]@{ targetRepo = $TargetRepo; maxIterations = $MaxIterations; name = $Name; chain = [bool]$Chain; engineExecutor = [bool]$EngineExecutor; rawCommand = $RawCommand } | ConvertTo-Json -Compress | Add-Content -LiteralPath $env:CMCP_CLI_CAPTURE
+exit 0
+'@ | Set-Content -LiteralPath (Join-Path $CliTool 'runner-repo-smoke.ps1') -Encoding UTF8
+    "param()`nexit 0" | Set-Content -LiteralPath (Join-Path $CliTool 'runner-adopt-current-chat.ps1') -Encoding UTF8
+    $env:CMCP_CLI_CAPTURE = $CliCapture
+    & (Join-Path $CliBin 'cmcp.ps1') vendoring M13
+    Assert-True ($LASTEXITCODE -eq 0) 'cmcp vendoring M13 must reach the runner'
+    & (Join-Path $CliBin 'cmcp.ps1') go vendoring M13
+    Assert-True ($LASTEXITCODE -eq 0) 'cmcp go vendoring M13 must reach the runner'
+    $CliRows = @(Get-Content -LiteralPath $CliCapture | ForEach-Object { $_ | ConvertFrom-Json })
+    Assert-True ($CliRows.Count -eq 2) 'both CMCP forms must produce one runner call'
+    Assert-True (($CliRows[0] | ConvertTo-Json -Compress) -eq ($CliRows[1] | ConvertTo-Json -Compress)) 'both CMCP forms must produce identical runner arguments'
+    Assert-True ($CliRows[0].rawCommand -eq 'cmcp vendoring M13 --live') 'CMCP must add --live once to the canonical command'
+} finally {
+    Remove-Item Env:CMCP_CLI_CAPTURE -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $CliSandbox -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Assert-True ($RepoSmoke -match 'runner-daemon\.ps1') 'repo smoke must call runner-daemon'
@@ -52,6 +88,15 @@ Assert-True ($TaskBankLoop -match 'answerCaptured') 'answer capture progress mus
 Assert-True ($TaskBankLoop -match 'decisionApplied') 'decision consumption must happen after answer capture'
 Assert-True ($TaskBankLoop -match "TOOL_CALL_BLOCKED") 'blocked tool calls must be semantic outcomes'
 Assert-True ($TaskBankLoop -match 'lockedChatId') 'task-bank loop must lock one task to one chatId'
+Assert-True ($RepoSmoke -match '\[string\]\$AdoptChatId') 'repo smoke must expose AdoptChatId parameter'
+Assert-True ($TaskBankLoop -match '\[string\]\$AdoptChatId') 'task-bank loop must expose AdoptChatId parameter'
+Assert-True ($TaskBankLoop -match 'Normalize-ChatId') 'task-bank loop must normalize adopted ChatGPT chat ids'
+Assert-True ($AdoptRunner -match '\[string\]\$CurrentChatUrl') 'adoption entrypoint must require currentChatUrl from the calling layer'
+Assert-True ($AdoptRunner -notmatch 'console\.read_\.browser\.chatgpt\.tab\.bind') 'adoption entrypoint must not guess this chat from supervised browser inventory'
+Assert-True ($AdoptRunner -match '-AdoptChatId \$ChatId') 'adoption entrypoint must pass the URL-derived chat id into the TaskBank loop'
+Assert-True ($AdoptRunner -match '-Chain' -and $AdoptRunner -match '-EngineExecutor') 'adoption entrypoint must start the real TaskBank engine chain'
+Assert-True ($CmcpShim -match "'adopt'") 'cmcp shim must expose adopt command'
+Assert-True ($TaskBankLoop -match '\$UseInitialPrompt = \(\$Task\.interactionCount -eq 0 -and -not \$AdoptedChatId\)') 'adopt mode must not dispatch the initial prompt/mixin first'
 Assert-True ($TaskBankLoop -match 'SINGLE_CHAT_REBIND_FAILED') 'task-bank loop must fail explicitly when single-chat rebind fails'
 Assert-True ($TaskBankLoop -match 'AcceptanceDir' -and $TaskBankLoop -match 'Write-AcceptanceArtifact') 'task-bank loop must write final acceptance artifact'
 Assert-True ($TaskBankLoop -match 'M3_ACCEPTANCE_PASS') 'task-bank loop must expose strict M3 acceptance pass status'
@@ -73,8 +118,9 @@ Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_BEARER_TOKEN_MISSING') 'bridge w
 Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_ENDPOINT_UNREACHABLE') 'bridge wrapper must fail explicitly when endpoint is unreachable'
 Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_UNAUTHORIZED') 'bridge wrapper must classify Unauthorized responses'
 Assert-True ($BridgeWrapper -notmatch 'Write-(Host|Output|Information|Verbose|Warning|Error)[^\r\n]*CONSOLE_MCP_BEARER_TOKEN') 'bridge wrapper must not print bearer token values'
-Assert-True ($BridgeWrapper -match 'foreach\s*\(\$Port\s+in\s+@\(3333,\s*3334\)\)') 'bridge wrapper endpoint discovery must prefer 3333 before 3334'
-Assert-True ($Bridge -match 'http://127\.0\.0\.1:3333/mcp') 'node bridge fallback endpoint must prefer 3333'
+Assert-True ($BridgeWrapper -match 'http://127\.0\.0\.1:3334/mcp') 'bridge wrapper must use bearer-only 3334 endpoint'
+Assert-True ($BridgeWrapper -notmatch 'foreach\s*\(\$Port\s+in\s+@\(3333,\s*3334\)\)') 'bridge wrapper must not fall back to oauth 3333 for bearer token flow'
+Assert-True ($Bridge -match 'http://127\.0\.0\.1:3334/mcp') 'node bridge fallback endpoint must use bearer-only 3334'
 
 $RequiredBridgeTools = @(
     'console.write.browser.session.cmcp.go',

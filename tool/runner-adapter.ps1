@@ -138,6 +138,7 @@ function Add-RetryPolicy {
         'FINAL_ACTION_ANSWER_CAPTURE_WAIT' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_READY'; action = 'retry_answer_capture'; strategy = 'bounded_retry'; nextAction = 'retry_answer_capture'; maxAttempts = 5 } }
         'FINAL_ACTION_GATEWAY_WAIT' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_READY'; action = 'retry_gateway_decision'; strategy = 'bounded_retry'; nextAction = 'retry_gateway_decision'; maxAttempts = 3 } }
         'FINAL_ACTION_WORKER_RETRY' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_READY'; action = 'retry_worker_tick'; strategy = 'bounded_retry'; nextAction = 'retry_worker_tick'; maxAttempts = 3 } }
+        'FINAL_ACTION_ENGINE_EXECUTOR_RATE_LIMITED' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_READY'; action = 'redispatch_cmcp_go'; strategy = 'bounded_retry'; nextAction = 'redispatch_cmcp_go'; maxAttempts = 5; waitMs = if ($Payload.retryAfterMs) { [int]$Payload.retryAfterMs } else { 90000 } } }
         'FINAL_ACTION_WORKER_WAITING_USER' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_WAITING_USER'; action = 'wait_for_user_or_reply'; strategy = 'external_wait'; nextAction = 'wait_for_user_or_reply'; maxAttempts = 0 } }
         'FINAL_ACTION_BUDGET_EXHAUSTED' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_STOP'; action = 'stop_loop'; strategy = 'terminal'; nextAction = 'stop_loop'; maxAttempts = 0 } }
         'FINAL_ACTION_RC_REACHED' { [ordered]@{ ok = $true; status = 'RETRY_POLICY_STOP'; action = 'stop_loop'; strategy = 'terminal'; nextAction = 'stop_loop'; maxAttempts = 0 } }
@@ -151,6 +152,7 @@ function Add-RetryPolicy {
                 'retry_answer_capture' { 'recover_browser_target' }
                 'retry_gateway_decision' { 'recover_chat_binding' }
                 'retry_worker_tick' { 'recover_worker_state' }
+                'redispatch_cmcp_go' { 'recover_browser_target' }
                 default { 'stop_hard' }
             }
             $RecoveryContract = switch ($RecoveryAction) {
@@ -456,12 +458,47 @@ if ($TransportResultPath) {
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
         if ($TransportResult.ok -eq $true) {
-            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
-            $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_ACCEPTED'; action = 'engine_executor_accepted'; nextAction = 'dispatch_next_from_state' } -Force
+            $ChatId = if ($TransportPayload.chat_id) { [string]$TransportPayload.chat_id } elseif ($TransportPayload.chatId) { [string]$TransportPayload.chatId } elseif ($TransportPayload.cmcp_go_trace -and $TransportPayload.cmcp_go_trace.opened_chat_id) { [string]$TransportPayload.cmcp_go_trace.opened_chat_id } elseif ($TransportResult.chat_id) { [string]$TransportResult.chat_id } elseif ($TransportResult.chatId) { [string]$TransportResult.chatId } else { $null }
+            $TargetId = if ($TransportPayload.target_id) { [string]$TransportPayload.target_id } elseif ($TransportPayload.targetId) { [string]$TransportPayload.targetId } elseif ($TransportPayload.cmcp_go_trace -and $TransportPayload.cmcp_go_trace.opened_target_id) { [string]$TransportPayload.cmcp_go_trace.opened_target_id } elseif ($TransportResult.target_id) { [string]$TransportResult.target_id } elseif ($TransportResult.targetId) { [string]$TransportResult.targetId } else { $null }
+            if ($ChatId) {
+                $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_TITLE_PREFIX_CONTRACT_READY'; stage = 'chat_title_prefix'; tool = 'console.write.browser.session.title.prefix'; arguments = @{ workspacePath = $WorkspacePath; expectedChatId = $ChatId; expectedTargetId = $TargetId; chatTitleMode = 'auto'; waitForChatId = $true; confirmTitlePrefix = $true; timeoutMs = 30000 }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_chat_title_prefix' } -Force
+                $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_TITLE_PREFIX_PENDING'; action = 'dispatch_chat_title_prefix'; nextAction = 'dispatch_next_from_state' } -Force
+            } else {
+                $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
+                $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_ACCEPTED'; action = 'engine_executor_accepted'; nextAction = 'dispatch_next_from_state' } -Force
+            }
         } else {
-            $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
-            $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $false; status = 'FINAL_ACTION_ENGINE_EXECUTOR_FAILED'; action = 'stop_loop'; nextAction = 'stop_loop' } -Force
+            $CmcpGoStatus = if ($TransportPayload.status) { [string]$TransportPayload.status } else { '' }
+            if ($CmcpGoStatus -eq 'CMCP_GO_DRAFTED_BUT_BLOCKED_RATE_LIMIT') {
+                # console-mcp already polls for ~15s before returning this status - it means the
+                # rate-limit banner was still up after that. Don't hard-stop the loop: wait the
+                # recommended delay (ChatGPT's own modal says "a few minutes") and redispatch the
+                # exact same cmcp.go call again, reusing the original arguments from the dispatcher
+                # result envelope so nothing about the task/workspace has to be reconstructed.
+                $RetryAfterMs = if ($TransportPayload.recommended_retry_after_ms) { [int]$TransportPayload.recommended_retry_after_ms } else { 90000 }
+                $OriginalArguments = if ($TransportResult.arguments) { $TransportResult.arguments } elseif ($TransportResult.toolCall -and $TransportResult.toolCall.arguments) { $TransportResult.toolCall.arguments } else { $null }
+                if ($OriginalArguments) {
+                    $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'CMCP_GO_RATE_LIMIT_REDISPATCH_CONTRACT_READY'; stage = 'cmcp_go_retry'; tool = 'console.write.browser.session.cmcp.go'; arguments = $OriginalArguments; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'redispatch_cmcp_go_after_rate_limit_wait' } -Force
+                } else {
+                    $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+                }
+                $Payload | Add-Member -NotePropertyName retryAfterMs -NotePropertyValue $RetryAfterMs -Force
+                $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_RATE_LIMITED'; action = 'wait_then_redispatch_cmcp_go'; nextAction = 'wait_then_redispatch_cmcp_go'; retryAfterMs = $RetryAfterMs } -Force
+            } else {
+                $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
+                $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $false; status = 'FINAL_ACTION_ENGINE_EXECUTOR_FAILED'; action = 'stop_loop'; nextAction = 'stop_loop' } -Force
+            }
         }
+        Write-RunnerState -Payload $Payload
+        $Payload | ConvertTo-Json -Depth 40
+        exit 0
+    } elseif ($TransportTool -eq 'console.write.browser.session.title.prefix') {
+        $WorkspacePath = if ($TransportPayload.workspace_path) { [string]$TransportPayload.workspace_path } elseif ($TransportPayload.workspacePath) { [string]$TransportPayload.workspacePath } elseif ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
+        $Payload | Add-Member -NotePropertyName chatTitlePrefixResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
+        $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'TITLE_PREFIX_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
+        $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_TITLE_PREFIX_ACCEPTED'; action = 'title_prefix_accepted'; nextAction = 'dispatch_next_from_state' } -Force
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0

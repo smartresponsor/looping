@@ -9,7 +9,8 @@ param(
     [string]$ContinueCommand,
     [ValidateSet('raw','enriched')][string]$PromptMode = 'raw',
     [ValidateSet('raw','enriched')][string]$InitialPromptMode = '',
-    [ValidateSet('raw','enriched')][string]$ContinuePromptMode = ''
+    [ValidateSet('raw','enriched')][string]$ContinuePromptMode = '',
+    [string]$AdoptChatId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -109,6 +110,7 @@ if ($EngineExecutor -and $Chain) {
     }
     if (-not [string]::IsNullOrWhiteSpace($InitialPromptMode)) { $TaskBankArgs.InitialPromptMode = $InitialPromptMode }
     if (-not [string]::IsNullOrWhiteSpace($ContinuePromptMode)) { $TaskBankArgs.ContinuePromptMode = $ContinuePromptMode }
+    if (-not [string]::IsNullOrWhiteSpace($AdoptChatId)) { $TaskBankArgs.AdoptChatId = $AdoptChatId }
     if (-not [string]::IsNullOrWhiteSpace($RawCommand)) { $TaskBankArgs.InitialPrompt = $RawCommand }
     if (-not [string]::IsNullOrWhiteSpace($ContinueCommand)) { $TaskBankArgs.ContinuePrompt = $ContinueCommand }
     & $TaskBankLoop @TaskBankArgs
@@ -185,7 +187,7 @@ for ($Index = 0; $Index -lt $Limit; $Index++) {
     if ($EngineExecutor -and $Tool -eq 'console.write.browser.chatgpt.chat.create.send') {
         throw 'legacy fallback tool is not allowed in engine executor chain'
     }
-    if ($EngineExecutor -and $Chain -and $Tool -ne 'console.write.browser.session.cmcp.go' -and $Tool -notin @('console.read_.repo.context.capture','console.read_.repo.workspace.status','console.read_.repo.memory.graph.plan','console.write.engine.task.enqueue','console.write.engine.worker.tick','console.write.engine.chat.bind','console.write.engine.answer.capture','console.write.engine.gateway.decide','console.write.engine.reply.draft','console.write.engine.reply.submit')) {
+    if ($EngineExecutor -and $Chain -and $Tool -ne 'console.write.browser.session.cmcp.go' -and $Tool -ne 'console.write.browser.session.title.prefix' -and $Tool -notin @('console.read_.repo.context.capture','console.read_.repo.workspace.status','console.read_.repo.memory.graph.plan','console.write.engine.task.enqueue','console.write.engine.worker.tick','console.write.engine.chat.bind','console.write.engine.answer.capture','console.write.engine.gateway.decide','console.write.engine.reply.draft','console.write.engine.reply.submit')) {
         throw "selected tool is not supported by runner bridge: $Tool"
     }
 
