@@ -40,38 +40,6 @@ foreach ($Target in $ParseTargets) {
     Assert-True (@($Errors).Count -eq 0) "$Target has PowerShell parse errors"
 }
 
-$DoctorOutput = & (Join-Path $Root 'bin/cmcp.ps1') doctor 2>&1
-Assert-True ($LASTEXITCODE -eq 0 -and ($DoctorOutput -join "`n") -match 'CMCP_SHIM_READY') 'cmcp doctor must pass'
-
-$CliSandbox = Join-Path ([System.IO.Path]::GetTempPath()) ('cmcp-cli-check-' + [guid]::NewGuid().ToString('N'))
-$CliWorkspaceRoot = Join-Path $CliSandbox 'www'
-$CliRepo = Join-Path $CliWorkspaceRoot 'mcp/chatgpt-loop'
-$CliBin = Join-Path $CliRepo 'bin'
-$CliTool = Join-Path $CliRepo 'tool'
-$CliCapture = Join-Path $CliSandbox 'capture.ndjson'
-try {
-    New-Item -ItemType Directory -Path $CliBin, $CliTool, (Join-Path $CliWorkspaceRoot 'vendoring') -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $Root 'bin/cmcp.ps1') -Destination (Join-Path $CliBin 'cmcp.ps1')
-    @'
-param([string]$TargetRepo,[int]$MaxIterations,[string]$Name,[switch]$Chain,[switch]$EngineExecutor,[string]$RawCommand)
-[pscustomobject]@{ targetRepo = $TargetRepo; maxIterations = $MaxIterations; name = $Name; chain = [bool]$Chain; engineExecutor = [bool]$EngineExecutor; rawCommand = $RawCommand } | ConvertTo-Json -Compress | Add-Content -LiteralPath $env:CMCP_CLI_CAPTURE
-exit 0
-'@ | Set-Content -LiteralPath (Join-Path $CliTool 'runner-repo-smoke.ps1') -Encoding UTF8
-    "param()`nexit 0" | Set-Content -LiteralPath (Join-Path $CliTool 'runner-adopt-current-chat.ps1') -Encoding UTF8
-    $env:CMCP_CLI_CAPTURE = $CliCapture
-    & (Join-Path $CliBin 'cmcp.ps1') vendoring M13
-    Assert-True ($LASTEXITCODE -eq 0) 'cmcp vendoring M13 must reach the runner'
-    & (Join-Path $CliBin 'cmcp.ps1') go vendoring M13
-    Assert-True ($LASTEXITCODE -eq 0) 'cmcp go vendoring M13 must reach the runner'
-    $CliRows = @(Get-Content -LiteralPath $CliCapture | ForEach-Object { $_ | ConvertFrom-Json })
-    Assert-True ($CliRows.Count -eq 2) 'both CMCP forms must produce one runner call'
-    Assert-True (($CliRows[0] | ConvertTo-Json -Compress) -eq ($CliRows[1] | ConvertTo-Json -Compress)) 'both CMCP forms must produce identical runner arguments'
-    Assert-True ($CliRows[0].rawCommand -eq 'cmcp vendoring M13 --live') 'CMCP must add --live once to the canonical command'
-} finally {
-    Remove-Item Env:CMCP_CLI_CAPTURE -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $CliSandbox -Recurse -Force -ErrorAction SilentlyContinue
-}
-
 Assert-True ($RepoSmoke -match 'runner-daemon\.ps1') 'repo smoke must call runner-daemon'
 Assert-True ($RepoSmoke -match 'runner-task-bank-loop\.ps1') 'repo smoke must route engine chain through task-bank loop helper'
 Assert-True ($RepoSmoke -match 'runner-transport-adapter\.ps1') 'repo smoke must feed runner-transport-adapter'

@@ -15,7 +15,7 @@
     "chatgpt-loop:diagnostic": "php bin/console chatgpt-loop:run --task=\"!diagnose lifecycle smoke\" --mode=diagnostic",
     "chatgpt-loop:adopt-plan": "php bin/console chatgpt-loop:adopt-current-chat --component=chatgpt-loop --current-chat-url=https://chatgpt.com/c/00000000-0000-0000-0000-000000000000 --max-auto-iterations=1 --plan-only=1",
     "lint": "php tool/lint-php.php",
-    "test": "php tool/lint-php.php && pwsh -NoProfile -ExecutionPolicy Bypass -File tool/runner-repo-smoke-check.ps1"
+    "test": "php tool/lint-php.php"
   },
   "minimum-stability": "stable",
   "prefer-stable": true

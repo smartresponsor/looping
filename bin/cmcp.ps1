@@ -10,44 +10,6 @@ $BinDir = Split-Path -Parent $ScriptPath
 $Root = Split-Path -Parent $BinDir
 $Runner = Join-Path $Root 'tool\runner-repo-smoke.ps1'
 $AdoptRunner = Join-Path $Root 'tool\runner-adopt-current-chat.ps1'
-$WorkspaceRoot = Split-Path -Parent (Split-Path -Parent $Root)
-
-function Invoke-CmcpComponent {
-    param([Parameter(Mandatory=$true)][string[]]$CommandArgs)
-
-    if ($CommandArgs.Count -lt 2 -or [string]::IsNullOrWhiteSpace($CommandArgs[0])) {
-        Write-Error 'Usage: cmcp [go] <component> M<number> [options]'
-        exit 2
-    }
-
-    $Component = [string]$CommandArgs[0]
-    if ($Component -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$') {
-        Write-Error 'Component must be a valid repository name.'
-        exit 2
-    }
-
-    if ([string]$CommandArgs[1] -notmatch '^M([1-9][0-9]?)$') {
-        Write-Error 'Iteration budget must use M<number>, for example M13.'
-        exit 2
-    }
-    $MaxIterations = [int]$Matches[1]
-
-    $TargetRepo = Join-Path $WorkspaceRoot $Component
-    if (-not (Test-Path -LiteralPath $TargetRepo -PathType Container)) {
-        Write-Error "Target repository not found: $TargetRepo"
-        exit 1
-    }
-
-    $ForwardedArgs = @($CommandArgs)
-    if (-not (@($ForwardedArgs) -contains '--live')) {
-        $ForwardedArgs += '--live'
-    }
-    $RawCommand = 'cmcp ' + (($ForwardedArgs | ForEach-Object { [string]$_ }) -join ' ')
-
-    & $Runner -TargetRepo $TargetRepo -MaxIterations $MaxIterations -Name $Component -Chain -EngineExecutor -RawCommand $RawCommand
-    exit $LASTEXITCODE
-}
-
 function Show-CmcpUsage {
     Write-Host 'cmcp command shim'
     Write-Host ''
@@ -59,9 +21,11 @@ function Show-CmcpUsage {
     Write-Host 'Available now:'
     Write-Host '  cmcp --version'
     Write-Host '  cmcp doctor'
-    Write-Host '  cmcp <component> M<number> [options]'
-    Write-Host '  cmcp go <component> M<number> [options]'
     Write-Host '  cmcp adopt <component> M<number> <current-chat-url>'
+    Write-Host ''
+    Write-Host 'Planned next:'
+    Write-Host '  cmcp go cataloging'
+    Write-Host '  cmcp smoke cataloging'
 }
 
 if (-not $Args -or $Args.Count -eq 0) {
@@ -69,16 +33,7 @@ if (-not $Args -or $Args.Count -eq 0) {
     exit 0
 }
 
-$CommandArgs = @($Args)
-if ($CommandArgs[0] -eq 'go') {
-    $CommandArgs = @($CommandArgs | Select-Object -Skip 1)
-    if ($CommandArgs.Count -eq 0) {
-        Write-Error 'Usage: cmcp go <component> M<number> [options]'
-        exit 2
-    }
-}
-
-$Command = $CommandArgs[0]
+$Command = $Args[0]
 
 switch ($Command) {
     '--version' {
@@ -102,7 +57,7 @@ switch ($Command) {
         exit 1
     }
     'adopt' {
-        if ($CommandArgs.Count -lt 4 -or [string]::IsNullOrWhiteSpace($CommandArgs[1]) -or [string]::IsNullOrWhiteSpace($CommandArgs[3])) {
+        if ($Args.Count -lt 4 -or [string]::IsNullOrWhiteSpace($Args[1]) -or [string]::IsNullOrWhiteSpace($Args[3])) {
             Write-Error 'Usage: cmcp adopt <component> M<number> <current-chat-url>'
             exit 2
         }
@@ -110,19 +65,20 @@ switch ($Command) {
             Write-Error "Adoption runner not found: $AdoptRunner"
             exit 1
         }
-        $Component = [string]$CommandArgs[1]
+        $Component = [string]$Args[1]
         $MaxIterations = 3
-        if ($CommandArgs.Count -ge 3 -and [string]$CommandArgs[2] -match '^M([1-9][0-9]?)$') {
+        if ($Args.Count -ge 3 -and [string]$Args[2] -match '^M([1-9][0-9]?)$') {
             $MaxIterations = [int]$Matches[1]
-        } elseif ($CommandArgs.Count -ge 3) {
+        } elseif ($Args.Count -ge 3) {
             Write-Error 'Iteration budget must use M<number>, for example M13.'
             exit 2
         }
-        $CurrentChatUrl = [string]$CommandArgs[3]
+        $CurrentChatUrl = [string]$Args[3]
         & $AdoptRunner -ComponentName $Component -CurrentChatUrl $CurrentChatUrl -MaxIterations $MaxIterations
         exit $LASTEXITCODE
     }
     default {
-        Invoke-CmcpComponent -CommandArgs $CommandArgs
+        Write-Error "Unsupported cmcp command yet: $Command. Run: cmcp doctor"
+        exit 2
     }
 }
