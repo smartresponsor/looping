@@ -7,7 +7,7 @@ param(
     [ValidateSet('raw','enriched')][string]$PromptMode = 'raw',
     [ValidateSet('raw','enriched')][string]$InitialPromptMode = '',
     [ValidateSet('raw','enriched')][string]$ContinuePromptMode = '',
-    [ValidateSet('high')][string]$InitialReasoningEffort = 'high',
+    [ValidateSet('medium','high')][string]$InitialReasoningEffort = 'medium',
     [ValidateSet('medium','high')][string]$ContinueReasoningEffort = 'medium',
     [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'set_and_require',
     [string]$AdoptChatId
