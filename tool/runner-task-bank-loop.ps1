@@ -7,6 +7,9 @@ param(
     [ValidateSet('raw','enriched')][string]$PromptMode = 'raw',
     [ValidateSet('raw','enriched')][string]$InitialPromptMode = '',
     [ValidateSet('raw','enriched')][string]$ContinuePromptMode = '',
+    [ValidateSet('high')][string]$InitialReasoningEffort = 'high',
+    [ValidateSet('medium','high')][string]$ContinueReasoningEffort = 'medium',
+    [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'set_and_require',
     [string]$AdoptChatId
 )
 
@@ -99,6 +102,9 @@ function New-CmcpDispatchContract {
         promptMode = $EffectivePromptMode
         executorMode = 'browser'
         manageLoop = $false
+        initialReasoningEffort = $InitialReasoningEffort
+        continuationReasoningEffort = $ContinueReasoningEffort
+        reasoningEnforcement = $ReasoningEnforcement
         timeoutMs = 30000
     }
     if ($ChatId) { $Arguments.url = "https://chatgpt.com/c/$ChatId" }
