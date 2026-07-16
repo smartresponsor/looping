@@ -67,7 +67,7 @@ function New-EngineDispatchContract {
             maxAutoIterations = $MaxIterations
             activate = $true
             confirmGo = $true
-            allowOverwrite = $false
+            allowOverwrite = $true
             promptMode = 'raw'
             executorMode = 'browser'
             timeoutMs = 30000
