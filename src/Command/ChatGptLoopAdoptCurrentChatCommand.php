@@ -19,7 +19,7 @@ final class ChatGptLoopAdoptCurrentChatCommand
         try {
             $options = $this->parseOptions($args);
             $componentName = trim((string) ($options['component'] ?? ''));
-            $currentChatUrl = trim((string) ($options['current-chat-url'] ?? ''));
+            $existingLocation = trim((string) ($options['location'] ?? $options['current-chat-url'] ?? ''));
             $maxAutoIterations = $this->parseIterationBudget((string) ($options['max-auto-iterations'] ?? '3'));
             $planOnly = $this->parseBoolean((string) ($options['plan-only'] ?? '0'));
 
@@ -27,7 +27,10 @@ final class ChatGptLoopAdoptCurrentChatCommand
                 throw new InvalidArgumentException('The --component option is required and must be a valid component name.');
             }
 
-            $chatId = $this->extractChatId($currentChatUrl);
+            if ($existingLocation === '') {
+                throw new InvalidArgumentException('The --location option is required.');
+            }
+            $chatId = $this->extractChatId($existingLocation);
             $runnerPath = $this->projectDir . '/tool/runner-adopt-current-chat.ps1';
             if (!is_file($runnerPath)) {
                 throw new RuntimeException('Adoption runner not found: ' . $runnerPath);
@@ -35,12 +38,13 @@ final class ChatGptLoopAdoptCurrentChatCommand
 
             $contract = [
                 'componentName' => $componentName,
-                'currentChatUrl' => $currentChatUrl,
+                'existingLocation' => $existingLocation,
                 'chatId' => $chatId,
                 'maxAutoIterations' => $maxAutoIterations,
                 'runnerPath' => $runnerPath,
-                'ownsCurrentChatResolution' => true,
-                'usesBrowserInventoryFallback' => false,
+                'ownsCurrentChatResolution' => false,
+                'resolverOwner' => 'console-mcp',
+                'usesExistingLocationResolver' => true,
             ];
 
             if ($planOnly) {
@@ -52,7 +56,7 @@ final class ChatGptLoopAdoptCurrentChatCommand
                 ], STDOUT, 0);
             }
 
-            $result = $this->runPowerShell($runnerPath, $componentName, $currentChatUrl, $maxAutoIterations);
+            $result = $this->runPowerShell($runnerPath, $componentName, $existingLocation, $maxAutoIterations);
             $decoded = json_decode($result['stdout'], true);
 
             return $this->printJson([
@@ -74,25 +78,28 @@ final class ChatGptLoopAdoptCurrentChatCommand
         }
     }
 
-    private function extractChatId(string $currentChatUrl): string
+    private function extractChatId(string $reference): ?string
     {
-        if ($currentChatUrl === '') {
-            throw new InvalidArgumentException('The --current-chat-url option is required.');
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $reference) === 1) {
+            return strtolower($reference);
         }
 
-        $parts = parse_url($currentChatUrl);
-        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https') {
-            throw new InvalidArgumentException('Current chat URL must be a valid HTTPS URL.');
+        $parts = parse_url($reference);
+        if (!is_array($parts) || !isset($parts['scheme'])) {
+            return null;
+        }
+        if (($parts['scheme'] ?? null) !== 'https') {
+            throw new InvalidArgumentException('Chat URL must be a valid HTTPS URL.');
         }
 
         $host = strtolower((string) ($parts['host'] ?? ''));
         if (!in_array($host, ['chatgpt.com', 'chat.openai.com'], true)) {
-            throw new InvalidArgumentException('Current chat URL must use chatgpt.com or chat.openai.com.');
+            throw new InvalidArgumentException('Chat URL must use chatgpt.com or chat.openai.com.');
         }
 
         $path = (string) ($parts['path'] ?? '');
-        if (!preg_match('#^/(?:c|chat)/([0-9a-fA-F-]{36})/?$#', $path, $matches)) {
-            throw new InvalidArgumentException('Current chat URL does not contain a supported conversation UUID.');
+        if (preg_match('#^/(?:c|chat)/([0-9a-fA-F-]{36})/?$#', $path, $matches) !== 1) {
+            throw new InvalidArgumentException('Chat URL does not contain a supported conversation UUID.');
         }
 
         return strtolower($matches[1]);
@@ -117,12 +124,12 @@ final class ChatGptLoopAdoptCurrentChatCommand
         return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
     }
 
-    private function runPowerShell(string $runnerPath, string $componentName, string $currentChatUrl, int $iterations): array
+    private function runPowerShell(string $runnerPath, string $componentName, string $existingLocation, int $iterations): array
     {
         $command = [
             'pwsh', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $runnerPath,
             '-ComponentName', $componentName,
-            '-CurrentChatUrl', $currentChatUrl,
+            '-ExistingLocation', $existingLocation,
             '-MaxIterations', (string) $iterations,
         ];
         $pipes = [];

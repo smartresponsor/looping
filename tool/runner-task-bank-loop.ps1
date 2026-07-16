@@ -449,7 +449,7 @@ Ensure-Dir $ChatDir
 Ensure-Dir $RunnerStateDir
 
 $AdoptedChatId = Normalize-ChatId -Value $AdoptChatId
-$TaskId = 'repo-smoke-' + (Get-Hash ($TargetRepo.ToLowerInvariant() + '|' + $Name)).Substring(0, 16)
+$TaskId = 'repo-smoke-' + (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss') + '-' + (Get-Hash ($TargetRepo.ToLowerInvariant() + '|' + $Name + '|' + [guid]::NewGuid().ToString('N'))).Substring(0, 10)
 $TaskPath = Join-Path $TaskDir ($TaskId + '.json')
 $ChatPath = Join-Path $ChatDir ($TaskId + '.json')
 $Task = New-TaskRecord -TaskId $TaskId

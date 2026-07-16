@@ -25,7 +25,8 @@ function Show-CmcpUsage {
     Write-Host '  cmcp --version'
     Write-Host '  cmcp doctor'
     Write-Host '  cmcp stop'
-    Write-Host '  cmcp adopt <component> M<number> <current-chat-url>'
+    Write-Host '  cmcp adopt <component> M<number> @location'
+    Write-Host '  cmcp adopt <component> M<number> <chat-url-or-chat-id>'
     Write-Host ''
     Write-Host 'Planned next:'
     Write-Host '  cmcp go cataloging'
@@ -79,7 +80,7 @@ switch ($Command) {
     }
     'adopt' {
         if ($Args.Count -lt 4 -or [string]::IsNullOrWhiteSpace($Args[1]) -or [string]::IsNullOrWhiteSpace($Args[3])) {
-            Write-Error 'Usage: cmcp adopt <component> M<number> <current-chat-url>'
+            Write-Error 'Usage: cmcp adopt <component> M<number> <existing-location-or-chat-reference>'
             exit 2
         }
         if (-not (Test-Path -LiteralPath $AdoptRunner -PathType Leaf)) {
@@ -94,8 +95,8 @@ switch ($Command) {
             Write-Error 'Iteration budget must use M<number>, for example M13.'
             exit 2
         }
-        $CurrentChatUrl = [string]$Args[3]
-        & $AdoptRunner -ComponentName $Component -CurrentChatUrl $CurrentChatUrl -MaxIterations $MaxIterations
+        $ExistingLocation = [string]$Args[3]
+        & $AdoptRunner -ComponentName $Component -ExistingLocation $ExistingLocation -MaxIterations $MaxIterations
         exit $LASTEXITCODE
     }
     default {

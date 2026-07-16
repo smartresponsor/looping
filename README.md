@@ -34,10 +34,10 @@ This keeps the lifecycle safe, repeatable, and observable without pretending tha
 
 ## Current-chat adoption execution surface
 
-`chatgpt-loop` owns the deterministic adoption entrypoint. The caller must provide the exact URL of the invoking ChatGPT conversation; the loop never guesses "this chat" from browser inventory.
+`chatgpt-loop` owns the bounded adoption lifecycle while Console MCP resolves one existing location into a ChatGPT conversation. The same location may match the existing title-token registry, a visible chat title, or existing message content. Full ChatGPT URLs and conversation UUIDs remain supported.
 
 ```powershell
-php bin/console chatgpt-loop:adopt-current-chat --component=Carting --current-chat-url=https://chatgpt.com/c/00000000-0000-0000-0000-000000000000 --max-auto-iterations=13
+php bin/console chatgpt-loop:adopt-current-chat --component=Carting --location=@carting-investigation --max-auto-iterations=13
 ```
 
 A non-mutating contract check is available through:
@@ -46,4 +46,4 @@ A non-mutating contract check is available through:
 composer run chatgpt-loop:adopt-plan
 ```
 
-The execution surface validates component identity, ChatGPT host, conversation UUID, and iteration budget before delegating to `tool/runner-adopt-current-chat.ps1`. A future ChatGPT Loop connector should map `Adopt this chat with M1/M13` to this command and inject the exact current conversation URL.
+The execution surface validates component identity, URL-shaped references, and iteration budget before delegating to `tool/runner-adopt-current-chat.ps1`. Console MCP resolves registry, title, and body matches, rejects ambiguity, blocks an already active task for the same chat/component/workspace, and permits a new bounded task after the previous task becomes terminal.

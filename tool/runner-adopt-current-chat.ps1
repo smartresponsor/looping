@@ -1,22 +1,20 @@
 param(
     [Parameter(Mandatory=$true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$')][string]$ComponentName,
-    [Parameter(Mandatory=$true)][string]$CurrentChatUrl,
+    [Parameter(Mandatory=$true)][string]$ExistingLocation,
     [ValidateRange(1,100)][int]$MaxIterations = 3,
     [string]$WorkspaceRoot = 'D:\PhpstormProjects\www'
 )
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
-$Runner = Join-Path $Root 'tool/runner-repo-smoke.ps1'
-
-try { $Uri = [Uri]$CurrentChatUrl } catch { throw "invalid CurrentChatUrl: $CurrentChatUrl" }
-if ($Uri.Scheme -ne 'https' -or $Uri.Host -notin @('chatgpt.com','chat.openai.com')) {
-    throw "CurrentChatUrl must be an HTTPS ChatGPT conversation URL: $CurrentChatUrl"
+$Bridge = Join-Path $Root 'tool/runner-console-mcp-bridge.ps1'
+$BridgeDir = Join-Path $Root 'var/runner/task-bank/bridge'
+$ChatId = $null
+if ($ExistingLocation -match '^[0-9a-fA-F-]{36}$') {
+    $ChatId = $ExistingLocation.ToLowerInvariant()
+} elseif ($ExistingLocation -match '^https://(?:chatgpt\.com|chat\.openai\.com)/(?:c|chat)/([0-9a-fA-F-]{36})/?$') {
+    $ChatId = $Matches[1].ToLowerInvariant()
 }
-if ($Uri.AbsolutePath -notmatch '^/(?:c|chat)/([0-9a-fA-F-]{36})/?$') {
-    throw "CurrentChatUrl does not contain a supported conversation id: $CurrentChatUrl"
-}
-$ChatId = $Matches[1].ToLowerInvariant()
 $TargetRepo = Join-Path $WorkspaceRoot $ComponentName
 if (-not (Test-Path -LiteralPath $TargetRepo -PathType Container)) {
     [pscustomobject]@{
@@ -30,5 +28,32 @@ if (-not (Test-Path -LiteralPath $TargetRepo -PathType Container)) {
     exit 1
 }
 
-& $Runner -TargetRepo $TargetRepo -MaxIterations $MaxIterations -Name $ComponentName -Chain -EngineExecutor -AdoptChatId $ChatId
-exit $LASTEXITCODE
+$null = New-Item -ItemType Directory -Path $BridgeDir -Force
+$Id = [guid]::NewGuid().ToString('N')
+$PayloadPath = Join-Path $BridgeDir ($Id + '.payload.json')
+$ResultPath = Join-Path $BridgeDir ($Id + '.result.json')
+$Arguments = [ordered]@{
+    componentName = $ComponentName
+    workspacePath = $TargetRepo
+    maxAutoIterations = $MaxIterations
+    activate = $true
+    recoverComposer = $false
+    confirmGo = $true
+    timeoutMs = 30000
+}
+if ($ChatId) { $Arguments.preferredChatId = $ChatId } else { $Arguments.locator = $ExistingLocation }
+$Payload = [ordered]@{ runnerExecutionPlan = [ordered]@{ tool = 'console.write.browser.chatgpt.chat.adopt_go'; arguments = $Arguments } }
+$Payload | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $PayloadPath -Encoding UTF8
+$Raw = & $Bridge -PayloadPath $PayloadPath -ResultPath $ResultPath 2>&1
+$BridgeExitCode = $LASTEXITCODE
+if (-not (Test-Path -LiteralPath $ResultPath -PathType Leaf)) { throw "adopt result was not written: $ResultPath`n$Raw" }
+$ResultRaw = Get-Content -Raw -LiteralPath $ResultPath
+$ResultRaw
+try {
+    $Result = $ResultRaw | ConvertFrom-Json -Depth 30
+    if ($Result.ok -ne $true) { exit 1 }
+} catch {
+    if ($BridgeExitCode -ne 0) { exit $BridgeExitCode }
+    throw "adopt result is not valid JSON: $ResultPath"
+}
+exit $BridgeExitCode
