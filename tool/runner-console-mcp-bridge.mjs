@@ -47,7 +47,15 @@ function parseArgs(argv) {
 }
 
 function parseToolPayload(result) {
-  const text = result?.content?.[0]?.text ?? "";
+  const structured = result?.structuredContent;
+  if (structured && typeof structured === "object" && !Array.isArray(structured)) {
+    return structured;
+  }
+
+  const textItems = Array.isArray(result?.content)
+    ? result.content.filter((item) => item?.type === "text" && typeof item.text === "string")
+    : [];
+  const text = textItems.map((item) => item.text).join("\n").trim();
   try {
     return JSON.parse(text);
   } catch {
