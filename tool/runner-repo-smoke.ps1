@@ -68,8 +68,9 @@ function New-EngineDispatchContract {
             activate = $true
             confirmGo = $true
             allowOverwrite = $true
-            promptMode = 'raw'
-            executorMode = 'browser'
+            promptMode = 'enriched'
+            executorMode = 'engine'
+            manageLoop = $true
             timeoutMs = 30000
         }
         mutation = 'write'
@@ -104,7 +105,7 @@ if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir |
 
 $Task = "Repo loop test. Name: $Name. Target workspace: $TargetRepo. Goal: inspect repo context only; avoid file changes; avoid commits; stop after $MaxIterations loop steps."
 $RunId = 'repo-smoke-' + ([guid]::NewGuid().ToString('N'))
-$EngineRawCommand = "Run a read-only repository loop smoke for workspace $TargetRepo. Use only safe inspection. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, and summary."
+$EngineRawCommand = if (-not [string]::IsNullOrWhiteSpace($RawCommand)) { $RawCommand } else { "cmcp $Name M$MaxIterations" }
 $InitialDispatchContract = if ($EngineExecutor) {
     New-EngineDispatchContract -RawCommand $EngineRawCommand
 } else {
@@ -140,7 +141,7 @@ $Seed = [ordered]@{
 }
 [pscustomobject]$Seed | ConvertTo-Json -Depth 60 | Set-Content -Path $StatePath -Encoding UTF8
 
-$Limit = if ($Chain) { $MaxIterations } else { 1 }
+$Limit = 1
 $Steps = @()
 $Tools = @()
 $DecisionStages = @('runner_state_seed')
