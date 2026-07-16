@@ -41,7 +41,7 @@ foreach ($Target in $ParseTargets) {
 }
 
 Assert-True ($RepoSmoke -match 'runner-daemon\.ps1') 'repo smoke must call runner-daemon'
-Assert-True ($RepoSmoke -match 'runner-task-bank-loop\.ps1') 'repo smoke must route engine chain through task-bank loop helper'
+Assert-True ($RepoSmoke -notmatch 'runner-task-bank-loop\.ps1') 'repo smoke must remain the only production loop implementation'
 Assert-True ($RepoSmoke -match 'runner-transport-adapter\.ps1') 'repo smoke must feed runner-transport-adapter'
 Assert-True ($RepoSmoke -match 'runner-console-mcp-bridge\.ps1') 'repo smoke must execute selected tool through bridge'
 Assert-True ($RepoSmoke -match 'expectedResultPath') 'repo smoke must write selected result path'

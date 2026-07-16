@@ -10,6 +10,9 @@ $BinDir = Split-Path -Parent $ScriptPath
 $Root = Split-Path -Parent $BinDir
 $Runner = Join-Path $Root 'tool\runner-repo-smoke.ps1'
 $AdoptRunner = Join-Path $Root 'tool\runner-adopt-current-chat.ps1'
+$ConsoleMcpRoot = Join-Path (Split-Path -Parent $Root) 'console-mcp'
+$ConsoleMcpDevConsole = Join-Path $ConsoleMcpRoot 'tool\dev-console.ps1'
+$ConsoleMcpCli = Join-Path $ConsoleMcpRoot 'bin\cmcp.ps1'
 function Show-CmcpUsage {
     Write-Host 'cmcp command shim'
     Write-Host ''
@@ -21,6 +24,7 @@ function Show-CmcpUsage {
     Write-Host 'Available now:'
     Write-Host '  cmcp --version'
     Write-Host '  cmcp doctor'
+    Write-Host '  cmcp stop'
     Write-Host '  cmcp adopt <component> M<number> <current-chat-url>'
     Write-Host ''
     Write-Host 'Planned next:'
@@ -50,11 +54,28 @@ switch ($Command) {
             Write-Error 'pwsh was not found in PATH.'
             $Ok = $false
         }
+        if (-not (Test-Path -LiteralPath $ConsoleMcpDevConsole -PathType Leaf)) {
+            Write-Error "Console MCP lifecycle command not found: $ConsoleMcpDevConsole"
+            $Ok = $false
+        }
         if ($Ok) {
             Write-Output 'CMCP_SHIM_READY'
             exit 0
         }
         exit 1
+    }
+    'stop' {
+        if ($Args.Count -ne 1) {
+            Write-Error 'Usage: cmcp stop'
+            exit 2
+        }
+        if (-not (Test-Path -LiteralPath $ConsoleMcpDevConsole -PathType Leaf)) {
+            Write-Error "Console MCP lifecycle command not found: $ConsoleMcpDevConsole"
+            exit 1
+        }
+        $Pwsh = Get-Command pwsh -ErrorAction Stop
+        & $Pwsh.Source -NoProfile -ExecutionPolicy Bypass -File $ConsoleMcpDevConsole stop-server
+        exit $LASTEXITCODE
     }
     'adopt' {
         if ($Args.Count -lt 4 -or [string]::IsNullOrWhiteSpace($Args[1]) -or [string]::IsNullOrWhiteSpace($Args[3])) {
@@ -78,7 +99,11 @@ switch ($Command) {
         exit $LASTEXITCODE
     }
     default {
-        Write-Error "Unsupported cmcp command yet: $Command. Run: cmcp doctor"
-        exit 2
+        if (-not (Test-Path -LiteralPath $ConsoleMcpCli -PathType Leaf)) {
+            Write-Error "Console MCP CLI not found: $ConsoleMcpCli"
+            exit 1
+        }
+        & $ConsoleMcpCli @Args
+        exit $LASTEXITCODE
     }
 }
