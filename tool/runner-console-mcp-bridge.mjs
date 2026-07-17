@@ -72,6 +72,23 @@ async function readToolCall(payloadPath) {
   return { name: plan.tool, arguments: plan.arguments ?? {} };
 }
 
+function readPositiveIntEnv(name, fallback) {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function resolveToolRequestTimeoutMs(toolName) {
+  const defaultTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_TOOL_TIMEOUT_MS", 120000);
+  const engineTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_ENGINE_TIMEOUT_MS", 1800000);
+  const longToolPrefixes = [
+    "console.write.browser.session.cmcp.go",
+    "console.write.engine.cycle.run",
+    "console.write.engine.cycle.run_n",
+    "console.write.engine.answer.capture",
+  ];
+  return longToolPrefixes.some((prefix) => toolName === prefix || toolName.startsWith(`${prefix}.`)) ? engineTimeoutMs : defaultTimeoutMs;
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const payloadPath = args.payload;
@@ -94,7 +111,12 @@ async function main() {
 
   try {
     await client.connect(transport);
-    const result = await client.callTool({ name: toolCall.name, arguments: toolCall.arguments ?? {} });
+    const requestTimeoutMs = resolveToolRequestTimeoutMs(toolCall.name);
+    const result = await client.callTool(
+      { name: toolCall.name, arguments: toolCall.arguments ?? {} },
+      undefined,
+      { timeout: requestTimeoutMs, maxTotalTimeout: requestTimeoutMs }
+    );
     const parsed = parseToolPayload(result);
     const ok = parsed.ok !== false;
     const wrapped = {
