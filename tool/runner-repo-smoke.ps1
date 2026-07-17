@@ -46,6 +46,12 @@ function Get-Submitted {
     if (-not $Payload) { return $false }
     if ($Payload.submitted -eq $true) { return $true }
     if ($Payload.submitted -and $Payload.submitted.submitted -eq $true) { return $true }
+    if ($Payload.submitted_at) { return $true }
+    if ($Payload.submitted_count -and [int]$Payload.submitted_count -gt 0) { return $true }
+    if ($Payload.assistant_hash -or $Payload.assistant_captured_count -and [int]$Payload.assistant_captured_count -gt 0) { return $true }
+    if ($Payload.execution_completed_at) { return $true }
+    if ($Payload.status -in @('completed','ENGINE_CYCLE_RUN_N_COMPLETE','RUNNER_REPO_SMOKE_LOOP_COMPLETED')) { return $true }
+    if ($Payload.final_status -in @('completed','ENGINE_CYCLE_RUN_N_COMPLETE','RUNNER_REPO_SMOKE_LOOP_COMPLETED')) { return $true }
     if ($Payload.cmcp_go_trace -and $Payload.cmcp_go_trace.submitted_status -eq 'BROWSER_SESSION_SUBMITTED') { return $true }
     return $false
 }

@@ -112,10 +112,11 @@ async function main() {
   try {
     await client.connect(transport);
     const requestTimeoutMs = resolveToolRequestTimeoutMs(toolCall.name);
+    const requestOptions = { timeout: requestTimeoutMs, maxTotalTimeout: requestTimeoutMs };
     const result = await client.callTool(
       { name: toolCall.name, arguments: toolCall.arguments ?? {} },
       undefined,
-      { timeout: requestTimeoutMs, maxTotalTimeout: requestTimeoutMs }
+      requestOptions
     );
     const parsed = parseToolPayload(result);
     const ok = parsed.ok !== false;
@@ -128,6 +129,7 @@ async function main() {
         ok,
         status: "CONSOLE_MCP_BRIDGE_TOOL_EXECUTED",
         endpoint: endpoint.toString(),
+        requestTimeoutMs,
       },
     };
     await fs.writeFile(resultPath, `${JSON.stringify(wrapped, null, 2)}\n`, "utf8");
@@ -140,6 +142,7 @@ async function main() {
       submitted: wrapped.submitted?.submitted === true || wrapped.submitted === true,
       chatId: wrapped.chatId ?? wrapped.chat_id ?? wrapped.cmcp_go_trace?.opened_chat_id ?? null,
       targetId: wrapped.targetId ?? wrapped.target_id ?? wrapped.cmcp_go_trace?.opened_target_id ?? null,
+      requestTimeoutMs,
     }, null, 2)}\n`);
   } finally {
     await transport.close().catch(() => undefined);
