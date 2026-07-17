@@ -260,6 +260,21 @@ if ($EngineExecutor -and $Chain) {
     $Ok = $Ok -and $Submitted -and (@($Tools | Where-Object { $_ -eq 'console.write.browser.session.cmcp.go' }).Count -ge 1)
 }
 
+$BlockedStage = Get-FirstValue -Payload $LastResult -Names @('blockedStage','blocked_stage','executionBlockedStage','execution_blocked_stage')
+$BlockedReason = Get-FirstValue -Payload $LastResult -Names @('blockedReason','blocked_reason','executionBlockedReason','execution_blocked_reason')
+$ResultNextAction = Get-FirstValue -Payload $LastResult -Names @('nextAction','next_action')
+$EffectiveNextAction = if ($Ok) {
+    'repo_chain_smoke_completed'
+} elseif ($FallbackUsed) {
+    'remove_legacy_fallback_dispatch'
+} elseif ($ResultNextAction) {
+    [string]$ResultNextAction
+} elseif ($EngineExecutor -and $Chain -and -not $Submitted) {
+    'inspect_browser_executor_submit_result'
+} else {
+    'inspect_runner_loop_progress'
+}
+
 [pscustomobject]@{
     ok = [bool]$Ok
     status = if ($Ok) { 'RUNNER_REPO_SMOKE_LOOP_COMPLETED' } else { 'RUNNER_REPO_SMOKE_LOOP_FAILED' }
@@ -274,6 +289,8 @@ if ($EngineExecutor -and $Chain) {
     adapterStatus = if ($LastAdapter) { [string]$LastAdapter.status } else { $null }
     adapterNextAction = if ($LastAdapter) { [string]$LastAdapter.nextAction } else { $null }
     finalStatus = $FinalStatus
+    blockedStage = if ($BlockedStage) { [string]$BlockedStage } else { $null }
+    blockedReason = if ($BlockedReason) { [string]$BlockedReason } else { $null }
     runnerStatePath = $StatePath
-    nextAction = if ($Ok) { 'repo_chain_smoke_completed' } elseif ($FallbackUsed) { 'remove_legacy_fallback_dispatch' } elseif ($EngineExecutor -and $Chain -and -not $Submitted) { 'inspect_browser_executor_submit_result' } else { 'inspect_runner_loop_progress' }
+    nextAction = $EffectiveNextAction
 } | ConvertTo-Json -Depth 80
