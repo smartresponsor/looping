@@ -10,6 +10,8 @@ param(
     [ValidateSet('raw','enriched')][string]$PromptMode = 'raw',
     [ValidateSet('raw','enriched')][string]$InitialPromptMode = '',
     [ValidateSet('raw','enriched')][string]$ContinuePromptMode = '',
+    [ValidateSet('gpt-5.5')][string]$InitialReasoningModel = 'gpt-5.5',
+    [ValidateSet('gpt-5.5')][string]$ContinueReasoningModel = 'gpt-5.5',
     [ValidateSet('medium','high')][string]$InitialReasoningEffort = 'medium',
     [ValidateSet('medium','high')][string]$ContinueReasoningEffort = 'medium',
     [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'set_and_require',
@@ -74,6 +76,8 @@ function New-EngineDispatchContract {
             promptMode = 'enriched'
             executorMode = 'engine'
             manageLoop = $true
+            initialReasoningModel = $InitialReasoningModel
+            continuationReasoningModel = $ContinueReasoningModel
             initialReasoningEffort = $InitialReasoningEffort
             continuationReasoningEffort = $ContinueReasoningEffort
             reasoningEnforcement = $ReasoningEnforcement
