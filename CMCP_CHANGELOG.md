@@ -73,3 +73,11 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 - Split the bridge inventory into `atomic` and `legacy_orchestration` capability classes without removing any currently allowed tool.
 - Expanded the boundary debt meter to include `cmcp.go`, `ADOPT GO`, and `watch.next`; current debt is 133 production references across 15 frozen legacy files with 0 new boundary violations.
 - Console MCP source/runtime remains unchanged in this pass.
+
+## 2026-09-14 — M4 recovery and completion contract copy
+
+- Read the current Console `engine-cycle-browser.ts` completion/recovery semantics directly and copied the factual acceptance contract into `ChatGptLoopCompletionVerificationContract`; the copy executes no checks and has no authority.
+- Added `ChatGptLoopAtomicTransportPlan` describing the target bind/preflight/draft/submit/watch/settle/capture sequence without switching away from the current `cmcp.go` compatibility transport.
+- Added live shadow recovery artifacts for current submit failures, stale capture/binding, answer-watch exhaustion, and rejected/empty answer capture. These artifacts cannot retry, rebind, submit, or alter task state.
+- Added `config/orchestration-cutover-manifest.json`; it explicitly keeps `consoleAuthority=true`, `chatGptLoopAuthority=false`, M5/M6 disabled, and `consoleCleanupAllowed=false`.
+- The migration ledger now distinguishes copied completion/transport contracts from remaining execution debt.

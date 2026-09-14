@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "mode": "shadow_copy_first",
+  "consoleAuthority": true,
+  "chatGptLoopAuthority": false,
+  "m4LiveParityWired": true,
+  "m5OptInCutoverEnabled": false,
+  "m6DefaultCutoverEnabled": false,
+  "consoleCleanupAllowed": false,
+  "consoleRestartAfterCleanupRequired": true,
+  "currentLegacyProductionReferenceCount": 133,
+  "currentLegacyProductionFileCount": 15,
+  "copiedCapabilities": [
+    "state_projection",
+    "stop_continue_decision",
+    "recovery_classification",
+    "cleanup_signal_parsing",
+    "receipt_normalization",
+    "parity_evaluation",
+    "semantic_action_routing",
+    "fail_closed_acceptance",
+    "completion_verification_contract",
+    "atomic_transport_plan"
+  ],
+  "cleanupRequires": ["m4_zero_unexplained_divergence", "m5_opt_in_acceptance", "rollback_acceptance", "strict_boundary_complete"]

@@ -13,15 +13,15 @@ Status vocabulary:
 | --- | --- | --- | --- | --- |
 | stop/continue decision | SHADOW-WIRED | `ChatGptLoopShadowDecisionProjector` + live legacy decision receipt comparison | Console MCP | accumulate live parity evidence, then opt-in authority |
 | task/chat state projection | COPIED | `ChatGptLoopShadowStateProjector` | Console MCP + task-bank compatibility state | broaden parity and prove restart parity |
-| recovery classification | COPIED | `ChatGptLoopShadowRecoveryProjector` | Console MCP | live blocked/rate-limit/orphan parity |
+| recovery classification | SHADOW-WIRED/PARTIAL | `ChatGptLoopShadowRecoveryProjector` + live submit/capture failure receipts | Console MCP | add authoritative recovery-result parity for rebind/rate-limit/orphan flows before opt-in authority |
 | receipt normalization | SHADOW-WIRED | `ChatGptLoopOrchestrationReceiptNormalizer` | no authority; translation only | stabilize schema and version it |
 | live parity evaluation | SHADOW-WIRED | `ChatGptLoopShadowParityEvaluator` + parity artifacts | Console MCP | accumulate live evidence with zero unexplained divergence |
 | iteration budget | LEGACY-DELEGATED | task-bank has compatibility budget | mixed | make completion independent from budget exhaustion |
-| completion verification | LEGACY-DELEGATED | shadow decision understands verification-required | Console MCP | copy repository verification semantics and test fail-closed completion |
+| completion verification | COPIED/PARTIAL | `ChatGptLoopCompletionVerificationContract` mirrors factual/gate/runtime/evidence requirements | Console MCP | feed real completion receipts into shadow parity, then implement atomic verification execution before opt-in authority |
 | semantic progress/stall | COPIED | decision projector repeat-count logic | Console MCP | feed live progress fingerprints and compare decisions |
 | browser answer readiness | LEGACY-DELEGATED | none authoritative | Console MCP `watch/run-loop` interpretation | replace high-level run-loop interpretation with atomic observation receipts |
-| prompt/chat transport | LEGACY-DELEGATED | task-bank owns scheduling only | Console MCP `cmcp.go` compatibility path | replace internal `cmcp.go` use with atomic bind/draft/submit primitives |
-| action-marker router | COPIED/PARTIAL | decision projector + decision-action contract | Console MCP | unify structured action router and live decision mapping |
+| prompt/chat transport | COPIED/PARTIAL | task-bank scheduling + `ChatGptLoopAtomicTransportPlan` | Console MCP `cmcp.go` compatibility path | implement the atomic plan behind an opt-in flag, prove parity, then remove internal high-level entrypoint use |
+| action-marker router | COPIED/PARTIAL | `ChatGptLoopSemanticDecisionRouter` + decision projector + decision-action contract | Console MCP | port/prove parity with Console signal classifier (fail/blocker/gate/dirty/commit/green/question/human/done and resolved-failure suppression) before M5 |
 | acceptance | COPIED/PARTIAL | task-bank transport acceptance + `ChatGptLoopShadowAcceptanceProjector` | mixed | wire verified completion evidence; keep budget exhaustion non-terminal for task completion |
 | cleanup signal | COPIED/PARTIAL | `ChatGptLoopCleanupSignalParser` projected in shadow state | Console-compatible physical cleanup | live parity and post-cutover atomic delete/close policy |
 | bridge allowlist | LEGACY-DELEGATED/PARTIAL | bridge classifies `atomic` vs `legacy_orchestration` while preserving the same allowlist | mixed | remove legacy class only after M5/M6 rollback acceptance |

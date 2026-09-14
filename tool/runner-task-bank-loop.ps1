@@ -486,6 +486,48 @@ function Write-LiveShadowParityArtifact {
     }
 }
 
+function Write-LiveShadowRecoveryArtifact {
+    param(
+        [Parameter(Mandatory=$true)]$Task,
+        [Parameter(Mandatory=$true)][string]$TaskId,
+        [Parameter(Mandatory=$true)][string]$Stage,
+        [Parameter(Mandatory=$true)][string]$Reason,
+        $Receipt
+    )
+
+    Ensure-Dir $ParityDir
+    $Id = [guid]::NewGuid().ToString('N')
+    $InputPath = Join-Path $ParityDir ($TaskId + '-' + $Id + '.recovery.input.json')
+    $OutputPath = Join-Path $ParityDir ($TaskId + '-' + $Id + '.recovery.parity.json')
+    $CaptureScript = Join-Path $Root 'tool/live-shadow-parity-capture.php'
+    $ShadowTask = [ordered]@{
+        task_id = $Task.taskId
+        component = $Task.component
+        workspace_path = $Task.workspacePath
+        chat_id = $Task.chatId
+        target_id = $Task.targetId
+        status = 'blocked'
+        auto_iteration_count = [int]$Task.interactionCount
+        max_auto_iterations = [int]$Task.maxInteractions
+        retry_attempt = [int]$Task.attempt
+        execution_blocked_stage = $Stage
+        execution_blocked_reason = $Reason
+        execution_blocked_receipt = if ($null -ne $Receipt) { $Receipt } else { [ordered]@{} }
+    }
+    Write-JsonFile -Value ([pscustomobject][ordered]@{ snapshot = [ordered]@{ task = $ShadowTask }; authoritative = [ordered]@{} }) -Path $InputPath
+
+    try {
+        $Raw = & php $CaptureScript "--input=$InputPath" "--output=$OutputPath" 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "live shadow recovery capture exit code $LASTEXITCODE`: $Raw" }
+        $Result = $Raw | ConvertFrom-Json
+        Append-Journal -TaskId $TaskId -Event 'liveShadowRecovery' -Data ([ordered]@{ stage = $Stage; reason = $Reason; status = $Result.artifactStatus; outputPath = $OutputPath; authoritative = $false })
+        return [pscustomobject]@{ ok = $true; status = [string]$Result.artifactStatus; path = $OutputPath }
+    } catch {
+        Append-Journal -TaskId $TaskId -Event 'liveShadowRecoveryDiagnosticFailure' -Data ([ordered]@{ stage = $Stage; reason = $Reason; status = 'LIVE_SHADOW_RECOVERY_CAPTURE_FAILED_NON_AUTHORITATIVE'; error = $_.Exception.Message; authoritative = $false })
+        return [pscustomobject]@{ ok = $false; status = 'LIVE_SHADOW_RECOVERY_CAPTURE_FAILED_NON_AUTHORITATIVE'; path = $null }
+    }
+}
+
 Ensure-Dir $TaskDir
 Ensure-Dir $JournalDir
 Ensure-Dir $AnswerDir
@@ -595,6 +637,7 @@ while ($true) {
             $FinalStatus = if ($SubmitStatus) { [string]$SubmitStatus } else { 'CMCP_GO_SUBMIT_NOT_CONFIRMED' }
             $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; tool = $Submit.tool; payloadPath = $Submit.payloadPath; resultPath = $Submit.resultPath; adapterStatus = $Submit.adapter.status; bridgeStatus = $Submit.bridge.status; capturedAt = Get-IsoNow }) -Force
             Append-Journal -TaskId $TaskId -Event 'uiSubmitRejected' -Data ([ordered]@{ tool = $Submit.tool; finalStatus = $FinalStatus; payloadPath = $Submit.payloadPath; resultPath = $Submit.resultPath; adapterStatus = $Submit.adapter.status; bridgeStatus = $Submit.bridge.status })
+            $null = Write-LiveShadowRecoveryArtifact -Task $Task -TaskId $TaskId -Stage 'prompt_submit' -Reason $FinalStatus -Receipt $SubmitResult
             Write-JsonFile -Value $Task -Path $TaskPath
             break
         }
@@ -695,6 +738,7 @@ while ($true) {
             $FinalStatus = 'CAPTURE_SELECTOR_EMPTY_OR_BINDING_STALE'
             $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; chatId = $Task.chatId; targetId = $Task.targetId; capturedAt = Get-IsoNow }) -Force
             Append-Journal -TaskId $TaskId -Event 'captureSelectorEmptyOrBindingStale' -Data ([ordered]@{ finalStatus = $FinalStatus; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; chatId = $Task.chatId; targetId = $Task.targetId })
+            $null = Write-LiveShadowRecoveryArtifact -Task $Task -TaskId $TaskId -Stage 'answer_capture' -Reason $FinalStatus -Receipt ([ordered]@{ probe = $Probe.result; step = $StepSummary.result })
             Write-JsonFile -Value $Task -Path $TaskPath
             Write-JsonFile -Value $Chat -Path $ChatPath
             Write-Host ("progress " + ([ordered]@{ event = 'captureSelectorEmptyOrBindingStale'; finalStatus = $FinalStatus; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; chatId = $Task.chatId; targetId = $Task.targetId; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
@@ -705,6 +749,7 @@ while ($true) {
             $FinalStatus = 'ANSWER_WATCH_INTERNAL_STEP_LIMIT_EXCEEDED'
             $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; interactionStepCount = $InteractionStepCount; maxInternalStepsPerInteraction = $MaxInternalStepsPerInteraction; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; stepNextAction = $StepSummary.result.next_action; capturedAt = Get-IsoNow }) -Force
             Append-Journal -TaskId $TaskId -Event 'answerWatchStepLimitExceeded' -Data ([ordered]@{ finalStatus = $FinalStatus; interactionStepCount = $InteractionStepCount; maxInternalStepsPerInteraction = $MaxInternalStepsPerInteraction; probeStatus = $Probe.result.status; stepStatus = $StepSummary.result.status; stepNextAction = $StepSummary.result.next_action })
+            $null = Write-LiveShadowRecoveryArtifact -Task $Task -TaskId $TaskId -Stage 'answer_capture' -Reason $FinalStatus -Receipt ([ordered]@{ probe = $Probe.result; step = $StepSummary.result })
             Write-JsonFile -Value $Task -Path $TaskPath
             Write-JsonFile -Value $Chat -Path $ChatPath
             Write-Host ("progress " + ([ordered]@{ event = 'answerWatchStepLimitExceeded'; finalStatus = $FinalStatus; interactionStepCount = $InteractionStepCount; maxInternalStepsPerInteraction = $MaxInternalStepsPerInteraction; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
@@ -775,6 +820,7 @@ while ($true) {
             $FinalStatus = if ($LastAssistantStatus -eq 'OBSERVATION_WINDOW_EXPIRED') { 'ANSWER_CAPTURE_OBSERVATION_WINDOW_EXPIRED' } else { 'ANSWER_CAPTURE_EMPTY_TEXT' }
             $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; assistantStatus = $LastAssistantStatus; textLength = [int]$Answer.latestAssistantTextLength; answerPath = $AnswerPath; capturedAt = Get-IsoNow }) -Force
             Append-Journal -TaskId $TaskId -Event 'answerCaptureRejected' -Data ([ordered]@{ finalStatus = $FinalStatus; assistantStatus = $LastAssistantStatus; textLength = [int]$Answer.latestAssistantTextLength; answerPath = $AnswerPath })
+            $null = Write-LiveShadowRecoveryArtifact -Task $Task -TaskId $TaskId -Stage 'answer_capture' -Reason $FinalStatus -Receipt ([ordered]@{ assistantStatus = $LastAssistantStatus; semanticStatus = $LastSemanticStatus; answerPath = $AnswerPath })
             Write-JsonFile -Value $Task -Path $TaskPath
             Write-JsonFile -Value $Chat -Path $ChatPath
             Write-Host ("progress " + ([ordered]@{ event = 'answerCaptureRejected'; assistantStatus = $LastAssistantStatus; semanticStatus = $LastSemanticStatus; finalStatus = $FinalStatus; answerPath = $AnswerPath; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
