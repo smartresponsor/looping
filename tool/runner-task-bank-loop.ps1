@@ -564,9 +564,10 @@ while ($true) {
         if ($SubmittedTargetId) { $Task.targetId = $SubmittedTargetId }
         if ($SubmittedChatId) { $Task.chatId = $SubmittedChatId }
         if ($Task.chatId) {
-            if (-not $Task.lockedChatId) {
+            $SubmittedChatIsProvisional = ([string]$Task.chatId).StartsWith('WEB:', [System.StringComparison]::OrdinalIgnoreCase)
+            if (-not $Task.lockedChatId -and -not $SubmittedChatIsProvisional) {
                 $Task.lockedChatId = [string]$Task.chatId
-            } elseif ($Task.chatId -ne $Task.lockedChatId) {
+            } elseif ($Task.lockedChatId -and $Task.chatId -ne $Task.lockedChatId) {
                 $Task.status = 'terminal_failed'
                 $FinalStatus = 'SINGLE_CHAT_REBIND_FAILED'
                 $Task | Add-Member -NotePropertyName lastFailure -NotePropertyValue ([pscustomobject][ordered]@{ status = $FinalStatus; expectedChatId = $Task.lockedChatId; actualChatId = $Task.chatId; resultPath = $Submit.resultPath; capturedAt = Get-IsoNow }) -Force
@@ -575,7 +576,9 @@ while ($true) {
                 Write-JsonFile -Value $Chat -Path $ChatPath
                 break
             }
-            $ObservedChatIds += [string]$Task.chatId
+            if (-not $SubmittedChatIsProvisional) {
+                $ObservedChatIds += [string]$Task.chatId
+            }
         }
         $Chat.targetId = $Task.targetId
         $Chat.chatId = $Task.chatId
@@ -706,6 +709,7 @@ while ($true) {
             }
             $Task.chatId = $SelectedChatId
             $Chat.chatId = $Task.chatId
+            $Chat.url = "https://chatgpt.com/c/$SelectedChatId"
             $ObservedChatIds += $SelectedChatId
         }
         if ($Settled.result.selected -and $Settled.result.selected.id) { $Task.targetId = [string]$Settled.result.selected.id; $Chat.targetId = $Task.targetId }

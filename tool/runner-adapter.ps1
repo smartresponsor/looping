@@ -458,8 +458,20 @@ if ($TransportResultPath) {
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
         if ($TransportResult.ok -eq $true) {
-            $ChatId = if ($TransportPayload.chat_id) { [string]$TransportPayload.chat_id } elseif ($TransportPayload.chatId) { [string]$TransportPayload.chatId } elseif ($TransportPayload.cmcp_go_trace -and $TransportPayload.cmcp_go_trace.opened_chat_id) { [string]$TransportPayload.cmcp_go_trace.opened_chat_id } elseif ($TransportResult.chat_id) { [string]$TransportResult.chat_id } elseif ($TransportResult.chatId) { [string]$TransportResult.chatId } else { $null }
-            $TargetId = if ($TransportPayload.target_id) { [string]$TransportPayload.target_id } elseif ($TransportPayload.targetId) { [string]$TransportPayload.targetId } elseif ($TransportPayload.cmcp_go_trace -and $TransportPayload.cmcp_go_trace.opened_target_id) { [string]$TransportPayload.cmcp_go_trace.opened_target_id } elseif ($TransportResult.target_id) { [string]$TransportResult.target_id } elseif ($TransportResult.targetId) { [string]$TransportResult.targetId } else { $null }
+            $Trace = Get-OptionalProperty -InputObject $TransportPayload -Name 'cmcp_go_trace'
+            $PayloadChatId = Get-OptionalProperty -InputObject $TransportPayload -Name 'chat_id'
+            if (-not $PayloadChatId) { $PayloadChatId = Get-OptionalProperty -InputObject $TransportPayload -Name 'chatId' }
+            $TraceChatId = if ($Trace) { Get-OptionalProperty -InputObject $Trace -Name 'opened_chat_id' } else { $null }
+            $ResultChatId = Get-OptionalProperty -InputObject $TransportResult -Name 'chat_id'
+            if (-not $ResultChatId) { $ResultChatId = Get-OptionalProperty -InputObject $TransportResult -Name 'chatId' }
+            $ChatId = if ($PayloadChatId) { [string]$PayloadChatId } elseif ($TraceChatId) { [string]$TraceChatId } elseif ($ResultChatId) { [string]$ResultChatId } else { $null }
+
+            $PayloadTargetId = Get-OptionalProperty -InputObject $TransportPayload -Name 'target_id'
+            if (-not $PayloadTargetId) { $PayloadTargetId = Get-OptionalProperty -InputObject $TransportPayload -Name 'targetId' }
+            $TraceTargetId = if ($Trace) { Get-OptionalProperty -InputObject $Trace -Name 'opened_target_id' } else { $null }
+            $ResultTargetId = Get-OptionalProperty -InputObject $TransportResult -Name 'target_id'
+            if (-not $ResultTargetId) { $ResultTargetId = Get-OptionalProperty -InputObject $TransportResult -Name 'targetId' }
+            $TargetId = if ($PayloadTargetId) { [string]$PayloadTargetId } elseif ($TraceTargetId) { [string]$TraceTargetId } elseif ($ResultTargetId) { [string]$ResultTargetId } else { $null }
             if ($ChatId) {
                 $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_TITLE_PREFIX_CONTRACT_READY'; stage = 'chat_title_prefix'; tool = 'console.write.browser.session.title.prefix'; arguments = @{ workspacePath = $WorkspacePath; expectedChatId = $ChatId; expectedTargetId = $TargetId; chatTitleMode = 'auto'; waitForChatId = $true; confirmTitlePrefix = $true; timeoutMs = 30000 }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_chat_title_prefix' } -Force
                 $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_TITLE_PREFIX_PENDING'; action = 'dispatch_chat_title_prefix'; nextAction = 'dispatch_next_from_state' } -Force

@@ -79,9 +79,9 @@ function New-EngineDispatchContract {
             activate = $true
             confirmGo = $true
             allowOverwrite = $true
-            promptMode = 'enriched'
-            executorMode = 'engine'
-            manageLoop = $true
+            promptMode = $PromptMode
+            executorMode = 'browser'
+            manageLoop = $false
             initialReasoningModel = $InitialReasoningModel
             continuationReasoningModel = $ContinueReasoningModel
             initialReasoningEffort = $InitialReasoningEffort

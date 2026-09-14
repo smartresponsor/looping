@@ -4,7 +4,9 @@ import fs from "node:fs/promises";
 
 const allowedTools = new Set([
   "console.write.browser.session.cmcp.go",
+  "console.write.browser.chatgpt.chat.adopt_go",
   "console.write.browser.session.title.prefix",
+  "console.write.browser.chatgpt.chat.delete.execute",
   "console.read_.browser.chatgpt.composer.preflight",
   "console.read_.browser.chatgpt.watch.probe",
   "console.read_.browser.chatgpt.watch.next",
@@ -82,6 +84,7 @@ function resolveToolRequestTimeoutMs(toolName) {
   const engineTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_ENGINE_TIMEOUT_MS", 1800000);
   const longToolPrefixes = [
     "console.write.browser.session.cmcp.go",
+    "console.write.browser.chatgpt.chat.adopt_go",
     "console.write.engine.cycle.run",
     "console.write.engine.cycle.run_n",
     "console.write.engine.answer.capture",

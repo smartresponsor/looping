@@ -59,10 +59,10 @@ Assert-True ($TaskBankLoop -match 'lockedChatId') 'task-bank loop must lock one 
 Assert-True ($RepoSmoke -match '\[string\]\$AdoptChatId') 'repo smoke must expose AdoptChatId parameter'
 Assert-True ($TaskBankLoop -match '\[string\]\$AdoptChatId') 'task-bank loop must expose AdoptChatId parameter'
 Assert-True ($TaskBankLoop -match 'Normalize-ChatId') 'task-bank loop must normalize adopted ChatGPT chat ids'
-Assert-True ($AdoptRunner -match '\[string\]\$CurrentChatUrl') 'adoption entrypoint must require currentChatUrl from the calling layer'
+Assert-True ($AdoptRunner -match '\[string\]\$ExistingLocation') 'adoption entrypoint must require an explicit existing chat location from the calling layer'
 Assert-True ($AdoptRunner -notmatch 'console\.read_\.browser\.chatgpt\.tab\.bind') 'adoption entrypoint must not guess this chat from supervised browser inventory'
-Assert-True ($AdoptRunner -match '-AdoptChatId \$ChatId') 'adoption entrypoint must pass the URL-derived chat id into the TaskBank loop'
-Assert-True ($AdoptRunner -match '-Chain' -and $AdoptRunner -match '-EngineExecutor') 'adoption entrypoint must start the real TaskBank engine chain'
+Assert-True ($AdoptRunner -match 'preferredChatId = \$ChatId' -and $AdoptRunner -match 'locator = \$ExistingLocation') 'adoption entrypoint must pass the explicit chat id or locator to the adoption tool'
+Assert-True ($AdoptRunner -match 'console\.write\.browser\.chatgpt\.chat\.adopt_go') 'adoption entrypoint must dispatch the canonical adopt_go execution path'
 Assert-True ($CmcpShim -match "'adopt'") 'cmcp shim must expose adopt command'
 Assert-True ($TaskBankLoop -match '\$UseInitialPrompt = \(\$Task\.interactionCount -eq 0 -and -not \$AdoptedChatId\)') 'adopt mode must not dispatch the initial prompt/mixin first'
 Assert-True ($TaskBankLoop -match 'SINGLE_CHAT_REBIND_FAILED') 'task-bank loop must fail explicitly when single-chat rebind fails'
@@ -92,6 +92,7 @@ Assert-True ($Bridge -match 'http://127\.0\.0\.1:3334/mcp') 'node bridge fallbac
 
 $RequiredBridgeTools = @(
     'console.write.browser.session.cmcp.go',
+    'console.write.browser.chatgpt.chat.adopt_go',
     'console.read_.browser.chatgpt.composer.preflight',
     'console.read_.browser.chatgpt.watch.probe',
     'console.read_.browser.chatgpt.watch.next',
