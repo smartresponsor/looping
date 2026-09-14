@@ -21,9 +21,13 @@ final class ChatGptLoopOrchestrationReceiptNormalizer
             'phase_key' => $this->firstString($task['phase_key'] ?? null, $task['phase'] ?? null),
             'decision_status' => $this->firstString(
                 $task['decision_status'] ?? null,
-                is_array($task['decisionState'] ?? null) ? ($task['decisionState']['semanticStatus'] ?? null) : null,
                 $round['decision_status'] ?? null,
                 $snapshot['decision_status'] ?? null,
+            ),
+            'semantic_status' => $this->firstString(
+                is_array($task['decisionState'] ?? null) ? ($task['decisionState']['semanticStatus'] ?? null) : null,
+                $task['semanticStatus'] ?? null,
+                $snapshot['semantic_status'] ?? null,
             ),
             'cycle_checkpoint_stop_reason' => $this->firstString(
                 $task['cycle_checkpoint_stop_reason'] ?? null,

@@ -36,9 +36,18 @@ final class ChatGptLoopShadowParityEvaluator
             }
         }
 
+        $comparedFields = array_keys(array_filter($expected, static fn (mixed $value): bool => $value !== null));
+        $decisionEvidenceComplete = is_bool($authoritative['continue'] ?? null)
+            && is_bool($authoritative['terminal'] ?? null)
+            && ($this->stringPresent($authoritative['decisionStatus'] ?? $authoritative['decision_status'] ?? null)
+                || $this->stringPresent($authoritative['stopReason'] ?? $authoritative['stop_reason'] ?? null));
+        $status = $differences !== []
+            ? 'LIVE_SHADOW_PARITY_DIVERGENCE'
+            : ($decisionEvidenceComplete ? 'LIVE_SHADOW_PARITY_MATCH' : 'LIVE_SHADOW_PARITY_MATCH_PARTIAL');
+
         return [
             'ok' => $differences === [],
-            'status' => $differences === [] ? 'LIVE_SHADOW_PARITY_MATCH' : 'LIVE_SHADOW_PARITY_DIVERGENCE',
+            'status' => $status,
             'authoritative' => false,
             'source' => 'live_immutable_receipt_copy',
             'normalizedTask' => $task,
@@ -46,6 +55,8 @@ final class ChatGptLoopShadowParityEvaluator
             'shadowRecovery' => $recovery,
             'expected' => $expected,
             'actual' => $actual,
+            'comparedFields' => $comparedFields,
+            'decisionEvidenceComplete' => $decisionEvidenceComplete,
             'differences' => $differences,
         ];
     }
@@ -64,7 +75,7 @@ final class ChatGptLoopShadowParityEvaluator
             'retryAttempt' => $task['retry_attempt'],
             'progressFingerprint' => $task['cycle_progress_fingerprint'],
             'repeatCount' => $task['cycle_progress_repeat_count'],
-            'decisionStatus' => $task['decision_status'],
+            'decisionStatus' => $authoritative['decisionStatus'] ?? $authoritative['decision_status'] ?? null,
             'continue' => is_bool($authoritative['continue'] ?? null) ? $authoritative['continue'] : null,
             'terminal' => is_bool($authoritative['terminal'] ?? null) ? $authoritative['terminal'] : null,
             'stopReason' => $authoritative['stopReason'] ?? $authoritative['stop_reason'] ?? null,
@@ -94,5 +105,10 @@ final class ChatGptLoopShadowParityEvaluator
             'nextAction' => $shadow['decision']['nextAction'] ?? null,
             'recoveryClass' => $recovery['recoveryClass'] ?? null,
         ];
+    }
+
+    private function stringPresent(mixed $value): bool
+    {
+        return is_string($value) && trim($value) !== '';
     }
 }

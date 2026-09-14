@@ -31,9 +31,10 @@ $match = $evaluator->evaluate([
         'interactionCount' => 1,
         'maxInteractions' => 3,
         'attempt' => 0,
-        'decisionState' => ['semanticStatus' => 'continue'],
+        'decision_status' => 'continue',
+        'decisionState' => ['semanticStatus' => 'ANSWER_STABLE'],
     ],
-]);
+], ['continue' => true, 'terminal' => false, 'decisionStatus' => 'continue']);
 assert($match['status'] === 'LIVE_SHADOW_PARITY_MATCH');
 assert($match['normalizedTask']['task_id'] === 'loop-live-1');
 assert($match['actual']['iteration'] === 1);

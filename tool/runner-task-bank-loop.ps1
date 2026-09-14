@@ -848,9 +848,13 @@ while ($true) {
             nextDispatchContract = if ($DecisionNextAction -eq 'dispatch_next_ui_interaction') { New-CmcpDispatchContract -RawCommand $ContinuePrompt -ChatId $Task.chatId -EffectivePromptMode $ContinuePromptMode } else { $null }
         }
         $Task.status = if ($DecisionNextAction -eq 'stop_loop') { if ($LastSemanticStatus -eq 'REFUSAL') { 'semantic_refused' } else { 'terminal_success' } } else { 'ready_next_interaction' }
+        $LegacyDecisionStatus = if ($DecisionNextAction -eq 'dispatch_next_ui_interaction') { 'continue' } elseif ($LastSemanticStatus -eq 'REFUSAL') { 'refusal' } else { $null }
+        $LegacyStopReason = if ($Task.interactionCount -ge $Task.maxInteractions) { 'max_rounds' } elseif ($LastSemanticStatus -eq 'REFUSAL') { 'refusal' } else { $null }
         $LegacyDecisionReceipt = [ordered]@{
             continue = ($DecisionNextAction -eq 'dispatch_next_ui_interaction')
             terminal = ($DecisionNextAction -eq 'stop_loop')
+            decisionStatus = $LegacyDecisionStatus
+            stopReason = $LegacyStopReason
         }
         $Parity = Write-LiveShadowParityArtifact -Task $Task -Answer ([pscustomobject]$Answer) -Authoritative $LegacyDecisionReceipt -TaskId $TaskId
         Write-Host ("progress " + ([ordered]@{ event = 'liveShadowParity'; status = $Parity.status; authoritative = $false; artifactPath = $Parity.path; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
@@ -878,6 +882,29 @@ $SemanticFailed = $LastSemanticStatus -eq 'REFUSAL'
 $Acceptance = Write-AcceptanceArtifact -Task $Task -Chat $Chat -Answers $AnswerRecords -ObservedChatIds $ObservedChatIds -SubmittedCount $SubmittedCount -AssistantCapturedCount $AssistantCapturedCount -InternalStepCount $InternalStepCount -FinalStatus $FinalStatus
 $AcceptanceArtifact = $Acceptance.artifact
 $AcceptancePath = $Acceptance.path
+$ShadowAcceptanceInputPath = Join-Path $AcceptanceDir ($Task.taskId + '-shadow-input.json')
+$ShadowAcceptancePath = Join-Path $AcceptanceDir ($Task.taskId + '-' + (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ') + '.shadow-acceptance.json')
+$ShadowStopReason = if ($FinalStatus -eq 'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED') { 'max_rounds' } elseif ($LastSemanticStatus -eq 'REFUSAL') { 'refusal' } else { $null }
+$ShadowAcceptanceInput = [ordered]@{
+    interactionCount = [int]$Task.interactionCount
+    maxInteractions = $MaxIterations
+    submittedCount = [int]$SubmittedCount
+    assistantCapturedCount = [int]$AssistantCapturedCount
+    stopReason = $ShadowStopReason
+    completionVerified = $false
+    repositoryVerified = $false
+}
+Write-JsonFile -Value ([pscustomobject]$ShadowAcceptanceInput) -Path $ShadowAcceptanceInputPath
+try {
+    $ShadowAcceptanceRaw = & php (Join-Path $Root 'tool/shadow-acceptance-capture.php') "--input=$ShadowAcceptanceInputPath" "--output=$ShadowAcceptancePath" 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "shadow acceptance capture exit code $LASTEXITCODE`: $ShadowAcceptanceRaw" }
+    $ShadowAcceptanceResult = $ShadowAcceptanceRaw | ConvertFrom-Json
+    $ShadowAcceptanceArtifact = Read-JsonFile -Path $ShadowAcceptancePath
+} catch {
+    $ShadowAcceptanceResult = [pscustomobject]@{ ok = $false; status = 'SHADOW_ACCEPTANCE_CAPTURE_FAILED_NON_AUTHORITATIVE'; taskComplete = $false }
+    $ShadowAcceptanceArtifact = [pscustomobject]@{ taskAcceptance = [pscustomobject]@{ complete = $false }; status = 'SHADOW_ACCEPTANCE_CAPTURE_FAILED_NON_AUTHORITATIVE' }
+    Append-Journal -TaskId $TaskId -Event 'shadowAcceptanceDiagnosticFailure' -Data ([ordered]@{ error = $_.Exception.Message; authoritative = $false })
+}
 $Ok = [bool]$AcceptanceArtifact.ok
 $OutputStatus = if ($Ok) { 'TASK_BANK_LOOP_COMPLETED' } else { 'TASK_BANK_LOOP_FAILED' }
 $OutputFinalStatus = if ($Ok) {
