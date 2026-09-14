@@ -29,6 +29,7 @@ $JournalDir = Join-Path $TaskBankRoot 'journal'
 $AnswerDir = Join-Path $TaskBankRoot 'answers'
 $BridgeDir = Join-Path $TaskBankRoot 'bridge'
 $AcceptanceDir = Join-Path $TaskBankRoot 'acceptance'
+$ParityDir = Join-Path $TaskBankRoot 'parity'
 $ChatBankRoot = Join-Path $Root 'var/runner/chat-bank'
 $ChatDir = Join-Path $ChatBankRoot 'chats'
 
@@ -444,11 +445,53 @@ function Write-AcceptanceArtifact {
     return [pscustomobject]@{ path = $Path; artifact = ([pscustomobject]$Artifact) }
 }
 
+function Write-LiveShadowParityArtifact {
+    param(
+        [Parameter(Mandatory=$true)]$Task,
+        [Parameter(Mandatory=$true)]$Answer,
+        [Parameter(Mandatory=$true)]$Authoritative,
+        [Parameter(Mandatory=$true)][string]$TaskId
+    )
+
+    Ensure-Dir $ParityDir
+    $Id = [guid]::NewGuid().ToString('N')
+    $InputPath = Join-Path $ParityDir ($TaskId + '-' + $Id + '.input.json')
+    $OutputPath = Join-Path $ParityDir ($TaskId + '-' + $Id + '.parity.json')
+    $CaptureScript = Join-Path $Root 'tool/live-shadow-parity-capture.php'
+    $Payload = [ordered]@{
+        snapshot = [ordered]@{
+            task = $Task
+            completion_verified = $false
+            assistant_text = $Answer.assistantText
+            captured_answer = [ordered]@{
+                assistantStatus = $Answer.assistantStatus
+                semanticStatus = $Answer.semanticStatus
+                latestAssistantHash = $Answer.latestAssistantHash
+                latestAssistantTextLength = $Answer.latestAssistantTextLength
+            }
+        }
+        authoritative = $Authoritative
+    }
+    Write-JsonFile -Value ([pscustomobject]$Payload) -Path $InputPath
+
+    try {
+        $Raw = & php $CaptureScript "--input=$InputPath" "--output=$OutputPath" 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "live shadow parity capture exit code $LASTEXITCODE`: $Raw" }
+        $Result = $Raw | ConvertFrom-Json
+        Append-Journal -TaskId $TaskId -Event 'liveShadowParity' -Data ([ordered]@{ status = $Result.artifactStatus; outputPath = $OutputPath; authoritative = $false })
+        return [pscustomobject]@{ ok = $true; status = [string]$Result.artifactStatus; path = $OutputPath }
+    } catch {
+        Append-Journal -TaskId $TaskId -Event 'liveShadowParityDiagnosticFailure' -Data ([ordered]@{ status = 'LIVE_SHADOW_PARITY_CAPTURE_FAILED_NON_AUTHORITATIVE'; error = $_.Exception.Message; authoritative = $false })
+        return [pscustomobject]@{ ok = $false; status = 'LIVE_SHADOW_PARITY_CAPTURE_FAILED_NON_AUTHORITATIVE'; path = $null }
+    }
+}
+
 Ensure-Dir $TaskDir
 Ensure-Dir $JournalDir
 Ensure-Dir $AnswerDir
 Ensure-Dir $BridgeDir
 Ensure-Dir $AcceptanceDir
+Ensure-Dir $ParityDir
 Ensure-Dir $ChatDir
 Ensure-Dir $RunnerStateDir
 
@@ -759,6 +802,12 @@ while ($true) {
             nextDispatchContract = if ($DecisionNextAction -eq 'dispatch_next_ui_interaction') { New-CmcpDispatchContract -RawCommand $ContinuePrompt -ChatId $Task.chatId -EffectivePromptMode $ContinuePromptMode } else { $null }
         }
         $Task.status = if ($DecisionNextAction -eq 'stop_loop') { if ($LastSemanticStatus -eq 'REFUSAL') { 'semantic_refused' } else { 'terminal_success' } } else { 'ready_next_interaction' }
+        $LegacyDecisionReceipt = [ordered]@{
+            continue = ($DecisionNextAction -eq 'dispatch_next_ui_interaction')
+            terminal = ($DecisionNextAction -eq 'stop_loop')
+        }
+        $Parity = Write-LiveShadowParityArtifact -Task $Task -Answer ([pscustomobject]$Answer) -Authoritative $LegacyDecisionReceipt -TaskId $TaskId
+        Write-Host ("progress " + ([ordered]@{ event = 'liveShadowParity'; status = $Parity.status; authoritative = $false; artifactPath = $Parity.path; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
         $Chat.status = $Task.status
         $Task.updatedAt = Get-IsoNow
         Write-JsonFile -Value $Task -Path $TaskPath

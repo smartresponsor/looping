@@ -20,6 +20,8 @@ During shadow migration:
 
 ChatGPT Loop owns task/chat lifecycle state, phase progression, iteration budgets, continuation/fix/done decisions, retry/recovery policy, action-marker interpretation, task reuse/adoption policy, checkpoints, cleanup policy, and terminal acceptance.
 
+The cleanup policy deliberately uses one strict machine signal only: the final assistant line must be exactly `{"ready_to_delete":true}` or `{"ready_to_delete":false}`. ChatGPT Loop parses that literal deterministically; it performs no semantic debt classification for cleanup eligibility. During shadow migration, a Console-projected boolean may be consumed only as a compatibility field when raw assistant text is unavailable.
+
 Console MCP keeps atomic browser, repository, Git, package, filesystem, process, and diagnostic capabilities.
 
 ## Gates
@@ -43,6 +45,10 @@ Move action-marker, continuation, retry, recovery, stall, human-decision, and co
 ### M4 — Live dual-run parity
 
 For selected non-destructive runs, Console remains authoritative while ChatGPT Loop computes and persists a shadow decision from the same receipts. No duplicate browser mutation is permitted.
+
+Current implementation: live task-bank answer captures now emit a non-authoritative parity artifact through `ChatGptLoopOrchestrationReceiptNormalizer` and `ChatGptLoopShadowParityEvaluator`. Capture failures are diagnostic-only and cannot change the production next action. The migration/de-orchestration checklist is tracked in `docs/orchestration-migration-ledger.md`.
+
+M4 is not complete yet. The current live artifact proves state-copy wiring, but authoritative stop/recovery/next-action receipts still need to be copied into the evaluator for true decision parity across representative live runs.
 
 ### M5 — Opt-in cutover
 

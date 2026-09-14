@@ -53,6 +53,31 @@
       "task": {"task_id": "done", "status": "completed", "decision_status": "done", "cycle_checkpoint_stop_reason": "completion_candidate"},
       "completion_verified": true,
       "expected": {"stopReason": "decision_done_verified:done", "recoveryClass": "none"}
+    },
+    {
+      "name": "ordinary_continue",
+      "origin": "deterministic_chatgpt_loop_shadow_semantics",
+      "task": {"task_id": "continue", "status": "executing", "decision_status": "continue", "auto_iteration_count": 1, "max_auto_iterations": 5},
+      "expected": {"stopReason": null, "recoveryClass": "none"}
+    },
+    {
+      "name": "unverified_completion_candidate",
+      "origin": "deterministic_chatgpt_loop_shadow_semantics",
+      "task": {"task_id": "done-unverified", "status": "executing", "decision_status": "done", "cycle_checkpoint_stop_reason": "completion_candidate"},
+      "completion_verified": false,
+      "expected": {"stopReason": "completion_verification_required", "recoveryClass": "none"}
+    },
+    {
+      "name": "semantic_stall",
+      "origin": "deterministic_chatgpt_loop_shadow_semantics",
+      "task": {"task_id": "stall", "status": "executing", "decision_status": "continue", "cycle_progress_repeat_count": 3, "auto_iteration_count": 2, "max_auto_iterations": 8},
+      "expected": {"stopReason": "stalled_no_semantic_progress", "recoveryClass": "none"}
+    },
+    {
+      "name": "budget_exhaustion_is_not_completion",
+      "origin": "deterministic_chatgpt_loop_shadow_semantics",
+      "task": {"task_id": "budget", "status": "executing", "decision_status": "continue", "auto_iteration_count": 5, "max_auto_iterations": 5},
+      "expected": {"stopReason": "max_rounds", "recoveryClass": "none"}
     }
   ]
 }

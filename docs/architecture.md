@@ -26,6 +26,7 @@ ChatGPT Loop owns:
 - transcript references
 - workflow state persistence
 - deterministic next_action production
+- deterministic parsing of the final `ready_to_delete` conversation-cleanup signal
 
 ## Non-owned concerns
 
@@ -35,6 +36,7 @@ ChatGPT Loop does not own:
 - process supervision
 - PID files
 - raw browser control
+- physical conversation deletion or browser-target closing (delegated to Console MCP atomic capabilities)
 - local MCP endpoint management
 - Cloudflare Ask internals
 - Codex bearer validation

@@ -51,3 +51,25 @@ ChatGPT Loop already owns task-bank/chat-bank state and runner retry/recovery lo
 ### Diagnostic side effect
 
 One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99` unexpectedly executed a single `chat_bind` stage even though `confirmRun=false`. No prompt was drafted or submitted. The old task changed from `blocked` to `executing` and received a blank ChatGPT root binding. No further mutating recovery was attempted; subsequent M3 corpus collection used read-only tools only.
+
+### Cleanup signal ownership
+
+- Added `ChatGptLoopCleanupSignalParser` as the lifecycle-owned parser for the single final-line `ready_to_delete` boolean.
+- Parsing is intentionally literal-only: only the exact canonical `true`/`false` JSON lines are accepted; malformed, fenced, extended, or prose-wrapped variants resolve to `null`.
+- Shadow state now projects `cleanup.readyToDelete` from raw assistant text when available, with the Console task boolean accepted only as a temporary compatibility source during migration.
+- No browser tab or conversation deletion is executed by ChatGPT Loop in shadow mode; physical cleanup remains an atomic Console MCP capability invoked by an outer runner after cutover/policy wiring.
+
+## 2026-09-14 — M4 live shadow parity wiring
+
+- Added `ChatGptLoopOrchestrationReceiptNormalizer` so Console-style snake_case receipts and ChatGPT Loop camelCase task-bank snapshots project into one explicit schema.
+- Added `ChatGptLoopShadowParityEvaluator` with broader lifecycle/checkpoint/decision/recovery comparison fields.
+- Added live parity artifact capture to `runner-task-bank-loop.ps1` after successful answer capture.
+- Live parity remains strictly non-authoritative: capture failure is journaled and does not change current runtime decisions, browser state, submit behavior, or Console task state.
+- Added `docs/orchestration-migration-ledger.md` with `COPIED`, `SHADOW-WIRED`, `LEGACY-DELEGATED`, and `CUTOVER-DEBT` tracking plus the required Console cleanup/restart gate.
+- Added M4 regression coverage to the normal Composer test suite and expanded replay coverage for continuation, unverified completion, semantic stall, and budget exhaustion.
+- Live parity now compares the copied projector against the already-selected legacy `continue`/`terminal` decision; parity remains post-decision and non-authoritative.
+- Added `ChatGptLoopShadowAcceptanceProjector`: transport-cycle success is modeled separately from verified task completion, and budget exhaustion is explicitly not completion.
+- Added `ChatGptLoopSemanticDecisionRouter` as a copied structured `DONE` / `ACTION_REQUESTED` / human-decision / blocked / refusal router; it is not live-authoritative yet.
+- Split the bridge inventory into `atomic` and `legacy_orchestration` capability classes without removing any currently allowed tool.
+- Expanded the boundary debt meter to include `cmcp.go`, `ADOPT GO`, and `watch.next`; current debt is 133 production references across 15 frozen legacy files with 0 new boundary violations.
+- Console MCP source/runtime remains unchanged in this pass.

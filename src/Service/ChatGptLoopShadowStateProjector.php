@@ -6,7 +6,10 @@ namespace App\Service;
 
 final class ChatGptLoopShadowStateProjector
 {
-    public function __construct(private readonly ChatGptLoopShadowDecisionProjector $decisionProjector)
+    public function __construct(
+        private readonly ChatGptLoopShadowDecisionProjector $decisionProjector,
+        private readonly ?ChatGptLoopCleanupSignalParser $cleanupSignalParser = null,
+    )
     {
     }
 
@@ -24,6 +27,10 @@ final class ChatGptLoopShadowStateProjector
         ]);
         $iteration = max(0, (int) ($task['auto_iteration_count'] ?? 0));
         $maxIterations = max(1, (int) ($task['max_auto_iterations'] ?? 5));
+        $assistantText = is_string($snapshot['assistant_text'] ?? null) ? $snapshot['assistant_text'] : null;
+        $readyToDelete = $assistantText !== null
+            ? ($this->cleanupSignalParser ?? new ChatGptLoopCleanupSignalParser())->parse($assistantText)
+            : (is_bool($task['ready_to_delete'] ?? null) ? $task['ready_to_delete'] : null);
 
         return [
             'ok' => true,
@@ -52,6 +59,10 @@ final class ChatGptLoopShadowStateProjector
                 'baselineAssistantHash' => $this->stringOrNull($task['baseline_assistant_hash'] ?? null),
                 'lastAssistantHash' => $this->stringOrNull($task['last_assistant_hash'] ?? null),
             ],
+            'cleanup' => [
+                'readyToDelete' => $readyToDelete,
+                'source' => $assistantText !== null ? 'assistant_final_line' : (is_bool($task['ready_to_delete'] ?? null) ? 'console_compatibility_field' : null),
+            ],
             'decision' => $decision,
             'nextAction' => $decision['nextAction'],
         ];
@@ -66,6 +77,7 @@ final class ChatGptLoopShadowStateProjector
             'iteration' => max(0, (int) ($authoritative['auto_iteration_count'] ?? 0)),
             'maxIterations' => max(1, (int) ($authoritative['max_auto_iterations'] ?? 5)),
             'decisionStatus' => $this->stringOrNull($authoritative['decision_status'] ?? null),
+            'readyToDelete' => is_bool($authoritative['ready_to_delete'] ?? null) ? $authoritative['ready_to_delete'] : null,
         ];
         $actual = [
             'taskId' => $shadow['identity']['taskId'] ?? null,
@@ -74,6 +86,7 @@ final class ChatGptLoopShadowStateProjector
             'iteration' => $shadow['lifecycle']['iteration'] ?? null,
             'maxIterations' => $shadow['lifecycle']['maxIterations'] ?? null,
             'decisionStatus' => $shadow['decision']['marker'] ?? null,
+            'readyToDelete' => $shadow['cleanup']['readyToDelete'] ?? null,
         ];
         $differences = [];
         foreach ($expected as $key => $value) {

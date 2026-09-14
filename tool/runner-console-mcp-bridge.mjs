@@ -2,24 +2,27 @@ import { Client } from "../../console-mcp/node_modules/@modelcontextprotocol/sdk
 import { StreamableHTTPClientTransport } from "../../console-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js";
 import fs from "node:fs/promises";
 
-const allowedTools = new Set([
-  "console.write.browser.session.cmcp.go",
-  "console.write.browser.chatgpt.chat.adopt_go",
+const atomicTools = new Set([
   "console.write.browser.session.title.prefix",
   "console.write.browser.chatgpt.chat.delete.execute",
   "console.read_.browser.chatgpt.composer.preflight",
   "console.read_.browser.chatgpt.watch.probe",
+  "console.read_.browser.chatgpt.answer.settle",
+  "console.read_.browser.chatgpt.message.capture",
+  "console.read_.repo.context.capture",
+  "console.read_.repo.workspace.status",
+  "console.read_.repo.memory.graph.plan",
+]);
+
+const legacyOrchestrationTools = new Set([
+  "console.write.browser.session.cmcp.go",
+  "console.write.browser.chatgpt.chat.adopt_go",
   "console.read_.browser.chatgpt.watch.next",
   "console.read_.browser.chatgpt.run.loop.plan",
   "console.read_.browser.chatgpt.run.loop.step",
   "console.read_.browser.chatgpt.run.loop.step.summary",
   "console.read_.browser.chatgpt.run.loop.auto.summary",
-  "console.read_.browser.chatgpt.answer.settle",
-  "console.read_.browser.chatgpt.message.capture",
   "console.write.browser.session.run.loop.daemon.start",
-  "console.read_.repo.context.capture",
-  "console.read_.repo.workspace.status",
-  "console.read_.repo.memory.graph.plan",
   "console.write.engine.cycle.step",
   "console.write.engine.cycle.run",
   "console.write.engine.task.enqueue",
@@ -30,6 +33,12 @@ const allowedTools = new Set([
   "console.write.engine.reply.draft",
   "console.write.engine.reply.submit",
 ]);
+
+const allowedTools = new Set([...atomicTools, ...legacyOrchestrationTools]);
+
+function capabilityClass(toolName) {
+  return atomicTools.has(toolName) ? "atomic" : (legacyOrchestrationTools.has(toolName) ? "legacy_orchestration" : "unknown");
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -131,6 +140,7 @@ async function main() {
       bridge: {
         ok,
         status: "CONSOLE_MCP_BRIDGE_TOOL_EXECUTED",
+        capabilityClass: capabilityClass(toolCall.name),
         endpoint: endpoint.toString(),
         requestTimeoutMs,
       },
