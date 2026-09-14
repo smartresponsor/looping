@@ -16,7 +16,7 @@ final class ChatGptLoopShadowStateProjector
         $round = is_array($snapshot['round'] ?? null) ? $snapshot['round'] : [];
         $decision = $this->decisionProjector->project([
             'decision_status' => $task['decision_status'] ?? $round['decision_status'] ?? null,
-            'round_stop_reason' => $round['round_stop_reason'] ?? 'complete',
+            'round_stop_reason' => $round['round_stop_reason'] ?? $task['cycle_checkpoint_stop_reason'] ?? 'complete',
             'repeated_progress_fingerprint_count' => $round['repeated_progress_fingerprint_count'] ?? $task['cycle_progress_repeat_count'] ?? 0,
             'auto_iteration_count' => $task['auto_iteration_count'] ?? 0,
             'max_auto_iterations' => $task['max_auto_iterations'] ?? 5,

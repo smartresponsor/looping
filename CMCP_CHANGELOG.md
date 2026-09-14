@@ -39,3 +39,4 @@ ChatGPT Loop already owns task-bank/chat-bank state and runner retry/recovery lo
 - Persist parity artifacts separately from authoritative runner state.
 - Compare externally meaningful lifecycle fields only; never replay browser mutations.
 - Keep the shadow projector free of Console tool names so the boundary ratchet cannot be bypassed by copying orchestration APIs into new production files.
+- Validate against a real blocked Console task snapshot; preserve `cycle_checkpoint_stop_reason` when no round envelope is present.

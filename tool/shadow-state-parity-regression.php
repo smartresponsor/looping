@@ -52,4 +52,16 @@ $terminal = $projector->project([
 assert($terminal['decision']['stopReason'] === 'decision_done_verified:done');
 assert($terminal['decision']['terminal'] === true);
 
+$blocked = $projector->project([
+    'task' => array_merge($task, [
+        'decision_status' => null,
+        'status' => 'blocked',
+        'cycle_checkpoint_stop_reason' => 'blocked',
+        'cycle_checkpoint_round_index' => 0,
+    ]),
+]);
+assert($blocked['lifecycle']['taskStatus'] === 'blocked');
+assert($blocked['decision']['stopReason'] === 'blocked');
+assert($blocked['decision']['terminal'] === true);
+
 fwrite(STDOUT, "OK: shadow state parity regression passed.\n");
