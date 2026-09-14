@@ -40,3 +40,14 @@ ChatGPT Loop already owns task-bank/chat-bank state and runner retry/recovery lo
 - Compare externally meaningful lifecycle fields only; never replay browser mutations.
 - Keep the shadow projector free of Console tool names so the boundary ratchet cannot be bypassed by copying orchestration APIs into new production files.
 - Validate against a real blocked Console task snapshot; preserve `cycle_checkpoint_stop_reason` when no round envelope is present.
+
+### M3 shadow recovery and replay
+
+- Added `ChatGptLoopShadowRecoveryProjector` for blocked, runtime-wait, human-decision, rate-limit, orphaned-answer, and bound-task recovery classification.
+- Added `fixtures/orchestration-replay-corpus.json` with two sanitized live blocked receipts plus deterministic rate-limit, orphaned-answer, human-decision, and verified-completion cases.
+- Added replay regression to normal Composer verification.
+- All M3 projections remain `authoritative=false` and execute no Console/browser mutation.
+
+### Diagnostic side effect
+
+One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99` unexpectedly executed a single `chat_bind` stage even though `confirmRun=false`. No prompt was drafted or submitted. The old task changed from `blocked` to `executing` and received a blank ChatGPT root binding. No further mutating recovery was attempted; subsequent M3 corpus collection used read-only tools only.

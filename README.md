@@ -55,3 +55,6 @@ composer run chatgpt-loop:adopt-plan
 ```
 
 The execution surface validates component identity, URL-shaped references, and iteration budget before delegating to `tool/runner-adopt-current-chat.ps1`. Console MCP resolves registry, title, and body matches, rejects ambiguity, blocks an already active task for the same chat/component/workspace, and permits a new bounded task after the previous task becomes terminal.
+M3 recovery/terminal semantics are replayed only in shadow mode from sanitized receipts; they do not execute browser or Console mutations.
+
+The replay corpus lives in `fixtures/orchestration-replay-corpus.json` and is executed by `tool/orchestration-replay-regression.php`.

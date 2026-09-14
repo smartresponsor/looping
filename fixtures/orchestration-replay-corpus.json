@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "real_blocked_chat_bind_retryable",
+      "origin": "sanitized_live_console_receipt_2026-09-13",
+      "task": {
+        "task_id": "engine-live-blocked-1",
+        "status": "blocked",
+        "auto_iteration_count": 0,
+        "max_auto_iterations": 5,
+        "cycle_checkpoint_stop_reason": "blocked",
+        "execution_blocked_stage": "chat_bind",
+        "execution_blocked_reason": "ENGINE_CHAT_INITIAL_READINESS_BLOCKED",
+        "execution_blocked_receipt": {"retryable": true, "readiness_retryable": true, "readiness_status": "COMPOSER_READINESS_TIMEOUT", "readiness_classification_reason": "about_blank"}
+      },
+      "expected": {"stopReason": "blocked", "recoveryClass": "rebind_chat"}
+    },
+    {
+      "name": "real_blocked_chat_surface_nonretryable",
+      "origin": "sanitized_live_console_receipt_2026-09-14",
+      "task": {
+        "task_id": "engine-live-blocked-2",
+        "status": "blocked",
+        "cycle_checkpoint_stop_reason": "blocked",
+        "execution_blocked_stage": "chat_bind",
+        "execution_blocked_reason": "ENGINE_CHAT_POST_RESET_EXPERIENCE_BLOCKED",
+        "execution_blocked_receipt": {"retryable": false, "experience_status": "CHATGPT_EXPERIENCE_CHAT_NOT_CONFIRMED"}
+      },
+      "expected": {"stopReason": "blocked", "recoveryClass": "inspect_chat_surface"}
+    },
+    {
+      "name": "rate_limit_cooldown",
+      "origin": "deterministic_console_semantics",
+      "task": {"task_id": "rate-limit", "status": "waiting_runtime", "rate_limit_cooldown_until": "2099-01-01T00:00:00Z", "execution_blocked_receipt": {"rate_limit_detected": true}},
+      "expected": {"recoveryClass": "wait_rate_limit_cooldown"}
+    },
+    {
+      "name": "orphaned_answer",
+      "origin": "deterministic_console_semantics",
+      "task": {"task_id": "orphan", "status": "blocked", "execution_blocked_stage": "answer_capture", "execution_blocked_reason": "ENGINE_CYCLE_ANSWER_ORPHANED", "execution_blocked_receipt": {"inner_status": "ENGINE_CYCLE_ANSWER_ORPHANED"}},
+      "expected": {"recoveryClass": "resubmit_orphaned_answer"}
+    },
+    {
+      "name": "human_decision",
+      "origin": "deterministic_console_semantics",
+      "task": {"task_id": "human", "status": "waiting_user", "decision_status": "human decision required", "cycle_checkpoint_stop_reason": "human_decision_required"},
+      "expected": {"stopReason": "human_decision_required", "recoveryClass": "human_decision"}
+    },
+    {
+      "name": "verified_completion",
+      "origin": "deterministic_console_semantics",
+      "task": {"task_id": "done", "status": "completed", "decision_status": "done", "cycle_checkpoint_stop_reason": "completion_candidate"},
+      "completion_verified": true,
+      "expected": {"stopReason": "decision_done_verified:done", "recoveryClass": "none"}
+    }
+  ]
+}
