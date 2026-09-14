@@ -20,6 +20,14 @@ It is not Server Core, Launcher, Cloudflare Ask, or raw browser automation.
 
 `console-mcp` and `cloudflare-ask` must not depend on ChatGPT Loop.
 
+## Orchestration migration safety
+
+Console MCP remains the authoritative runtime while orchestration is migrated into ChatGPT Loop in shadow mode. Existing `cmcp go` and `ADOPT GO` paths stay unchanged until parity, opt-in cutover, rollback, and strict boundary gates pass.
+
+The phased migration contract is documented in `docs/milestone-shadow-orchestration-migration.md`. Run `composer run orchestration:boundary` to enforce the current boundary ratchet. `composer run orchestration:boundary:strict` is the eventual cutover gate and is expected to fail while legacy Console orchestration dependencies remain.
+
+M2 shadow-state parity is intentionally read-only: captured Console receipts are projected into independent ChatGPT Loop state and parity artifacts without browser mutation, prompt submission, or writes to authoritative Console runtime state.
+
 ## First RC behavior
 
 The first slice is intentionally closed and deterministic:

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "divergencePoint": "f45d5ac",
+  "consoleMcpBehavioralBaseline": "ffae5d7",
+  "mode": "shadow_migration",
+  "forbiddenOwnershipPrefixes": [
+    "console.write.engine.",
+    "console.read_.browser.chatgpt.run.loop.",
+    "console.write.browser.session.run.loop.daemon."
+  ],
+  "legacyReferenceFiles": [
+    "docs/console-mcp-delegation.md",
+    "docs/milestone-action-marker-decision-loop.md",
+    "src/Service/ChatGptLoopChatResponseDispatchContract.php",
+    "src/Service/ChatGptLoopDispatchEnvelopeBuilder.php",
+    "src/Service/ChatGptLoopRunnerDispatcherContract.php",
+    "src/Service/ChatGptLoopRunnerExecutionPlan.php",
+    "tool/runner-adapter.ps1",
+    "tool/runner-console-mcp-bridge.mjs",
+    "tool/runner-dispatcher.ps1",
+    "tool/runner-host-bridge.ps1",
+    "tool/runner-repo-smoke-check.ps1",
+    "tool/runner-repo-smoke.ps1",
+    "tool/runner-runtime-smoke.ps1",
+    "tool/runner-smoke.ps1",
+    "tool/runner-task-bank-loop.ps1"
+  ]
+}
