@@ -88,3 +88,4 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 - Added resolved-failure suppression coverage so historical/fixed failures do not force a false fail route in shadow classification.
 - Switched only `live-shadow-parity-capture.php` to this router; the Console gateway remains authoritative and no production next action is selected by the copied router.
 - Added regression coverage and kept the boundary stable at 133 legacy production references with 0 new violations.
+- Added `ChatGptLoopReplyBackPolicy` as a non-authoritative copy of Console read-only and Git-operation guards; current live reply drafting/submission remains delegated to Console.
