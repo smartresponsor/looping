@@ -13,6 +13,7 @@
   "m6DefaultCutoverEnabled": false,
   "consoleCleanupAllowed": false,
   "consoleRestartAfterCleanupRequired": true,
+  "consoleRestartPendingCapabilities": ["git_diff_check"],
   "currentLegacyProductionReferenceCount": 133,
   "currentLegacyProductionFileCount": 15,
   "copiedCapabilities": [

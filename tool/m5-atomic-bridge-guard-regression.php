@@ -20,6 +20,9 @@ $defaultAtomicBlock = substr($source, $atomicStart, $atomicEnd - $atomicStart);
 assert(!str_contains($defaultAtomicBlock, 'console.write.browser.session.open'));
 assert(!str_contains($defaultAtomicBlock, 'console.write.browser.session.input.draft'));
 assert(!str_contains($defaultAtomicBlock, 'console.write.browser.session.submit'));
+assert(str_contains($defaultAtomicBlock, 'console.read_.repo.git.branch.status'));
+assert(str_contains($defaultAtomicBlock, 'console.read_.repo.implementation.run.capture'));
+assert(str_contains($defaultAtomicBlock, 'console.read_.repo.gate.check.run'));
 
 $legacyStart = strpos($source, 'const legacyOrchestrationTools = new Set([');
 $legacyEnd = strpos($source, 'const allowedTools =', $legacyStart === false ? 0 : $legacyStart);

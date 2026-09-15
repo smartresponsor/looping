@@ -22,7 +22,17 @@ assert($plan['contracts'][0]['tool'] === 'console.read_.repo.workspace.status');
 assert($plan['contracts'][1]['tool'] === 'console.read_.repo.git.branch.status');
 assert($plan['contracts'][2]['tool'] === 'console.read_.repo.implementation.run.capture');
 assert($plan['contracts'][2]['arguments']['checkNames'][0] === 'composer_validate');
-assert(in_array('atomic_git_diff_check_missing', $plan['blockers'], true));
+assert($plan['contracts'][3]['tool'] === 'console.read_.repo.gate.check.run');
+assert($plan['contracts'][3]['arguments']['checkName'] === 'git_diff_check');
+assert(in_array('git_diff_check_runtime_restart_pending', $plan['blockers'], true));
 assert(in_array('behavioral_visual_evidence_executor_not_copied', $plan['blockers'], true));
+
+$ready = $planner->plan([
+    'workspace_path' => 'D:\\Repo',
+    'initial_head' => str_repeat('a', 40),
+], [], false, ['gitDiffCheckRuntimeActive' => true, 'behavioralEvidenceExecutorReady' => false]);
+assert($ready['status'] === 'COMPLETION_VERIFICATION_PLAN_READY');
+assert($ready['readyForM5Execution'] === true);
+assert($ready['blockers'] === []);
 
 fwrite(STDOUT, "OK: completion verification planner regression passed.\n");
