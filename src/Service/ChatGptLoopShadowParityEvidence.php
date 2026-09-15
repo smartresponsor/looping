@@ -13,18 +13,23 @@ final class ChatGptLoopShadowParityEvidence
         $counts = ['match' => 0, 'partial' => 0, 'divergence' => 0, 'unknown' => 0];
         $divergences = [];
         $coverage = [];
+        $completeCoverage = [];
 
         foreach ($artifacts as $artifact) {
             if (!is_array($artifact)) {
                 $counts['unknown']++;
                 continue;
             }
-            foreach ($this->classifyCoverage($artifact) as $class) {
+            $classes = $this->classifyCoverage($artifact);
+            foreach ($classes as $class) {
                 $coverage[$class] = true;
             }
             $status = (string) ($artifact['status'] ?? '');
             if ($status === 'LIVE_SHADOW_PARITY_MATCH') {
                 $counts['match']++;
+                foreach ($classes as $class) {
+                    $completeCoverage[$class] = true;
+                }
                 continue;
             }
             if ($status === 'LIVE_SHADOW_PARITY_MATCH_PARTIAL') {
@@ -35,6 +40,9 @@ final class ChatGptLoopShadowParityEvidence
                 $differences = is_array($artifact['differences'] ?? null) ? $artifact['differences'] : [];
                 if ($this->isRepresentationOnlyDecisionStatusDifference($differences)) {
                     $counts['match']++;
+                    foreach ($classes as $class) {
+                        $completeCoverage[$class] = true;
+                    }
                     continue;
                 }
                 $counts['divergence']++;
@@ -53,8 +61,11 @@ final class ChatGptLoopShadowParityEvidence
         $zeroDivergence = $counts['divergence'] === 0;
         $observedCoverage = array_keys($coverage);
         sort($observedCoverage, SORT_STRING);
+        $completeCoverageClasses = array_keys($completeCoverage);
+        sort($completeCoverageClasses, SORT_STRING);
         $missingCoverage = array_values(array_diff(self::REQUIRED_COVERAGE, $observedCoverage));
-        $ready = $total > 0 && $complete > 0 && $zeroDivergence && $missingCoverage === [];
+        $missingCompleteCoverage = array_values(array_diff(self::REQUIRED_COVERAGE, $completeCoverageClasses));
+        $ready = $total > 0 && $complete > 0 && $zeroDivergence && $missingCompleteCoverage === [];
 
         return [
             'ok' => $zeroDivergence,
@@ -70,7 +81,9 @@ final class ChatGptLoopShadowParityEvidence
             'm4EvidenceReady' => $ready,
             'requiredCoverage' => self::REQUIRED_COVERAGE,
             'observedCoverage' => $observedCoverage,
+            'completeCoverage' => $completeCoverageClasses,
             'missingCoverage' => $missingCoverage,
+            'missingCompleteCoverage' => $missingCompleteCoverage,
             'divergences' => $divergences,
         ];
     }
