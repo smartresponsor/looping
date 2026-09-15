@@ -81,3 +81,10 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 - Added live shadow recovery artifacts for current submit failures, stale capture/binding, answer-watch exhaustion, and rejected/empty answer capture. These artifacts cannot retry, rebind, submit, or alter task state.
 - Added `config/orchestration-cutover-manifest.json`; it explicitly keeps `consoleAuthority=true`, `chatGptLoopAuthority=false`, M5/M6 disabled, and `consoleCleanupAllowed=false`.
 - The migration ledger now distinguishes copied completion/transport contracts from remaining execution debt.
+
+## 2026-09-14 — M4 action-marker parity copy
+
+- Added `ChatGptLoopActionMarkerRouter` as a non-authoritative PHP port of the current Console signal classifier for fail/blocker/gate/dirty/commit/clean/green/next/question/human/done semantics.
+- Added resolved-failure suppression coverage so historical/fixed failures do not force a false fail route in shadow classification.
+- Switched only `live-shadow-parity-capture.php` to this router; the Console gateway remains authoritative and no production next action is selected by the copied router.
+- Added regression coverage and kept the boundary stable at 133 legacy production references with 0 new violations.
