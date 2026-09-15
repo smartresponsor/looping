@@ -6,7 +6,7 @@ namespace App\Service;
 
 final class ChatGptLoopCompletionVerificationPlanner
 {
-    public function plan(array $task, array $checkNames = [], bool $behavioralRequired = false): array
+    public function plan(array $task, array $checkNames = [], bool $behavioralRequired = false, array $capabilities = []): array
     {
         $workspacePath = $this->string($task['workspace_path'] ?? $task['workspacePath'] ?? null);
         $beforeHead = $this->string($task['initial_head'] ?? $task['beforeHead'] ?? null);
@@ -45,19 +45,30 @@ final class ChatGptLoopCompletionVerificationPlanner
                 ],
                 'mutation' => 'read',
             ],
+            [
+                'tool' => 'console.read_.repo.gate.check.run',
+                'arguments' => ['workspacePath' => $workspacePath, 'checkName' => 'git_diff_check'],
+                'mutation' => 'read',
+            ],
         ];
 
-        $blockers = ['atomic_git_diff_check_missing'];
-        if ($behavioralRequired) $blockers[] = 'behavioral_visual_evidence_executor_not_copied';
+        $blockers = [];
+        if (($capabilities['gitDiffCheckRuntimeActive'] ?? false) !== true) {
+            $blockers[] = 'git_diff_check_runtime_restart_pending';
+        }
+        if ($behavioralRequired && ($capabilities['behavioralEvidenceExecutorReady'] ?? false) !== true) {
+            $blockers[] = 'behavioral_visual_evidence_executor_not_copied';
+        }
+        $ready = $blockers === [];
 
         return [
             'ok' => true,
-            'status' => 'COMPLETION_VERIFICATION_PLAN_BLOCKED',
+            'status' => $ready ? 'COMPLETION_VERIFICATION_PLAN_READY' : 'COMPLETION_VERIFICATION_PLAN_BLOCKED',
             'authoritative' => false,
             'runtimeEffect' => 'none',
             'contracts' => $contracts,
             'blockers' => $blockers,
-            'readyForM5Execution' => false,
+            'readyForM5Execution' => $ready,
         ];
     }
 

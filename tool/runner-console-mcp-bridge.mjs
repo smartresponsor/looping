@@ -11,6 +11,9 @@ const atomicTools = new Set([
   "console.read_.browser.chatgpt.message.capture",
   "console.read_.repo.context.capture",
   "console.read_.repo.workspace.status",
+  "console.read_.repo.git.branch.status",
+  "console.read_.repo.implementation.run.capture",
+  "console.read_.repo.gate.check.run",
   "console.read_.repo.memory.graph.plan",
 ]);
 

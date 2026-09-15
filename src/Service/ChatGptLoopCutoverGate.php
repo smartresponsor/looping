@@ -8,9 +8,11 @@ final class ChatGptLoopCutoverGate
 {
     public function evaluate(array $manifest, array $m4, array $boundary, array $rollback, array $transport = [], array $completion = []): array
     {
+        $missingCompleteCoverage = $m4['missingCompleteCoverage'] ?? $m4['missingCoverage'] ?? ['unknown'];
         $m4Ready = ($m4['m4EvidenceReady'] ?? false) === true
             && ($m4['zeroUnexplainedDivergence'] ?? false) === true
-            && ($m4['missingCoverage'] ?? ['unknown']) === [];
+            && is_array($missingCompleteCoverage)
+            && $missingCompleteCoverage === [];
         $boundaryStable = ($boundary['baselineStable'] ?? false) === true
             && (int) ($boundary['newBoundaryViolationCount'] ?? 1) === 0;
         $bridgeBlockers = is_array($transport['bridgeBlockers'] ?? null) ? $transport['bridgeBlockers'] : ['unknown'];
@@ -33,6 +35,7 @@ final class ChatGptLoopCutoverGate
                 'consoleAuthorityStillOn' => ($manifest['consoleAuthority'] ?? null) === true,
                 'chatGptLoopAuthorityStillOff' => ($manifest['chatGptLoopAuthority'] ?? null) === false,
                 'm4EvidenceReady' => $m4Ready,
+                'm4MissingCompleteCoverage' => is_array($missingCompleteCoverage) ? $missingCompleteCoverage : ['unknown'],
                 'boundaryStable' => $boundaryStable,
                 'atomicTransportReady' => $atomicTransportReady,
                 'transportBridgeBlockers' => $bridgeBlockers,

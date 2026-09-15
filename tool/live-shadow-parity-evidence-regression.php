@@ -24,6 +24,17 @@ $ready = $evidence->summarize([
 assert($ready['status'] === 'M4_SHADOW_PARITY_EVIDENCE_READY');
 assert($ready['m4EvidenceReady'] === true);
 assert($ready['missingCoverage'] === []);
+assert($ready['missingCompleteCoverage'] === []);
+
+$partialRetry = $evidence->summarize([
+    ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['continue' => true]],
+    ['status' => 'LIVE_SHADOW_PARITY_MATCH_PARTIAL', 'coverageClass' => 'retry', 'normalizedTask' => ['status' => 'blocked'], 'actual' => ['recoveryClass' => 'rebind_chat']],
+]);
+assert(in_array('retry', $partialRetry['observedCoverage'], true));
+assert(!in_array('retry', $partialRetry['completeCoverage'], true));
+assert(!in_array('retry', $partialRetry['missingCoverage'], true));
+assert(in_array('retry', $partialRetry['missingCompleteCoverage'], true));
+assert($partialRetry['m4EvidenceReady'] === false);
 
 $historicalRepresentationOnly = $evidence->summarize([
     ['status' => 'LIVE_SHADOW_PARITY_DIVERGENCE', 'actual' => ['continue' => true], 'differences' => ['decisionStatus' => ['authoritative' => 'ANSWER_STABLE', 'shadow' => 'answer stable']]],

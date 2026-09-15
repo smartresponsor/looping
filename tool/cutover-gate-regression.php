@@ -17,6 +17,16 @@ $blocked = $gate->evaluate($manifest, [
 ], $boundary, []);
 assert($blocked['status'] === 'CUTOVER_NOT_ELIGIBLE');
 assert($blocked['m5OptInEligible'] === false);
+assert($blocked['checks']['m4MissingCompleteCoverage'] === ['retry']);
+
+$partialObservedButIncomplete = $gate->evaluate($manifest, [
+    'm4EvidenceReady' => false,
+    'zeroUnexplainedDivergence' => true,
+    'missingCoverage' => [],
+    'missingCompleteCoverage' => ['retry'],
+], $boundary, []);
+assert($partialObservedButIncomplete['status'] === 'CUTOVER_NOT_ELIGIBLE');
+assert($partialObservedButIncomplete['checks']['m4MissingCompleteCoverage'] === ['retry']);
 
 $currentTransportBlocked = $gate->evaluate($manifest, [
     'm4EvidenceReady' => true,
