@@ -68,6 +68,45 @@ final class ChatGptLoopBehavioralEvidencePlanner
             'runtimePolicy' => 'reuse_existing_first',
         ];
     }
+    public function collectionPlan(string $workspacePath, array $applicability): array
+    {
+        if (($applicability['required'] ?? false) !== true) {
+            return ['ok' => true, 'status' => 'SHADOW_BEHAVIORAL_COLLECTION_NOT_APPLICABLE', 'authoritative' => false, 'contracts' => []];
+        }
+
+        $platforms = is_array($applicability['expectedPlatforms'] ?? null) ? $applicability['expectedPlatforms'] : [];
+        $contracts = [
+            ['tool' => 'console.read_.runtime.visual_gallery.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'],
+        ];
+        if (in_array('web', $platforms, true)) {
+            $contracts[] = ['tool' => 'console.read_.runtime.php.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'];
+        }
+        if (in_array('android', $platforms, true) || in_array('ios', $platforms, true)) {
+            $contracts[] = ['tool' => 'console.read_.runtime.mobile_edge.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'];
+        }
+
+        return ['ok' => true, 'status' => 'SHADOW_BEHAVIORAL_COLLECTION_PLAN_READY', 'authoritative' => false, 'contracts' => $contracts];
+    }
+
+    public function visualManifestPlan(string $workspacePath, array $galleryStatus, ?array $todayManifest = null): array
+    {
+        $artifactRoot = is_string($galleryStatus['artifactRoot'] ?? null) ? rtrim($galleryStatus['artifactRoot'], '\\/') : null;
+        if ($artifactRoot === null) {
+            return ['ok' => false, 'status' => 'SHADOW_VISUAL_MANIFEST_ROOT_MISSING', 'authoritative' => false, 'contracts' => []];
+        }
+        $component = basename(str_replace('\\', '/', $workspacePath));
+        $root = dirname($artifactRoot);
+        $todayPath = 'var/' . $component . '/today/manifest.json';
+        $contracts = [
+            ['tool' => 'console.read_.repo.file.bundle.read', 'arguments' => ['workspacePath' => $root, 'paths' => [$todayPath]], 'mutation' => 'read'],
+        ];
+        $target = is_array($todayManifest) && is_string($todayManifest['target'] ?? null) ? trim($todayManifest['target']) : '';
+        if ($target !== '' && !str_contains($target, '..')) {
+            $contracts[] = ['tool' => 'console.read_.repo.file.bundle.read', 'arguments' => ['workspacePath' => $root, 'paths' => ['var/' . $component . '/today/' . trim($target, '\\/') . '/manifest.json']], 'mutation' => 'read'];
+        }
+        return ['ok' => true, 'status' => 'SHADOW_VISUAL_MANIFEST_PLAN_READY', 'authoritative' => false, 'contracts' => $contracts];
+    }
+
     private function matchesAny(string $value, array $patterns): bool
     {
         foreach ($patterns as $pattern) {

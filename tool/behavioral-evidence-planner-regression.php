@@ -36,4 +36,17 @@ $verified = $planner->evaluate(
 assert($verified['verified'] === true);
 assert($verified['blockers'] === []);
 
+$collection = $planner->collectionPlan('D:\\PhpstormProjects\\www\\Viewing', $web);
+assert($collection['status'] === 'SHADOW_BEHAVIORAL_COLLECTION_PLAN_READY');
+assert($collection['contracts'][0]['tool'] === 'console.read_.runtime.visual_gallery.server.status');
+assert($collection['contracts'][1]['tool'] === 'console.read_.runtime.php.server.status');
+
+$visualPlan = $planner->visualManifestPlan(
+    'D:\\PhpstormProjects\\www\\Viewing',
+    ['artifactRoot' => 'D:\\PhpstormProjects\\www\\var'],
+    ['target' => 'run-123'],
+);
+assert($visualPlan['contracts'][0]['arguments']['paths'][0] === 'var/Viewing/today/manifest.json');
+assert($visualPlan['contracts'][1]['arguments']['paths'][0] === 'var/Viewing/today/run-123/manifest.json');
+
 fwrite(STDOUT, "OK: behavioral evidence planner regression passed.\n");
