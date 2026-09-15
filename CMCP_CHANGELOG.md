@@ -100,3 +100,4 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 - Completed `ChatGptLoopShadowParityEvidence` as a fail-closed M4 evidence collector requiring scenario coverage for continue, blocked, retry, rate-limit, orphan, human-decision, stall, and completion before it can report READY.
 - Current live evidence is INCOMPLETE: 2 artifacts, 1 full match, 1 partial match, 0 unexplained divergences; only blocked + continue are covered.
 - A fresh read-only target run against clean Console MCP stopped in the unchanged legacy transport at `CMCP_GO_CHAT_EXPERIENCE_BLOCKED` before readiness parity could be exercised; Console MCP remained clean.
+- Added `ChatGptLoopCutoverGate` as a non-authoritative, fail-closed M5/M6 eligibility contract. M5 requires M4 READY + stable zero-new-violation boundary; M6 additionally requires accepted M5 evidence + tested rollback. It cannot switch authority or clean Console MCP.
