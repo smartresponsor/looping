@@ -25,6 +25,7 @@
     "semantic_action_routing",
     "fail_closed_acceptance",
     "completion_verification_contract",
+    "completion_verification_planner",
     "atomic_transport_plan",
     "m5_atomic_dispatch_planner"
   ],

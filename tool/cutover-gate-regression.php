@@ -27,11 +27,20 @@ assert($currentTransportBlocked['status'] === 'CUTOVER_NOT_ELIGIBLE');
 assert($currentTransportBlocked['checks']['atomicTransportReady'] === false);
 
 $readyTransport = ['legacyEntrypointRequired' => false, 'bridgeBlockers' => []];
+$completionBlocked = $gate->evaluate($manifest, [
+    'm4EvidenceReady' => true,
+    'zeroUnexplainedDivergence' => true,
+    'missingCoverage' => [],
+], $boundary, [], $readyTransport, ['readyForM5Execution' => false, 'blockers' => ['atomic_git_diff_check_missing']]);
+assert($completionBlocked['status'] === 'CUTOVER_NOT_ELIGIBLE');
+assert($completionBlocked['checks']['completionVerificationReady'] === false);
+
+$readyCompletion = ['readyForM5Execution' => true, 'blockers' => []];
 $m5 = $gate->evaluate($manifest, [
     'm4EvidenceReady' => true,
     'zeroUnexplainedDivergence' => true,
     'missingCoverage' => [],
-], $boundary, [], $readyTransport);
+], $boundary, [], $readyTransport, $readyCompletion);
 assert($m5['status'] === 'M5_OPT_IN_CUTOVER_ELIGIBLE');
 assert($m5['m5OptInEligible'] === true);
 assert($m5['m6DefaultCutoverEligible'] === false);
@@ -40,7 +49,7 @@ $m6 = $gate->evaluate($manifest, [
     'm4EvidenceReady' => true,
     'zeroUnexplainedDivergence' => true,
     'missingCoverage' => [],
-], $boundary, ['m5Accepted' => true, 'accepted' => true], $readyTransport);
+], $boundary, ['m5Accepted' => true, 'accepted' => true], $readyTransport, $readyCompletion);
 assert($m6['status'] === 'M6_DEFAULT_CUTOVER_ELIGIBLE');
 assert($m6['m6DefaultCutoverEligible'] === true);
 
