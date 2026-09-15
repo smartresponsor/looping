@@ -471,6 +471,11 @@ function Write-LiveShadowParityArtifact {
             }
         }
         authoritative = $Authoritative
+        provenance = [ordered]@{
+            origin = 'live_task_bank'
+            immutableReceipt = $true
+            sourceTaskId = $TaskId
+        }
     }
     Write-JsonFile -Value ([pscustomobject]$Payload) -Path $InputPath
 

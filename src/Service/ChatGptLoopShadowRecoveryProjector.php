@@ -15,7 +15,10 @@ final class ChatGptLoopShadowRecoveryProjector
         $reason = $this->stringOrNull($task['execution_blocked_reason'] ?? null);
         $retryable = ($receipt['retryable'] ?? false) === true || ($receipt['readiness_retryable'] ?? false) === true;
         $rateLimit = ($receipt['rate_limit_detected'] ?? false) === true || $this->stringOrNull($task['rate_limit_cooldown_until'] ?? null) !== null;
-        $orphaned = $reason === 'ENGINE_CYCLE_ANSWER_ORPHANED' || $this->stringOrNull($receipt['inner_status'] ?? null) === 'ENGINE_CYCLE_ANSWER_ORPHANED';
+        $orphanReason = strtolower(str_replace(['-', ' '], '_', (string) ($reason ?? '')));
+        $orphanInnerStatus = strtolower(str_replace(['-', ' '], '_', (string) ($this->stringOrNull($receipt['inner_status'] ?? null) ?? '')));
+        $orphaned = in_array($orphanReason, ['engine_cycle_answer_orphaned', 'answer_orphaned'], true)
+            || in_array($orphanInnerStatus, ['engine_cycle_answer_orphaned', 'answer_orphaned'], true);
         [$class, $nextAction] = $this->resolve($status, $stage, $reason, $retryable, $rateLimit, $orphaned, $task);
 
         return [
@@ -53,6 +56,9 @@ final class ChatGptLoopShadowRecoveryProjector
             }
             if ($stage === 'answer_capture' && $retryable) {
                 return ['retry_answer_capture', 'retry_stable_answer_capture'];
+            }
+            if ($retryable) {
+                return ['retryable_blocked', 'retry_blocked_stage_after_receipt_recheck'];
             }
             return ['inspect_blocked_stage', 'inspect_blocked_stage_before_any_retry'];
         }

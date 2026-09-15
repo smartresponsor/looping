@@ -110,3 +110,13 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 - Added Console MCP policy primitive `git_diff_check` in Console commit `055d51a`; current Console runtime intentionally has not been restarted, so the Loop planner records `git_diff_check_runtime_restart_pending` rather than treating the check as active.
 - Added read-only completion evidence tools (`repo.git.branch.status`, `repo.implementation.run.capture`, `repo.gate.check.run`) to the Loop bridge atomic read allowlist; no write surface was expanded.
 - Added `ChatGptLoopBehavioralEvidencePlanner` as a non-authoritative copy of Console behavioral applicability, reuse-existing-runtime-first, and fresh visual-artifact schema/producer/platform/freshness semantics. Evidence collection/execution is not switched yet.
+
+## 2026-09-14 — M4 immutable historical evidence
+
+- Added a read-only Console engine event-log indexer over `var/log/engine/event.jsonl`; 8,739 events parsed with zero parse errors and no source mutation.
+- Confirmed immutable historical scenarios for retry, rate-limit, orphaned answer, human decision, and semantic stall; verified completion (`decision_done_verified:*`) was not present and is deliberately not fabricated.
+- Added sanitized `fixtures/orchestration-historical-evidence.json` containing only task/event provenance and minimal projector inputs, with no assistant/user message text.
+- Added `import-historical-shadow-evidence.php`; the importer evaluates historical recovery/decision receipts through the copied projectors and writes non-authoritative parity artifacts. Current corpus: 7 artifacts, 0 divergences.
+- Hardened M4 evidence provenance: deterministic/replay fixtures may test semantics but cannot satisfy complete cutover coverage. Complete coverage requires immutable `live_task_bank` or `console_engine_history` provenance.
+- Current combined M4 evidence: 10 artifacts, 8 complete comparisons, 2 partial, 0 divergences. Complete coverage exists for continue, blocked, retry, rate-limit, orphan, human-decision, and stall; only verified completion remains missing.
+- M4 remains `M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE`; M5 is still blocked.

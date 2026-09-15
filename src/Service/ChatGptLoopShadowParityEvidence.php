@@ -14,6 +14,7 @@ final class ChatGptLoopShadowParityEvidence
         $divergences = [];
         $coverage = [];
         $completeCoverage = [];
+        $provenanceRejected = [];
 
         foreach ($artifacts as $artifact) {
             if (!is_array($artifact)) {
@@ -25,10 +26,15 @@ final class ChatGptLoopShadowParityEvidence
                 $coverage[$class] = true;
             }
             $status = (string) ($artifact['status'] ?? '');
+            $provenanceEligible = $this->hasEligibleProvenance($artifact);
             if ($status === 'LIVE_SHADOW_PARITY_MATCH') {
                 $counts['match']++;
-                foreach ($classes as $class) {
-                    $completeCoverage[$class] = true;
+                if ($provenanceEligible) {
+                    foreach ($classes as $class) {
+                        $completeCoverage[$class] = true;
+                    }
+                } elseif ($classes !== []) {
+                    $provenanceRejected[] = $this->provenanceRejection($artifact, $classes);
                 }
                 continue;
             }
@@ -40,8 +46,12 @@ final class ChatGptLoopShadowParityEvidence
                 $differences = is_array($artifact['differences'] ?? null) ? $artifact['differences'] : [];
                 if ($this->isRepresentationOnlyDecisionStatusDifference($differences)) {
                     $counts['match']++;
-                    foreach ($classes as $class) {
-                        $completeCoverage[$class] = true;
+                    if ($provenanceEligible) {
+                        foreach ($classes as $class) {
+                            $completeCoverage[$class] = true;
+                        }
+                    } elseif ($classes !== []) {
+                        $provenanceRejected[] = $this->provenanceRejection($artifact, $classes);
                     }
                     continue;
                 }
@@ -85,6 +95,40 @@ final class ChatGptLoopShadowParityEvidence
             'missingCoverage' => $missingCoverage,
             'missingCompleteCoverage' => $missingCompleteCoverage,
             'divergences' => $divergences,
+            'provenanceRejected' => $provenanceRejected,
+        ];
+    }
+
+    private function hasEligibleProvenance(array $artifact): bool
+    {
+        $provenance = is_array($artifact['provenance'] ?? null) ? $artifact['provenance'] : [];
+        if (($provenance['immutableReceipt'] ?? false) !== true) {
+            return false;
+        }
+        $origin = $provenance['origin'] ?? null;
+        $taskId = $provenance['sourceTaskId'] ?? null;
+        if (!is_string($taskId) || trim($taskId) === '') {
+            return false;
+        }
+        if ($origin === 'live_task_bank') {
+            return is_string($artifact['capturedAt'] ?? null) && trim($artifact['capturedAt']) !== '';
+        }
+        if ($origin === 'console_engine_history') {
+            return is_string($provenance['sourceEventId'] ?? null)
+                && trim($provenance['sourceEventId']) !== ''
+                && is_string($provenance['sourceEventTs'] ?? null)
+                && trim($provenance['sourceEventTs']) !== '';
+        }
+        return false;
+    }
+
+    private function provenanceRejection(array $artifact, array $classes): array
+    {
+        return [
+            'taskId' => $artifact['normalizedTask']['task_id'] ?? ($artifact['provenance']['sourceTaskId'] ?? null),
+            'classes' => $classes,
+            'origin' => $artifact['provenance']['origin'] ?? null,
+            'reason' => 'm4_complete_coverage_requires_immutable_live_or_console_history_provenance',
         ];
     }
 

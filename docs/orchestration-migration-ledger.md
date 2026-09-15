@@ -50,9 +50,11 @@ The count intentionally includes high-level `cmcp.go`, `ADOPT GO`, `watch.next`,
 
 ## Current M4 live evidence
 
-Latest evidence summary: `M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE` with 2 parity artifacts, 1 complete match, 1 partial match, and 0 unexplained divergences. Observed scenario coverage is currently `blocked` + `continue`; still missing `retry`, `rate_limit`, `orphan`, `human_decision`, `stall`, and `completion`.
+Latest evidence summary: `M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE` with 10 parity artifacts, 8 complete matches, 2 partial matches, and 0 unexplained divergences. Complete immutable coverage is now present for `continue`, `blocked`, `retry`, `rate_limit`, `orphan`, `human_decision`, and `stall`. The only missing required class is **verified completion**.
 
-A fresh read-only live run against a clean Console MCP target was blocked by the existing legacy transport before answer readiness at `CMCP_GO_CHAT_EXPERIENCE_BLOCKED`; the target repository remained clean. This does not count as browser-readiness parity evidence and must not advance M4.
+Historical evidence is imported from a sanitized corpus derived from immutable Console engine events. The corpus stores only task/event provenance and minimal projector inputs; no assistant/user message text. Deterministic fixtures without eligible provenance are rejected for complete M4 coverage.
+
+A fresh read-only live run against a clean Console MCP target was previously blocked by the unchanged legacy transport at `CMCP_GO_CHAT_EXPERIENCE_BLOCKED`; the target repository remained clean. It is retained as diagnostic history but does not substitute for verified-completion evidence.
 
 ## M5 bridge activation guard
 

@@ -7,12 +7,22 @@ use App\Service\ChatGptLoopShadowParityEvidence;
 require dirname(__DIR__) . '/src/Service/ChatGptLoopShadowParityEvidence.php';
 
 $evidence = new ChatGptLoopShadowParityEvidence();
+$historical = static function (array $artifact, string $suffix): array {
+    $artifact['provenance'] = [
+        'origin' => 'console_engine_history',
+        'immutableReceipt' => true,
+        'sourceTaskId' => 'engine-history-' . $suffix,
+        'sourceEventId' => 'event-history-' . $suffix,
+        'sourceEventTs' => '2026-09-14T20:00:00.000Z',
+    ];
+    return $artifact;
+};
 
 $empty = $evidence->summarize([]);
 assert($empty['status'] === 'M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE');
 assert($empty['m4EvidenceReady'] === false);
 
-$ready = $evidence->summarize([
+$fixtureOnly = $evidence->summarize([
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['continue' => true]],
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'normalizedTask' => ['status' => 'blocked'], 'actual' => ['recoveryClass' => 'rebind_chat']],
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['recoveryClass' => 'wait_rate_limit_cooldown']],
@@ -21,10 +31,24 @@ $ready = $evidence->summarize([
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'stalled_no_semantic_progress']],
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'decision_done_verified:done']],
 ]);
+assert($fixtureOnly['status'] === 'M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE');
+assert($fixtureOnly['m4EvidenceReady'] === false);
+assert(count($fixtureOnly['provenanceRejected']) === 7);
+
+$ready = $evidence->summarize([
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['continue' => true]], 'continue'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'normalizedTask' => ['status' => 'blocked'], 'actual' => ['recoveryClass' => 'rebind_chat']], 'blocked-retry'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['recoveryClass' => 'wait_rate_limit_cooldown']], 'rate-limit'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['recoveryClass' => 'resubmit_orphaned_answer']], 'orphan'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'human_decision_required']], 'human'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'stalled_no_semantic_progress']], 'stall'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'decision_done_verified:done']], 'completion'),
+]);
 assert($ready['status'] === 'M4_SHADOW_PARITY_EVIDENCE_READY');
 assert($ready['m4EvidenceReady'] === true);
 assert($ready['missingCoverage'] === []);
 assert($ready['missingCompleteCoverage'] === []);
+assert($ready['provenanceRejected'] === []);
 
 $partialRetry = $evidence->summarize([
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['continue' => true]],

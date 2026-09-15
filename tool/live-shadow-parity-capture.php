@@ -42,6 +42,7 @@ $artifact = $evaluator->evaluate(
     is_array($payload['authoritative'] ?? null) ? $payload['authoritative'] : [],
 );
 $artifact['semanticRoute'] = $semanticRoute;
+$artifact['provenance'] = is_array($payload['provenance'] ?? null) ? $payload['provenance'] : [];
 $artifact['schema'] = 'chatgpt-loop-live-shadow-parity-v1';
 $artifact['capturedAt'] = gmdate('c');
 file_put_contents($outputPath, json_encode($artifact, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
