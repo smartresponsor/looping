@@ -109,3 +109,4 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 - Tightened M5 eligibility again: complete M4 evidence and atomic transport are insufficient until factual completion execution is blocker-free.
 - Added Console MCP policy primitive `git_diff_check` in Console commit `055d51a`; current Console runtime intentionally has not been restarted, so the Loop planner records `git_diff_check_runtime_restart_pending` rather than treating the check as active.
 - Added read-only completion evidence tools (`repo.git.branch.status`, `repo.implementation.run.capture`, `repo.gate.check.run`) to the Loop bridge atomic read allowlist; no write surface was expanded.
+- Added `ChatGptLoopBehavioralEvidencePlanner` as a non-authoritative copy of Console behavioral applicability, reuse-existing-runtime-first, and fresh visual-artifact schema/producer/platform/freshness semantics. Evidence collection/execution is not switched yet.

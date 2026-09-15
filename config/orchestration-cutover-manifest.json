@@ -27,6 +27,7 @@
     "fail_closed_acceptance",
     "completion_verification_contract",
     "completion_verification_planner",
+    "behavioral_evidence_planner",
     "atomic_transport_plan",
     "m5_atomic_dispatch_planner"
   ],
