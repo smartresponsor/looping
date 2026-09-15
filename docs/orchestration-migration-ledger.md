@@ -19,7 +19,7 @@ Status vocabulary:
 | iteration budget | LEGACY-DELEGATED | task-bank has compatibility budget | mixed | make completion independent from budget exhaustion |
 | completion verification | COPIED/PARTIAL | `ChatGptLoopCompletionVerificationContract` mirrors factual/gate/runtime/evidence requirements | Console MCP | feed real completion receipts into shadow parity, then implement atomic verification execution before opt-in authority |
 | semantic progress/stall | COPIED | decision projector repeat-count logic | Console MCP | feed live progress fingerprints and compare decisions |
-| browser answer readiness | LEGACY-DELEGATED | none authoritative | Console MCP `watch/run-loop` interpretation | replace high-level run-loop interpretation with atomic observation receipts |
+| browser answer readiness | SHADOW-WIRED/PARTIAL | `ChatGptLoopBrowserObservationProjector` compares copied watch/step receipts against legacy readiness booleans | Console MCP `watch/run-loop` interpretation | accumulate zero-divergence live evidence, then replace `run.loop.step.summary` with atomic observation receipts behind opt-in M5 |
 | prompt/chat transport | COPIED/PARTIAL | task-bank scheduling + `ChatGptLoopAtomicTransportPlan` | Console MCP `cmcp.go` compatibility path | implement the atomic plan behind an opt-in flag, prove parity, then remove internal high-level entrypoint use |
 | action-marker router | SHADOW-WIRED/PARTIAL | `ChatGptLoopActionMarkerRouter` drives shadow parity; `ChatGptLoopReplyBackPolicy` mirrors read-only and Git-operation guards | Console MCP | broaden live parity corpus and compare generated reply-back envelopes before M5 |
 | acceptance | COPIED/PARTIAL | task-bank transport acceptance + `ChatGptLoopShadowAcceptanceProjector` | mixed | wire verified completion evidence; keep budget exhaustion non-terminal for task completion |
@@ -48,13 +48,19 @@ The expanded boundary meter currently records **133 legacy production references
 
 The count intentionally includes high-level `cmcp.go`, `ADOPT GO`, `watch.next`, run-loop, daemon, and engine surfaces. It is a debt inventory, not an instruction to remove them yet.
 
+## Current M4 live evidence
+
+Latest evidence summary: `M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE` with 2 parity artifacts, 1 complete match, 1 partial match, and 0 unexplained divergences. Observed scenario coverage is currently `blocked` + `continue`; still missing `retry`, `rate_limit`, `orphan`, `human_decision`, `stall`, and `completion`.
+
+A fresh read-only live run against a clean Console MCP target was blocked by the existing legacy transport before answer readiness at `CMCP_GO_CHAT_EXPERIENCE_BLOCKED`; the target repository remained clean. This does not count as browser-readiness parity evidence and must not advance M4.
+
 ## Console MCP cleanup gate
 
 Do **not** delete or weaken Console MCP orchestration while any row above is `LEGACY-DELEGATED`.
 
 Before destructive Console cleanup:
 
-1. M4 live shadow parity has zero unexplained divergences across representative success, blocked, retry, rate-limit, orphan, human-decision, stall, and completion runs.
+1. M4 live shadow parity has zero unexplained divergences across representative success, blocked, retry, rate-limit, orphan, human-decision, stall, and completion runs. `composer run orchestration:parity:evidence` is the read-only accumulated evidence gate; it must report `M4_SHADOW_PARITY_EVIDENCE_READY`, not merely zero current divergences.
 2. M5 opt-in ChatGPT Loop authority passes the same acceptance corpus while Console supplies only atomic capabilities.
 3. Rollback to the legacy Console path is tested after opt-in cutover.
 4. The strict boundary audit reports `ORCHESTRATION_SHADOW_MIGRATION_COMPLETE`.

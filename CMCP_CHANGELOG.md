@@ -88,4 +88,15 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 - Added resolved-failure suppression coverage so historical/fixed failures do not force a false fail route in shadow classification.
 - Switched only `live-shadow-parity-capture.php` to this router; the Console gateway remains authoritative and no production next action is selected by the copied router.
 - Added regression coverage and kept the boundary stable at 133 legacy production references with 0 new violations.
+
+## 2026-09-14 — M4 accumulated parity evidence gate
+
+- Added `ChatGptLoopShadowParityEvidence` and `tool/live-shadow-parity-summary.php` to summarize accumulated live parity artifacts without participating in runtime decisions.
+- Historical representation-only `decisionStatus` differences such as `ANSWER_STABLE` vs `answer stable` are canonicalized; semantic differences remain divergences.
+- M4 readiness now requires both zero unexplained divergences and representative coverage for continue, blocked, retry, rate-limit, orphan, human-decision, stall, and completion.
+- Current live evidence has one canonical match and zero unexplained divergences, but representative coverage is incomplete, so M5 remains blocked.
 - Added `ChatGptLoopReplyBackPolicy` as a non-authoritative copy of Console read-only and Git-operation guards; current live reply drafting/submission remains delegated to Console.
+- Added `ChatGptLoopBrowserObservationProjector` and live readiness parity artifacts that compare copied readiness interpretation against already-computed legacy `readyForCapture` / `quietEmptyBinding` booleans. The comparison cannot trigger settle, capture, rebind, or any browser mutation.
+- Completed `ChatGptLoopShadowParityEvidence` as a fail-closed M4 evidence collector requiring scenario coverage for continue, blocked, retry, rate-limit, orphan, human-decision, stall, and completion before it can report READY.
+- Current live evidence is INCOMPLETE: 2 artifacts, 1 full match, 1 partial match, 0 unexplained divergences; only blocked + continue are covered.
+- A fresh read-only target run against clean Console MCP stopped in the unchanged legacy transport at `CMCP_GO_CHAT_EXPERIENCE_BLOCKED` before readiness parity could be exercised; Console MCP remained clean.

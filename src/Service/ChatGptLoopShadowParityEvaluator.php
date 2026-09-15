@@ -75,7 +75,7 @@ final class ChatGptLoopShadowParityEvaluator
             'retryAttempt' => $task['retry_attempt'],
             'progressFingerprint' => $task['cycle_progress_fingerprint'],
             'repeatCount' => $task['cycle_progress_repeat_count'],
-            'decisionStatus' => $authoritative['decisionStatus'] ?? $authoritative['decision_status'] ?? null,
+            'decisionStatus' => $this->canonicalDecisionStatus($authoritative['decisionStatus'] ?? $authoritative['decision_status'] ?? null),
             'continue' => is_bool($authoritative['continue'] ?? null) ? $authoritative['continue'] : null,
             'terminal' => is_bool($authoritative['terminal'] ?? null) ? $authoritative['terminal'] : null,
             'stopReason' => $authoritative['stopReason'] ?? $authoritative['stop_reason'] ?? null,
@@ -105,6 +105,16 @@ final class ChatGptLoopShadowParityEvaluator
             'nextAction' => $shadow['decision']['nextAction'] ?? null,
             'recoveryClass' => $recovery['recoveryClass'] ?? null,
         ];
+    }
+
+    private function canonicalDecisionStatus(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', str_replace(['_', '.', '-'], ' ', strtolower(trim($value))));
+        return is_string($normalized) && $normalized !== '' ? $normalized : null;
     }
 
     private function stringPresent(mixed $value): bool

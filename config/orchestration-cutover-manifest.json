@@ -4,6 +4,8 @@
   "consoleAuthority": true,
   "chatGptLoopAuthority": false,
   "m4LiveParityWired": true,
+  "m4EvidenceSummaryCommand": "composer run orchestration:parity:evidence",
+  "m4RepresentativeCoverageRequired": ["continue", "blocked", "retry", "rate_limit", "orphan", "human_decision", "stall", "completion"],
   "m5OptInCutoverEnabled": false,
   "m6DefaultCutoverEnabled": false,
   "consoleCleanupAllowed": false,

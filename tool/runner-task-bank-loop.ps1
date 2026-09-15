@@ -486,6 +486,33 @@ function Write-LiveShadowParityArtifact {
     }
 }
 
+function Write-LiveShadowBrowserObservationArtifact {
+    param(
+        [Parameter(Mandatory=$true)][string]$TaskId,
+        [Parameter(Mandatory=$true)]$Probe,
+        [Parameter(Mandatory=$true)]$Step,
+        [Parameter(Mandatory=$true)]$Authoritative
+    )
+
+    Ensure-Dir $ParityDir
+    $Id = [guid]::NewGuid().ToString('N')
+    $InputPath = Join-Path $ParityDir ($TaskId + '-' + $Id + '.browser-observation.input.json')
+    $OutputPath = Join-Path $ParityDir ($TaskId + '-' + $Id + '.browser-observation.parity.json')
+    $CaptureScript = Join-Path $Root 'tool/browser-observation-shadow-capture.php'
+    Write-JsonFile -Value ([pscustomobject][ordered]@{ probe = $Probe; step = $Step; authoritative = $Authoritative }) -Path $InputPath
+
+    try {
+        $Raw = & php $CaptureScript "--input=$InputPath" "--output=$OutputPath" 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "browser observation shadow capture exit code $LASTEXITCODE`: $Raw" }
+        $Result = $Raw | ConvertFrom-Json
+        Append-Journal -TaskId $TaskId -Event 'liveShadowBrowserObservation' -Data ([ordered]@{ status = $Result.parityStatus; projectionStatus = $Result.status; state = $Result.state; outputPath = $OutputPath; authoritative = $false })
+        return [pscustomobject]@{ ok = $true; status = [string]$Result.parityStatus; state = [string]$Result.state; path = $OutputPath }
+    } catch {
+        Append-Journal -TaskId $TaskId -Event 'liveShadowBrowserObservationDiagnosticFailure' -Data ([ordered]@{ status = 'SHADOW_BROWSER_OBSERVATION_CAPTURE_FAILED_NON_AUTHORITATIVE'; error = $_.Exception.Message; authoritative = $false })
+        return [pscustomobject]@{ ok = $false; status = 'SHADOW_BROWSER_OBSERVATION_CAPTURE_FAILED_NON_AUTHORITATIVE'; state = 'unknown'; path = $null }
+    }
+}
+
 function Write-LiveShadowRecoveryArtifact {
     param(
         [Parameter(Mandatory=$true)]$Task,
@@ -728,9 +755,10 @@ while ($true) {
         $ToolsUsed += 'console.read_.browser.chatgpt.run.loop.step.summary'
         $InternalStepCount++
         Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'console.read_.browser.chatgpt.run.loop.step.summary'; status = $StepSummary.result.status; nextAction = $StepSummary.result.next_action; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
-
         $Ready = Test-CaptureReady -ProbeResult $Probe.result -StepResult $StepSummary.result
         $QuietEmptyBinding = Test-QuietEmptyCaptureBinding -ProbeResult $Probe.result -StepResult $StepSummary.result
+        $ShadowObservation = Write-LiveShadowBrowserObservationArtifact -TaskId $TaskId -Probe $Probe.result -Step $StepSummary.result -Authoritative ([ordered]@{ readyForCapture = [bool]$Ready; quietEmptyBinding = [bool]$QuietEmptyBinding })
+        Write-Host ("progress " + ([ordered]@{ event = 'liveShadowBrowserObservation'; status = $ShadowObservation.status; state = $ShadowObservation.state; authoritative = $false; artifactPath = $ShadowObservation.path; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
         $InteractionStepStart = if ($null -ne (Get-OptionalProperty -InputObject $Task -Name 'currentInteractionStartStep')) { [int]$Task.currentInteractionStartStep } else { 0 }
         $InteractionStepCount = $InternalStepCount - $InteractionStepStart
         if (-not $Ready -and $QuietEmptyBinding) {
