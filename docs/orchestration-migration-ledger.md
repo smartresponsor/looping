@@ -54,13 +54,17 @@ Latest evidence summary: `M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE` with 2 parity ar
 
 A fresh read-only live run against a clean Console MCP target was blocked by the existing legacy transport before answer readiness at `CMCP_GO_CHAT_EXPERIENCE_BLOCKED`; the target repository remained clean. This does not count as browser-readiness parity evidence and must not advance M4.
 
+## M5/M6 authority guard
+
+`ChatGptLoopCutoverGate` is now the copied fail-closed authority-transition contract. It has no runtime effect. M5 opt-in eligibility requires complete zero-divergence M4 evidence plus a stable boundary with zero new violations. M6/default eligibility additionally requires a separately accepted M5 run and a tested rollback. Strict boundary completion remains a later Console-cleanup condition rather than a circular prerequisite for M5.
+
 ## Console MCP cleanup gate
 
 Do **not** delete or weaken Console MCP orchestration while any row above is `LEGACY-DELEGATED`.
 
 Before destructive Console cleanup:
 
-1. M4 live shadow parity has zero unexplained divergences across representative success, blocked, retry, rate-limit, orphan, human-decision, stall, and completion runs. `composer run orchestration:parity:evidence` is the read-only accumulated evidence gate; it must report `M4_SHADOW_PARITY_EVIDENCE_READY`, not merely zero current divergences.
+1. M4 live shadow parity has zero unexplained divergences across representative success, blocked, retry, rate-limit, orphan, human-decision, stall, and completion runs. `pwsh -NoProfile -File tool/m4-parity-evidence-check.ps1` is the read-only accumulated evidence gate; it must report `M4_SHADOW_PARITY_EVIDENCE_READY`, not merely zero current divergences.
 2. M5 opt-in ChatGPT Loop authority passes the same acceptance corpus while Console supplies only atomic capabilities.
 3. Rollback to the legacy Console path is tested after opt-in cutover.
 4. The strict boundary audit reports `ORCHESTRATION_SHADOW_MIGRATION_COMPLETE`.
