@@ -18,11 +18,20 @@ $blocked = $gate->evaluate($manifest, [
 assert($blocked['status'] === 'CUTOVER_NOT_ELIGIBLE');
 assert($blocked['m5OptInEligible'] === false);
 
+$currentTransportBlocked = $gate->evaluate($manifest, [
+    'm4EvidenceReady' => true,
+    'zeroUnexplainedDivergence' => true,
+    'missingCoverage' => [],
+], $boundary, [], ['legacyEntrypointRequired' => true, 'bridgeBlockers' => ['console.write.browser.session.open']]);
+assert($currentTransportBlocked['status'] === 'CUTOVER_NOT_ELIGIBLE');
+assert($currentTransportBlocked['checks']['atomicTransportReady'] === false);
+
+$readyTransport = ['legacyEntrypointRequired' => false, 'bridgeBlockers' => []];
 $m5 = $gate->evaluate($manifest, [
     'm4EvidenceReady' => true,
     'zeroUnexplainedDivergence' => true,
     'missingCoverage' => [],
-], $boundary, []);
+], $boundary, [], $readyTransport);
 assert($m5['status'] === 'M5_OPT_IN_CUTOVER_ELIGIBLE');
 assert($m5['m5OptInEligible'] === true);
 assert($m5['m6DefaultCutoverEligible'] === false);
@@ -31,7 +40,7 @@ $m6 = $gate->evaluate($manifest, [
     'm4EvidenceReady' => true,
     'zeroUnexplainedDivergence' => true,
     'missingCoverage' => [],
-], $boundary, ['m5Accepted' => true, 'accepted' => true]);
+], $boundary, ['m5Accepted' => true, 'accepted' => true], $readyTransport);
 assert($m6['status'] === 'M6_DEFAULT_CUTOVER_ELIGIBLE');
 assert($m6['m6DefaultCutoverEligible'] === true);
 
@@ -41,3 +50,5 @@ assert($gate->assertManifestSafe([
     'chatGptLoopAuthority' => true,
     'consoleCleanupAllowed' => true,
 ])['ok'] === false);
+
+fwrite(STDOUT, "OK: cutover gate regression passed.\n");

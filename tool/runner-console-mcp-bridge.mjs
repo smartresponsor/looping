@@ -14,6 +14,12 @@ const atomicTools = new Set([
   "console.read_.repo.memory.graph.plan",
 ]);
 
+const m5AtomicWriteTools = new Set([
+  "console.write.browser.session.open",
+  "console.write.browser.session.input.draft",
+  "console.write.browser.session.submit",
+]);
+
 const legacyOrchestrationTools = new Set([
   "console.write.browser.session.cmcp.go",
   "console.write.browser.chatgpt.chat.adopt_go",
@@ -36,8 +42,21 @@ const legacyOrchestrationTools = new Set([
 
 const allowedTools = new Set([...atomicTools, ...legacyOrchestrationTools]);
 
-function capabilityClass(toolName) {
-  return atomicTools.has(toolName) ? "atomic" : (legacyOrchestrationTools.has(toolName) ? "legacy_orchestration" : "unknown");
+function m5AtomicTransportEnabled() {
+  return process.env.CHATGPT_LOOP_M5_ATOMIC_TRANSPORT_ENABLED === "1";
+}
+
+function toolAllowed(toolCall) {
+  if (allowedTools.has(toolCall.name)) return true;
+  return m5AtomicWriteTools.has(toolCall.name)
+    && toolCall.authorityMode === "m5_opt_in"
+    && m5AtomicTransportEnabled();
+}
+
+function capabilityClass(toolCall) {
+  if (atomicTools.has(toolCall.name)) return "atomic";
+  if (m5AtomicWriteTools.has(toolCall.name)) return "atomic_m5_gated";
+  return legacyOrchestrationTools.has(toolCall.name) ? "legacy_orchestration" : "unknown";
 }
 
 function parseArgs(argv) {
@@ -80,7 +99,11 @@ async function readToolCall(payloadPath) {
   if (!plan || typeof plan.tool !== "string") {
     throw new Error("runnerExecutionPlan.tool missing");
   }
-  return { name: plan.tool, arguments: plan.arguments ?? {} };
+  return {
+    name: plan.tool,
+    arguments: plan.arguments ?? {},
+    authorityMode: typeof plan.authorityMode === "string" ? plan.authorityMode : "legacy",
+  };
 }
 
 function readPositiveIntEnv(name, fallback) {
@@ -109,7 +132,7 @@ async function main() {
   if (!resultPath) throw new Error("--result is required");
 
   const toolCall = await readToolCall(payloadPath);
-  if (!allowedTools.has(toolCall.name)) {
+  if (!toolAllowed(toolCall)) {
     throw new Error(`console-mcp bridge tool not allowed: ${toolCall.name}`);
   }
 
@@ -140,7 +163,9 @@ async function main() {
       bridge: {
         ok,
         status: "CONSOLE_MCP_BRIDGE_TOOL_EXECUTED",
-        capabilityClass: capabilityClass(toolCall.name),
+        capabilityClass: capabilityClass(toolCall),
+        authorityMode: toolCall.authorityMode,
+        m5AtomicTransportEnabled: m5AtomicTransportEnabled(),
         endpoint: endpoint.toString(),
         requestTimeoutMs,
       },

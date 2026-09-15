@@ -6,16 +6,18 @@ namespace App\Service;
 
 final class ChatGptLoopCutoverGate
 {
-    public function evaluate(array $manifest, array $m4, array $boundary, array $rollback): array
+    public function evaluate(array $manifest, array $m4, array $boundary, array $rollback, array $transport = []): array
     {
         $m4Ready = ($m4['m4EvidenceReady'] ?? false) === true
             && ($m4['zeroUnexplainedDivergence'] ?? false) === true
             && ($m4['missingCoverage'] ?? ['unknown']) === [];
         $boundaryStable = ($boundary['baselineStable'] ?? false) === true
             && (int) ($boundary['newBoundaryViolationCount'] ?? 1) === 0;
+        $bridgeBlockers = is_array($transport['bridgeBlockers'] ?? null) ? $transport['bridgeBlockers'] : ['unknown'];
+        $atomicTransportReady = ($transport['legacyEntrypointRequired'] ?? true) === false && $bridgeBlockers === [];
         $m5Accepted = ($rollback['m5Accepted'] ?? $rollback['m5_accepted'] ?? false) === true;
         $rollbackAccepted = ($rollback['accepted'] ?? false) === true;
-        $optInEligible = $m4Ready && $boundaryStable;
+        $optInEligible = $m4Ready && $boundaryStable && $atomicTransportReady;
         $defaultEligible = $optInEligible && $m5Accepted && $rollbackAccepted;
 
         return [
@@ -30,6 +32,8 @@ final class ChatGptLoopCutoverGate
                 'chatGptLoopAuthorityStillOff' => ($manifest['chatGptLoopAuthority'] ?? null) === false,
                 'm4EvidenceReady' => $m4Ready,
                 'boundaryStable' => $boundaryStable,
+                'atomicTransportReady' => $atomicTransportReady,
+                'transportBridgeBlockers' => $bridgeBlockers,
                 'boundaryMigrationComplete' => ($boundary['migrationComplete'] ?? false) === true,
                 'm5Accepted' => $m5Accepted,
                 'rollbackAccepted' => $rollbackAccepted,

@@ -20,7 +20,7 @@ Status vocabulary:
 | completion verification | COPIED/PARTIAL | `ChatGptLoopCompletionVerificationContract` mirrors factual/gate/runtime/evidence requirements | Console MCP | feed real completion receipts into shadow parity, then implement atomic verification execution before opt-in authority |
 | semantic progress/stall | COPIED | decision projector repeat-count logic | Console MCP | feed live progress fingerprints and compare decisions |
 | browser answer readiness | SHADOW-WIRED/PARTIAL | `ChatGptLoopBrowserObservationProjector` compares copied watch/step receipts against legacy readiness booleans | Console MCP `watch/run-loop` interpretation | accumulate zero-divergence live evidence, then replace `run.loop.step.summary` with atomic observation receipts behind opt-in M5 |
-| prompt/chat transport | COPIED/PARTIAL | task-bank scheduling + `ChatGptLoopAtomicTransportPlan` | Console MCP `cmcp.go` compatibility path | implement the atomic plan behind an opt-in flag, prove parity, then remove internal high-level entrypoint use |
+| prompt/chat transport | COPIED/PARTIAL | task-bank scheduling + exact `ChatGptLoopAtomicTransportPlan` tool map | Console MCP `cmcp.go` compatibility path | M5 bridge still intentionally blocks `console.write.browser.session.open`, `console.write.browser.session.input.draft`, and `console.write.browser.session.submit`; allow them only behind opt-in cutover after M4 READY, then prove parity before removing high-level entrypoints |
 | action-marker router | SHADOW-WIRED/PARTIAL | `ChatGptLoopActionMarkerRouter` drives shadow parity; `ChatGptLoopReplyBackPolicy` mirrors read-only and Git-operation guards | Console MCP | broaden live parity corpus and compare generated reply-back envelopes before M5 |
 | acceptance | COPIED/PARTIAL | task-bank transport acceptance + `ChatGptLoopShadowAcceptanceProjector` | mixed | wire verified completion evidence; keep budget exhaustion non-terminal for task completion |
 | cleanup signal | COPIED/PARTIAL | `ChatGptLoopCleanupSignalParser` projected in shadow state | Console-compatible physical cleanup | live parity and post-cutover atomic delete/close policy |
@@ -53,6 +53,10 @@ The count intentionally includes high-level `cmcp.go`, `ADOPT GO`, `watch.next`,
 Latest evidence summary: `M4_SHADOW_PARITY_EVIDENCE_INCOMPLETE` with 2 parity artifacts, 1 complete match, 1 partial match, and 0 unexplained divergences. Observed scenario coverage is currently `blocked` + `continue`; still missing `retry`, `rate_limit`, `orphan`, `human_decision`, `stall`, and `completion`.
 
 A fresh read-only live run against a clean Console MCP target was blocked by the existing legacy transport before answer readiness at `CMCP_GO_CHAT_EXPERIENCE_BLOCKED`; the target repository remained clean. This does not count as browser-readiness parity evidence and must not advance M4.
+
+## M5 bridge activation guard
+
+The three future atomic browser write tools are present in the bridge as a separate gated set, not in the normal allowlist. They remain unavailable unless both `runnerExecutionPlan.authorityMode=m5_opt_in` and `CHATGPT_LOOP_M5_ATOMIC_TRANSPORT_ENABLED=1` are present. Current task-bank dispatches use the legacy authority mode, so this preparation does not expand the active production write surface.
 
 ## M5/M6 authority guard
 
