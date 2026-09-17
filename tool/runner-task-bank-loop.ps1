@@ -11,7 +11,7 @@ param(
     [ValidateSet('gpt-5.5')][string]$ContinueReasoningModel = 'gpt-5.5',
     [ValidateSet('medium','high')][string]$InitialReasoningEffort = 'medium',
     [ValidateSet('medium','high')][string]$ContinueReasoningEffort = 'medium',
-    [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'set_and_require',
+    [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'observe',
     [string]$AdoptChatId
 )
 
@@ -230,6 +230,18 @@ function Get-SemanticStatus {
     return 'ASSISTANT_TEXT_CAPTURED'
 }
 
+function Get-ReadyToDeleteSignal {
+    param([AllowNull()][string]$AssistantText)
+    if ([string]::IsNullOrEmpty($AssistantText)) { return $null }
+    $Normalized = $AssistantText -replace '(\r\n|\r|\n)+$',''
+    if ([string]::IsNullOrEmpty($Normalized)) { return $null }
+    $Lines = $Normalized -split '\r?\n|\r'
+    $FinalLine = [string]$Lines[-1]
+    if ($FinalLine -ceq '{"ready_to_delete":true}') { return $true }
+    if ($FinalLine -ceq '{"ready_to_delete":false}') { return $false }
+    return $null
+}
+
 function ConvertTo-NormalizedAnswer {
     param($Settled, [string]$TaskId, [string]$ChatId, [string]$TargetId)
     $Latest = $Settled.latest_assistant
@@ -409,9 +421,11 @@ function Write-AcceptanceArtifact {
         }
     })
     $Failures = @()
-    if ([int]$Task.interactionCount -ne $MaxIterations) { $Failures += 'interactionCycleCount_mismatch' }
-    if ($SubmittedCount -ne $MaxIterations) { $Failures += 'submittedCount_mismatch' }
-    if ($AssistantCapturedCount -ne $MaxIterations) { $Failures += 'assistantCapturedCount_mismatch' }
+    $ReadyToDeleteComplete = ((Get-OptionalProperty -InputObject $Task -Name 'readyToDelete') -eq $true)
+    if (-not $ReadyToDeleteComplete -and [int]$Task.interactionCount -ne $MaxIterations) { $Failures += 'interactionCycleCount_mismatch' }
+    if (-not $ReadyToDeleteComplete -and $SubmittedCount -ne $MaxIterations) { $Failures += 'submittedCount_mismatch' }
+    if (-not $ReadyToDeleteComplete -and $AssistantCapturedCount -ne $MaxIterations) { $Failures += 'assistantCapturedCount_mismatch' }
+    if ($ReadyToDeleteComplete -and ([int]$Task.interactionCount -lt 1 -or $SubmittedCount -ne [int]$Task.interactionCount -or $AssistantCapturedCount -ne [int]$Task.interactionCount)) { $Failures += 'ready_to_delete_capture_count_mismatch' }
     if (@($AnswerRows | Where-Object { $_.textLength -le 0 -or -not $_.captured }).Count -gt 0) { $Failures += 'empty_answer_capture' }
     if (@($AnswerRows | Where-Object { $_.assistantStatus -eq 'OBSERVATION_WINDOW_EXPIRED' }).Count -gt 0) { $Failures += 'observation_window_expired' }
     if (@($AnswerRows | Where-Object { $_.semanticStatus -eq 'REFUSAL' }).Count -gt 0) { $Failures += 'semantic_refusal' }
@@ -848,6 +862,8 @@ while ($true) {
         }
         $LastAssistantStatus = [string]$Answer.assistantStatus
         $LastSemanticStatus = [string]$Answer.semanticStatus
+        $ReadyToDelete = Get-ReadyToDeleteSignal -AssistantText ([string]$Answer.assistantText)
+        $Task | Add-Member -NotePropertyName readyToDelete -NotePropertyValue $ReadyToDelete -Force
         if (-not $Answer.assistantCaptured) {
             $Task.status = 'terminal_failed'
             $FinalStatus = if ($LastAssistantStatus -eq 'OBSERVATION_WINDOW_EXPIRED') { 'ANSWER_CAPTURE_OBSERVATION_WINDOW_EXPIRED' } else { 'ANSWER_CAPTURE_EMPTY_TEXT' }
@@ -872,7 +888,7 @@ while ($true) {
         $DecisionStages += @('runner-adapter','answer-capture-intake')
         $InternalStepCount++
         $Task.interactionCount = [int]$Task.interactionCount + 1
-        $DecisionNextAction = if ($Task.interactionCount -ge $Task.maxInteractions) { 'stop_loop' } elseif ($LastSemanticStatus -eq 'REFUSAL') { 'stop_loop' } else { 'dispatch_next_ui_interaction' }
+        $DecisionNextAction = if ($ReadyToDelete -eq $true) { 'stop_loop' } elseif ($Task.interactionCount -ge $Task.maxInteractions) { 'stop_loop' } elseif ($LastSemanticStatus -eq 'REFUSAL') { 'stop_loop' } else { 'dispatch_next_ui_interaction' }
         $Task.decisionState = [pscustomobject]@{
             status = if ($DecisionNextAction -eq 'stop_loop') { 'terminal_or_budget' } else { 'next_interaction_ready' }
             adapterStatus = $AdapterResult.finalActionResult.status
@@ -899,8 +915,29 @@ while ($true) {
         if ($DecisionNextAction -eq 'dispatch_next_ui_interaction') {
             Write-Host ("progress " + ([ordered]@{ event = 'nextInteractionScheduled'; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
         } else {
-            $FinalStatus = if ($Task.interactionCount -ge $Task.maxInteractions) { 'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED' } else { 'TASK_BANK_TASK_TERMINAL' }
-            Write-Host ("progress " + ([ordered]@{ event = 'taskTerminal'; finalStatus = $FinalStatus; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+            $CleanupResult = $null
+            if ($ReadyToDelete -eq $true -and $Task.chatId -and -not ([string]$Task.chatId).StartsWith('WEB:', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $DeleteArgs = [ordered]@{
+                    expectedChatId = [string]$Task.chatId
+                    authorizationMode = 'lifecycle_ready_to_delete'
+                    readyToDelete = $true
+                    closeTarget = $true
+                    timeoutMs = 5000
+                }
+                for ($CleanupAttempt = 1; $CleanupAttempt -le 3; $CleanupAttempt++) {
+                    $Cleanup = Invoke-BridgeTool -Tool 'console.write.browser.chatgpt.chat.delete.execute' -Arguments $DeleteArgs -TaskId $TaskId
+                    $ToolsUsed += 'console.write.browser.chatgpt.chat.delete.execute'
+                    $InternalStepCount++
+                    $CleanupResult = $Cleanup.result
+                    if ($CleanupResult.ok -eq $true) { break }
+                    if ($CleanupAttempt -lt 3) { Start-Sleep -Seconds 2 }
+                }
+                $Task | Add-Member -NotePropertyName cleanupResult -NotePropertyValue $CleanupResult -Force
+                Append-Journal -TaskId $TaskId -Event 'conversationCleanup' -Data ([ordered]@{ readyToDelete = $true; chatId = $Task.chatId; cleanupStatus = if ($CleanupResult) { [string]$CleanupResult.status } else { 'not_run' }; cleanupOk = ($CleanupResult -and $CleanupResult.ok -eq $true) })
+                Write-Host ("progress " + ([ordered]@{ event = 'conversationCleanup'; chatId = $Task.chatId; cleanupStatus = if ($CleanupResult) { [string]$CleanupResult.status } else { 'not_run' }; cleanupOk = ($CleanupResult -and $CleanupResult.ok -eq $true); interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+            }
+            $FinalStatus = if ($ReadyToDelete -eq $true) { 'TASK_BANK_TASK_COMPLETE_READY_TO_DELETE' } elseif ($Task.interactionCount -ge $Task.maxInteractions) { 'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED' } else { 'TASK_BANK_TASK_TERMINAL' }
+            Write-Host ("progress " + ([ordered]@{ event = 'taskTerminal'; finalStatus = $FinalStatus; readyToDelete = $ReadyToDelete; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
             break
         }
     }
@@ -979,5 +1016,7 @@ $OutputFinalStatus = if ($Ok) {
     taskBankPath = $TaskBankRoot
     chatBankPath = $ChatBankRoot
     runnerStatePath = $RunnerStatePath
+    readyToDelete = if ($Task.PSObject.Properties.Name -contains 'readyToDelete') { $Task.readyToDelete } else { $null }
+    cleanupStatus = if ($Task.PSObject.Properties.Name -contains 'cleanupResult' -and $Task.cleanupResult) { [string]$Task.cleanupResult.status } else { $null }
     nextAction = if ($Ok) { 'task_bank_loop_completed' } else { 'inspect_acceptance_artifact' }
 } | ConvertTo-Json -Depth 100
