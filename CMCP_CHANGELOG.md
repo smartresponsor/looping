@@ -54,6 +54,10 @@ One diagnostic call against legacy task `engine-20260913142412-accessing-b12d99`
 
 ### Cleanup signal ownership
 
+- Console MCP ordinary/manual chat deletion remains confirmation-gated, but now has a scoped `lifecycle_ready_to_delete` authorization mode requiring `readyToDelete=true` plus the exact resolved chat id.
+- The task-bank runner treats exact final-line `ready_to_delete=true` as factual terminal completion and invokes the atomic delete+close capability immediately; false/null remain keep/no-op.
+
+
 - Added `ChatGptLoopCleanupSignalParser` as the lifecycle-owned parser for the single final-line `ready_to_delete` boolean.
 - Parsing is intentionally literal-only: only the exact canonical `true`/`false` JSON lines are accepted; malformed, fenced, extended, or prose-wrapped variants resolve to `null`.
 - Shadow state now projects `cleanup.readyToDelete` from raw assistant text when available, with the Console task boolean accepted only as a temporary compatibility source during migration.

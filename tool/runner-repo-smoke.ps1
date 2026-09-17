@@ -14,7 +14,7 @@ param(
     [ValidateSet('gpt-5.5')][string]$ContinueReasoningModel = 'gpt-5.5',
     [ValidateSet('medium','high')][string]$InitialReasoningEffort = 'medium',
     [ValidateSet('medium','high')][string]$ContinueReasoningEffort = 'medium',
-    [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'set_and_require',
+    [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'observe',
     [string]$AdoptChatId
 )
 
