@@ -125,7 +125,7 @@ function resolveToolRequestTimeoutMs(toolName) {
     "console.write.browser.session.cmcp.go",
     "console.write.browser.chatgpt.chat.adopt_go",
     "console.write.engine.cycle.run",
-    "console.write.engine.cycle.run_n",
+    "console.write.engine.cycle.rounds.run",
     "console.write.engine.answer.capture",
   ];
   return longToolPrefixes.some((prefix) => toolName === prefix || toolName.startsWith(`${prefix}.`)) ? engineTimeoutMs : defaultTimeoutMs;
