@@ -76,13 +76,13 @@ final class ChatGptLoopBehavioralEvidencePlanner
 
         $platforms = is_array($applicability['expectedPlatforms'] ?? null) ? $applicability['expectedPlatforms'] : [];
         $contracts = [
-            ['tool' => 'console.read_.runtime.visual_gallery.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'],
+            ['tool' => 'console.read_.runtime.visual.gallery.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'],
         ];
         if (in_array('web', $platforms, true)) {
             $contracts[] = ['tool' => 'console.read_.runtime.php.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'];
         }
         if (in_array('android', $platforms, true) || in_array('ios', $platforms, true)) {
-            $contracts[] = ['tool' => 'console.read_.runtime.mobile_edge.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'];
+            $contracts[] = ['tool' => 'console.read_.runtime.mobile.edge.server.status', 'arguments' => ['workspacePath' => $workspacePath], 'mutation' => 'read'];
         }
 
         return ['ok' => true, 'status' => 'SHADOW_BEHAVIORAL_COLLECTION_PLAN_READY', 'authoritative' => false, 'contracts' => $contracts];

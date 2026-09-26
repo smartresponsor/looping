@@ -25,8 +25,8 @@ assert(str_contains($defaultAtomicBlock, 'console.read_.repo.implementation.run.
 assert(str_contains($defaultAtomicBlock, 'console.read_.repo.gate.check.run'));
 assert(str_contains($defaultAtomicBlock, 'console.read_.repo.file.bundle.read'));
 assert(str_contains($defaultAtomicBlock, 'console.read_.runtime.php.server.status'));
-assert(str_contains($defaultAtomicBlock, 'console.read_.runtime.mobile_edge.server.status'));
-assert(str_contains($defaultAtomicBlock, 'console.read_.runtime.visual_gallery.server.status'));
+assert(str_contains($defaultAtomicBlock, 'console.read_.runtime.mobile.edge.server.status'));
+assert(str_contains($defaultAtomicBlock, 'console.read_.runtime.visual.gallery.server.status'));
 
 $legacyStart = strpos($source, 'const legacyOrchestrationTools = new Set([');
 $legacyEnd = strpos($source, 'const allowedTools =', $legacyStart === false ? 0 : $legacyStart);
