@@ -145,7 +145,7 @@ async function main() {
 
   const token = process.env.CONSOLE_MCP_BEARER_TOKEN ?? "";
   if (!token) throw new Error("CONSOLE_MCP_BEARER_TOKEN is required");
-  const endpoint = new URL(process.env.CONSOLE_MCP_ENDPOINT ?? "http://127.0.0.1:3334/mcp");
+  const endpoint = new URL(process.env.CONSOLE_MCP_ENDPOINT ?? "http://127.0.0.1:3335/mcp");
   const transport = new StreamableHTTPClientTransport(endpoint, {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   });

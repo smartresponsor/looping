@@ -86,9 +86,9 @@ Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_BEARER_TOKEN_MISSING') 'bridge w
 Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_ENDPOINT_UNREACHABLE') 'bridge wrapper must fail explicitly when endpoint is unreachable'
 Assert-True ($BridgeWrapper -match 'CONSOLE_MCP_UNAUTHORIZED') 'bridge wrapper must classify Unauthorized responses'
 Assert-True ($BridgeWrapper -notmatch 'Write-(Host|Output|Information|Verbose|Warning|Error)[^\r\n]*CONSOLE_MCP_BEARER_TOKEN') 'bridge wrapper must not print bearer token values'
-Assert-True ($BridgeWrapper -match 'http://127\.0\.0\.1:3334/mcp') 'bridge wrapper must use bearer-only 3334 endpoint'
-Assert-True ($BridgeWrapper -notmatch 'foreach\s*\(\$Port\s+in\s+@\(3333,\s*3334\)\)') 'bridge wrapper must not fall back to oauth 3333 for bearer token flow'
-Assert-True ($Bridge -match 'http://127\.0\.0\.1:3334/mcp') 'node bridge fallback endpoint must use bearer-only 3334'
+Assert-True ($BridgeWrapper -match 'http://127\.0\.0\.1:3335/mcp') 'bridge wrapper must use runner-bearer 3335 endpoint'
+Assert-True ($BridgeWrapper -notmatch 'foreach\s*\(\$Port\s+in\s+@\(3333,\s*3335\)\)') 'runner bridge must not fall back from runner 3335 to oauth 3333'
+Assert-True ($Bridge -match 'http://127\.0\.0\.1:3335/mcp') 'node bridge fallback endpoint must use runner-bearer 3335'
 
 $RequiredBridgeTools = @(
     'console.write.browser.session.cmcp.go',

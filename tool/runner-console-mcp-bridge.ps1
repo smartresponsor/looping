@@ -52,7 +52,7 @@ function Test-LocalPortListening {
 }
 
 function Resolve-ConsoleMcpEndpoint {
-    $Endpoint = 'http://127.0.0.1:3334/mcp'
+    $Endpoint = 'http://127.0.0.1:3335/mcp'
     [Environment]::SetEnvironmentVariable('CONSOLE_MCP_ENDPOINT', $Endpoint, 'Process')
     Set-Item -Path Env:\CONSOLE_MCP_ENDPOINT -Value $Endpoint
     return $Endpoint
@@ -148,10 +148,10 @@ function Invoke-BridgeAttempts {
 }
 
 $BridgeRun = Invoke-BridgeAttempts -AttemptList $Attempts
-# NOTE: this bridge is pinned to the codex-bearer profile only (Resolve-ConsoleMcpEndpoint
-# always returns :3334) - there is intentionally no fallback to :3333 (chatgpt-oauth). That
+# NOTE: this bridge is pinned to the runner-bearer profile only (Resolve-ConsoleMcpEndpoint
+# always returns :3335) - there is intentionally no fallback to :3333 (chatgpt-oauth). That
 # profile requires a real OAuth JWT and would reject a bearer token outright, so falling back
-# to it here would just trade one confusing 401 for another. If :3334 is down, fail loudly
+# to it here would just trade one confusing 401 for another. If :3335 is down, fail loudly
 # instead of guessing at a different, incompatible endpoint.
 
 if (-not $BridgeRun.ok) {
