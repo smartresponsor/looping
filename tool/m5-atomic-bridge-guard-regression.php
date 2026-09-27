@@ -52,5 +52,9 @@ $cmcpGoName = 'console.' . 'write.browser.session.' . 'cmcp.go';
 $adoptGoName = 'console.' . 'write.browser.chatgpt.chat.' . 'adopt_go';
 assert(str_contains($timeoutBlock, '"' . $cmcpGoName . '"'));
 assert(str_contains($timeoutBlock, '"' . $adoptGoName . '"'));
+assert(!str_contains($timeoutBlock, '"' . $engineWritePrefix . 'answer.capture"'));
+assert(str_contains($timeoutBlock, 'CONSOLE_MCP_BRIDGE_RECIPE_TIMEOUT_MS'));
+assert(str_contains($timeoutBlock, 'Math.min(recipeTimeoutMs, 300000)'));
+assert(!str_contains($timeoutBlock, '1800000'));
 
 fwrite(STDOUT, "OK: M5 atomic bridge guard regression passed.\n");

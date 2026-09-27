@@ -128,13 +128,14 @@ function readPositiveIntEnv(name, fallback) {
 
 function resolveToolRequestTimeoutMs(toolName) {
   const defaultTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_TOOL_TIMEOUT_MS", 120000);
-  const engineTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_ENGINE_TIMEOUT_MS", 1800000);
+  const legacyEngineTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_ENGINE_TIMEOUT_MS", 300000);
+  const recipeTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_RECIPE_TIMEOUT_MS", legacyEngineTimeoutMs);
+  const boundedRecipeTimeoutMs = Math.min(recipeTimeoutMs, 300000);
   const longToolPrefixes = [
     "console.write.browser.session.cmcp.go",
     "console.write.browser.chatgpt.chat.adopt_go",
-    "console.write.engine.answer.capture",
   ];
-  return longToolPrefixes.some((prefix) => toolName === prefix || toolName.startsWith(`${prefix}.`)) ? engineTimeoutMs : defaultTimeoutMs;
+  return longToolPrefixes.some((prefix) => toolName === prefix || toolName.startsWith(`${prefix}.`)) ? boundedRecipeTimeoutMs : defaultTimeoutMs;
 }
 
 async function main() {
