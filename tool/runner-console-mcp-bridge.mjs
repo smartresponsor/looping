@@ -27,6 +27,13 @@ const m5AtomicWriteTools = new Set([
   "console.write.browser.session.submit",
 ]);
 
+const durableAsyncTools = new Set([
+  "console.write.engine.cycle.rounds.start",
+  "console.read_.engine.cycle.rounds.status",
+  "console.read_.engine.cycle.rounds.output",
+  "console.write.engine.cycle.rounds.stop",
+]);
+
 const legacyOrchestrationTools = new Set([
   "console.write.browser.session.cmcp.go",
   "console.write.browser.chatgpt.chat.adopt_go",
@@ -47,7 +54,7 @@ const legacyOrchestrationTools = new Set([
   "console.write.engine.reply.submit",
 ]);
 
-const allowedTools = new Set([...atomicTools, ...legacyOrchestrationTools]);
+const allowedTools = new Set([...atomicTools, ...durableAsyncTools, ...legacyOrchestrationTools]);
 
 function m5AtomicTransportEnabled() {
   return process.env.CHATGPT_LOOP_M5_ATOMIC_TRANSPORT_ENABLED === "1";
@@ -63,6 +70,7 @@ function toolAllowed(toolCall) {
 function capabilityClass(toolCall) {
   if (atomicTools.has(toolCall.name)) return "atomic";
   if (m5AtomicWriteTools.has(toolCall.name)) return "atomic_m5_gated";
+  if (durableAsyncTools.has(toolCall.name)) return "durable_async";
   return legacyOrchestrationTools.has(toolCall.name) ? "legacy_orchestration" : "unknown";
 }
 
@@ -124,8 +132,6 @@ function resolveToolRequestTimeoutMs(toolName) {
   const longToolPrefixes = [
     "console.write.browser.session.cmcp.go",
     "console.write.browser.chatgpt.chat.adopt_go",
-    "console.write.engine.cycle.run",
-    "console.write.engine.cycle.rounds.run",
     "console.write.engine.answer.capture",
   ];
   return longToolPrefixes.some((prefix) => toolName === prefix || toolName.startsWith(`${prefix}.`)) ? engineTimeoutMs : defaultTimeoutMs;
