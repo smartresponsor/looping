@@ -8,20 +8,33 @@ final class ChatGptLoopCleanupSignalParser
 {
     public function parse(string $assistantText): ?bool
     {
-        $text = preg_replace('/(?:\r\n|\r|\n)+\z/u', '', $assistantText);
-        if (!is_string($text) || $text === '') {
+        $lines = preg_split('/\r\n|\r|\n/u', $assistantText);
+        if (!is_array($lines)) {
             return null;
         }
 
-        $lastLf = strrpos($text, "\n");
-        $lastCr = strrpos($text, "\r");
-        $offset = max($lastLf === false ? -1 : $lastLf, $lastCr === false ? -1 : $lastCr);
-        $finalLine = substr($text, $offset + 1);
+        $visibleLines = [];
+        $insideFence = false;
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if (str_starts_with($trimmed, '```')) {
+                $insideFence = !$insideFence;
+                continue;
+            }
+            if (!$insideFence && $trimmed !== '') {
+                $visibleLines[] = $trimmed;
+            }
+        }
 
-        return match ($finalLine) {
-            '{"ready_to_delete":true}' => true,
-            '{"ready_to_delete":false}' => false,
-            default => null,
-        };
+        $tail = array_slice($visibleLines, -5);
+
+        $hasTrue = in_array('{"ready_to_delete":true}', $tail, true);
+        $hasFalse = in_array('{"ready_to_delete":false}', $tail, true);
+
+        if ($hasTrue === $hasFalse) {
+            return null;
+        }
+
+        return $hasTrue;
     }
 }

@@ -1,1 +1,2 @@
 var/runner/
+var/manual-delete-*.json
