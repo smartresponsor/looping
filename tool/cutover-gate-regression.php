@@ -32,7 +32,7 @@ $currentTransportBlocked = $gate->evaluate($manifest, [
     'm4EvidenceReady' => true,
     'zeroUnexplainedDivergence' => true,
     'missingCoverage' => [],
-], $boundary, [], ['legacyEntrypointRequired' => true, 'bridgeBlockers' => ['console.write.browser.session.open']]);
+], $boundary, [], ['legacyEntrypointRequired' => true, 'bridgeBlockers' => ['write.browser.session.open']]);
 assert($currentTransportBlocked['status'] === 'CUTOVER_NOT_ELIGIBLE');
 assert($currentTransportBlocked['checks']['atomicTransportReady'] === false);
 

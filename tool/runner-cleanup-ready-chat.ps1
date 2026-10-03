@@ -30,16 +30,21 @@ function Invoke-BridgeTool {
 function Get-ReadyToDeleteSignal {
     param([AllowNull()][string]$Text)
     if ([string]::IsNullOrEmpty($Text)) { return $null }
-    $Normalized = $Text -replace '(\r\n|\r|\n)+$',''
-    if ([string]::IsNullOrEmpty($Normalized)) { return $null }
-    $Lines = $Normalized -split '\r?\n|\r'
-    $FinalLine = [string]$Lines[-1]
-    if ($FinalLine -ceq '{"ready_to_delete":true}') { return $true }
-    if ($FinalLine -ceq '{"ready_to_delete":false}') { return $false }
-    return $null
+    $VisibleLines = @()
+    $InsideFence = $false
+    foreach ($Line in @($Text -split '\r?\n|\r')) {
+        $Trimmed = ([string]$Line).Trim()
+        if ($Trimmed.StartsWith('```')) { $InsideFence = -not $InsideFence; continue }
+        if (-not $InsideFence -and $Trimmed -ne '') { $VisibleLines += $Trimmed }
+    }
+    $Tail = @($VisibleLines | Select-Object -Last 5)
+    $HasTrue = @($Tail | Where-Object { $_ -ceq '{"ready_to_delete":true}' }).Count -gt 0
+    $HasFalse = @($Tail | Where-Object { $_ -ceq '{"ready_to_delete":false}' }).Count -gt 0
+    if ($HasTrue -eq $HasFalse) { return $null }
+    return $HasTrue
 }
 
-$Settle = Invoke-BridgeTool -Tool 'console.read_.browser.chatgpt.answer.settle' -Arguments ([ordered]@{
+$Settle = Invoke-BridgeTool -Tool 'read_.browser.chatgpt.answer.settle' -Arguments ([ordered]@{
     ports = @(9222, 9223)
     preferredChatId = $ChatId
     requireChatId = $true
@@ -71,7 +76,7 @@ if ($Settle.result.ok -ne $true -or $Settle.result.status -ne 'ANSWER_STABLE' -o
 $ResolvedChatId = if ($Settle.result.selected -and $Settle.result.selected.chat_id) { [string]$Settle.result.selected.chat_id } else { $null }
 if ($ResolvedChatId -ne $ChatId) { throw "Resolved chat id mismatch: expected=$ChatId actual=$ResolvedChatId" }
 
-$Delete = Invoke-BridgeTool -Tool 'console.write.browser.chatgpt.chat.delete.execute' -Arguments ([ordered]@{
+$Delete = Invoke-BridgeTool -Tool 'write.browser.chatgpt.chat.delete.execute' -Arguments ([ordered]@{
     ports = @(9222, 9223)
     expectedChatId = $ResolvedChatId
     authorizationMode = 'lifecycle_ready_to_delete'

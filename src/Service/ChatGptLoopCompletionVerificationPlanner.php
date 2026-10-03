@@ -24,17 +24,17 @@ final class ChatGptLoopCompletionVerificationPlanner
 
         $contracts = [
             [
-                'tool' => 'console.read_.repo.workspace.status',
+                'tool' => 'read_.repo.workspace.status',
                 'arguments' => ['workspacePath' => $workspacePath],
                 'mutation' => 'read',
             ],
             [
-                'tool' => 'console.read_.repo.git.branch.status',
+                'tool' => 'read_.repo.git.branch.status',
                 'arguments' => ['workspacePath' => $workspacePath],
                 'mutation' => 'read',
             ],
             [
-                'tool' => 'console.read_.repo.implementation.run.capture',
+                'tool' => 'read_.repo.implementation.run.capture',
                 'arguments' => [
                     'workspacePath' => $workspacePath,
                     'beforeHead' => $beforeHead,
@@ -46,7 +46,7 @@ final class ChatGptLoopCompletionVerificationPlanner
                 'mutation' => 'read',
             ],
             [
-                'tool' => 'console.read_.repo.gate.check.run',
+                'tool' => 'read_.repo.gate.check.run',
                 'arguments' => ['workspacePath' => $workspacePath, 'checkName' => 'git_diff_check'],
                 'mutation' => 'read',
             ],

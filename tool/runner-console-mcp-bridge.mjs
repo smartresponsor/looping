@@ -3,55 +3,55 @@ import { StreamableHTTPClientTransport } from "../../console-mcp/node_modules/@m
 import fs from "node:fs/promises";
 
 const atomicTools = new Set([
-  "console.write.browser.session.title.prefix",
-  "console.write.browser.chatgpt.chat.delete.execute",
-  "console.read_.browser.chatgpt.composer.preflight",
-  "console.read_.browser.chatgpt.watch.probe",
-  "console.read_.browser.chatgpt.answer.settle",
-  "console.read_.browser.chatgpt.message.capture",
-  "console.read_.repo.context.capture",
-  "console.read_.repo.file.bundle.read",
-  "console.read_.repo.workspace.status",
-  "console.read_.runtime.php.server.status",
-  "console.read_.runtime.mobile.edge.server.status",
-  "console.read_.runtime.visual.gallery.server.status",
-  "console.read_.repo.git.branch.status",
-  "console.read_.repo.implementation.run.capture",
-  "console.read_.repo.gate.check.run",
-  "console.read_.repo.memory.graph.plan",
+  "write.browser.session.title.prefix",
+  "write.browser.chatgpt.chat.delete.execute",
+  "read_.browser.chatgpt.composer.preflight",
+  "read_.browser.chatgpt.watch.probe",
+  "read_.browser.chatgpt.answer.settle",
+  "read_.browser.chatgpt.message.capture",
+  "read_.repo.context.capture",
+  "read_.repo.file.bundle.read",
+  "read_.repo.workspace.status",
+  "read_.runtime.php.server.status",
+  "read_.runtime.mobile.edge.server.status",
+  "read_.runtime.visual.gallery.server.status",
+  "read_.repo.git.branch.status",
+  "read_.repo.implementation.run.capture",
+  "read_.repo.gate.check.run",
+  "read_.repo.memory.graph.plan",
 ]);
 
 const m5AtomicWriteTools = new Set([
-  "console.write.browser.session.open",
-  "console.write.browser.session.input.draft",
-  "console.write.browser.session.submit",
+  "write.browser.session.open",
+  "write.browser.session.input.draft",
+  "write.browser.session.submit",
 ]);
 
 const durableAsyncTools = new Set([
-  "console.write.engine.cycle.rounds.start",
-  "console.read_.engine.cycle.rounds.status",
-  "console.read_.engine.cycle.rounds.output",
-  "console.write.engine.cycle.rounds.stop",
+  "write.engine.cycle.rounds.start",
+  "read_.engine.cycle.rounds.status",
+  "read_.engine.cycle.rounds.output",
+  "write.engine.cycle.rounds.stop",
 ]);
 
 const legacyOrchestrationTools = new Set([
-  "console.write.browser.session.cmcp.go",
-  "console.write.browser.chatgpt.chat.adopt_go",
-  "console.read_.browser.chatgpt.watch.next",
-  "console.read_.browser.chatgpt.run.loop.plan",
-  "console.read_.browser.chatgpt.run.loop.step",
-  "console.read_.browser.chatgpt.run.loop.step.summary",
-  "console.read_.browser.chatgpt.run.loop.auto.summary",
-  "console.write.browser.session.run.loop.daemon.start",
-  "console.write.engine.cycle.step",
-  "console.write.engine.cycle.run",
-  "console.write.engine.task.enqueue",
-  "console.write.engine.worker.tick",
-  "console.write.engine.chat.bind",
-  "console.write.engine.answer.capture",
-  "console.write.engine.gateway.decide",
-  "console.write.engine.reply.draft",
-  "console.write.engine.reply.submit",
+  "write.browser.session.cmcp.go",
+  "write.browser.chatgpt.chat.adopt_go",
+  "read_.browser.chatgpt.watch.next",
+  "read_.browser.chatgpt.run.loop.plan",
+  "read_.browser.chatgpt.run.loop.step",
+  "read_.browser.chatgpt.run.loop.step.summary",
+  "read_.browser.chatgpt.run.loop.auto.summary",
+  "write.browser.session.run.loop.daemon.start",
+  "write.engine.cycle.step",
+  "write.engine.cycle.run",
+  "write.engine.task.enqueue",
+  "write.engine.worker.tick",
+  "write.engine.chat.bind",
+  "write.engine.answer.capture",
+  "write.engine.gateway.decide",
+  "write.engine.reply.draft",
+  "write.engine.reply.submit",
 ]);
 
 const allowedTools = new Set([...atomicTools, ...durableAsyncTools, ...legacyOrchestrationTools]);
@@ -132,8 +132,8 @@ function resolveToolRequestTimeoutMs(toolName) {
   const recipeTimeoutMs = readPositiveIntEnv("CONSOLE_MCP_BRIDGE_RECIPE_TIMEOUT_MS", legacyEngineTimeoutMs);
   const boundedRecipeTimeoutMs = Math.min(recipeTimeoutMs, 300000);
   const longToolPrefixes = [
-    "console.write.browser.session.cmcp.go",
-    "console.write.browser.chatgpt.chat.adopt_go",
+    "write.browser.session.cmcp.go",
+    "write.browser.chatgpt.chat.adopt_go",
   ];
   return longToolPrefixes.some((prefix) => toolName === prefix || toolName.startsWith(`${prefix}.`)) ? boundedRecipeTimeoutMs : defaultTimeoutMs;
 }

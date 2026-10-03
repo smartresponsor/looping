@@ -14,8 +14,8 @@ $Items = @($Payload)
 if ($Payload.responseDispatcherPayload) { $Items = @($Payload.responseDispatcherPayload) }
 
 $AllowedTool = @{
-    'console.write.engine.reply.draft' = 'write'
-    'console.write.engine.reply.submit' = 'write'
+    'write.engine.reply.draft' = 'write'
+    'write.engine.reply.submit' = 'write'
 }
 
 $Invocation = @()

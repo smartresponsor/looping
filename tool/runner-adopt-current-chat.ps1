@@ -42,7 +42,7 @@ $Arguments = [ordered]@{
     timeoutMs = 30000
 }
 if ($ChatId) { $Arguments.preferredChatId = $ChatId } else { $Arguments.locator = $ExistingLocation }
-$Payload = [ordered]@{ runnerExecutionPlan = [ordered]@{ tool = 'console.write.browser.chatgpt.chat.adopt_go'; arguments = $Arguments } }
+$Payload = [ordered]@{ runnerExecutionPlan = [ordered]@{ tool = 'write.browser.chatgpt.chat.adopt_go'; arguments = $Arguments } }
 $Payload | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $PayloadPath -Encoding UTF8
 $Raw = & $Bridge -PayloadPath $PayloadPath -ResultPath $ResultPath 2>&1
 $BridgeExitCode = $LASTEXITCODE

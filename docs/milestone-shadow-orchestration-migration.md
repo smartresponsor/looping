@@ -70,4 +70,4 @@ Acceptance: `composer run orchestration:boundary:strict` returns `ORCHESTRATION_
 
 ## Current debt
 
-The repository still has legacy production references to `console.write.engine.*`, `console.read_.browser.chatgpt.run.loop.*`, and the run-loop daemon surface. They are intentionally preserved during M1–M4 to protect the working runtime.
+The repository still has legacy production references to `write.engine.*`, `read_.browser.chatgpt.run.loop.*`, and the run-loop daemon surface. They are intentionally preserved during M1–M4 to protect the working runtime.

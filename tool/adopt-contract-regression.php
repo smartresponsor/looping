@@ -56,7 +56,7 @@ assert($rawId['contract']['chatId'] === $chatId);
 
 $runner = file_get_contents($root . '/tool/runner-adopt-current-chat.ps1');
 $taskBank = file_get_contents($root . '/tool/runner-task-bank-loop.ps1');
-assert(is_string($runner) && str_contains($runner, "tool = 'console.write.browser.chatgpt.chat.adopt_go'"));
+assert(is_string($runner) && str_contains($runner, "tool = 'write.browser.chatgpt.chat.adopt_go'"));
 assert(is_string($runner) && str_contains($runner, '$Arguments.locator = $ExistingLocation'));
 assert(is_string($taskBank) && str_contains($taskBank, '[guid]::NewGuid().ToString'));
 

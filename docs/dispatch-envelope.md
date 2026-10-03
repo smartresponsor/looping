@@ -19,7 +19,7 @@ It is descriptive and does not execute tools.
 For `entrypoint_plan`, the envelope contains:
 
 ```text
-tool = console.read_.browser.chatgpt.entrypoint.plan
+tool = read_.browser.chatgpt.entrypoint.plan
 mutation = none
 confirmationRequired = false
 ```

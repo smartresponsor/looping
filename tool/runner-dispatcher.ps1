@@ -17,19 +17,19 @@ if (-not $Plan) { throw 'runnerExecutionPlan missing' }
 if ($Plan.ok -ne $true) { throw "runnerExecutionPlan not ready: $($Plan.status)" }
 
 $AllowedTools = @{
-    'console.read_.browser.chatgpt.entrypoint.plan' = 'read_only'
-    'console.read_.repo.context.capture' = 'read_only'
-    'console.read_.repo.workspace.status' = 'read_only'
-    'console.read_.repo.memory.graph.plan' = 'read_only'
-    'console.write.browser.session.cmcp.go' = 'write'
-    'console.write.browser.session.title.prefix' = 'write'
-    'console.write.engine.task.enqueue' = 'write'
-    'console.write.engine.worker.tick' = 'write'
-    'console.write.engine.chat.bind' = 'write'
-    'console.write.engine.answer.capture' = 'write'
-    'console.write.engine.gateway.decide' = 'write'
-    'console.write.engine.reply.draft' = 'write'
-    'console.write.engine.reply.submit' = 'write'
+    'read_.browser.chatgpt.entrypoint.plan' = 'read_only'
+    'read_.repo.context.capture' = 'read_only'
+    'read_.repo.workspace.status' = 'read_only'
+    'read_.repo.memory.graph.plan' = 'read_only'
+    'write.browser.session.cmcp.go' = 'write'
+    'write.browser.session.title.prefix' = 'write'
+    'write.engine.task.enqueue' = 'write'
+    'write.engine.worker.tick' = 'write'
+    'write.engine.chat.bind' = 'write'
+    'write.engine.answer.capture' = 'write'
+    'write.engine.gateway.decide' = 'write'
+    'write.engine.reply.draft' = 'write'
+    'write.engine.reply.submit' = 'write'
 }
 
 if (-not $AllowedTools.ContainsKey([string]$Plan.tool)) { throw "dispatcher tool not allowed: $($Plan.tool)" }

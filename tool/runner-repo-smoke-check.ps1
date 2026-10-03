@@ -91,27 +91,27 @@ Assert-True ($BridgeWrapper -notmatch 'foreach\s*\(\$Port\s+in\s+@\(3333,\s*3335
 Assert-True ($Bridge -match 'http://127\.0\.0\.1:3335/mcp') 'node bridge fallback endpoint must use runner-bearer 3335'
 
 $RequiredBridgeTools = @(
-    'console.write.browser.session.cmcp.go',
-    'console.write.browser.chatgpt.chat.adopt_go',
-    'console.read_.browser.chatgpt.composer.preflight',
-    'console.read_.browser.chatgpt.watch.probe',
-    'console.read_.browser.chatgpt.watch.next',
-    'console.read_.browser.chatgpt.run.loop.plan',
-    'console.read_.browser.chatgpt.run.loop.step',
-    'console.read_.browser.chatgpt.run.loop.step.summary',
-    'console.read_.browser.chatgpt.run.loop.auto.summary',
-    'console.read_.browser.chatgpt.answer.settle',
-    'console.write.browser.session.run.loop.daemon.start',
-    'console.read_.repo.context.capture',
-    'console.read_.repo.workspace.status',
-    'console.read_.repo.memory.graph.plan'
+    'write.browser.session.cmcp.go',
+    'write.browser.chatgpt.chat.adopt_go',
+    'read_.browser.chatgpt.composer.preflight',
+    'read_.browser.chatgpt.watch.probe',
+    'read_.browser.chatgpt.watch.next',
+    'read_.browser.chatgpt.run.loop.plan',
+    'read_.browser.chatgpt.run.loop.step',
+    'read_.browser.chatgpt.run.loop.step.summary',
+    'read_.browser.chatgpt.run.loop.auto.summary',
+    'read_.browser.chatgpt.answer.settle',
+    'write.browser.session.run.loop.daemon.start',
+    'read_.repo.context.capture',
+    'read_.repo.workspace.status',
+    'read_.repo.memory.graph.plan'
 )
 foreach ($Tool in $RequiredBridgeTools) {
     Assert-True ($Bridge.Contains($Tool)) "bridge missing required tool $Tool"
 }
 
-Assert-True (-not $Bridge.Contains('console.write.browser.chatgpt.chat.create.send')) 'bridge must not allow legacy fallback tool'
-Assert-True ($Dispatcher.Contains('console.write.browser.session.cmcp.go')) 'dispatcher must allow cmcp.go'
+Assert-True (-not $Bridge.Contains('write.browser.chatgpt.chat.create.send')) 'bridge must not allow legacy fallback tool'
+Assert-True ($Dispatcher.Contains('write.browser.session.cmcp.go')) 'dispatcher must allow cmcp.go'
 Assert-True (-not ($Dispatcher -match "allowedTools\s*=.*console\.write\.browser\.chatgpt\.chat\.create\.send")) 'dispatcher must not allow fallback tool'
 Assert-True (-not ($Adapter -match "console\.write\.browser\.chatgpt\.chat\.create\.send'\s*,\s*'console\.write\.browser\.session\.cmcp\.go")) 'adapter engine path must not accept fallback-or-cmcp'
 

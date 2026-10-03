@@ -19,7 +19,7 @@ final class ChatGptLoopM5AtomicDispatchPlanner
         $timeoutMs = max(250, min(10000, (int) ($state['timeoutMs'] ?? 3000)));
 
         $plan = match ($stage) {
-            'chat_bind' => $this->contract('console.write.browser.session.open', [
+            'chat_bind' => $this->contract('write.browser.session.open', [
                 'ports' => $ports,
                 'url' => $this->string($state['url'] ?? null) ?? 'https://chatgpt.com/',
                 'activate' => true,
@@ -27,23 +27,23 @@ final class ChatGptLoopM5AtomicDispatchPlanner
                 'timeoutMs' => $timeoutMs,
             ], 'write'),
             'composer_preflight' => $targetId === null ? null : $this->contract(
-                'console.read_.browser.chatgpt.composer.preflight',
+                'read_.browser.chatgpt.composer.preflight',
                 ['ports' => $ports, 'expectedTargetId' => $targetId, 'timeoutMs' => $timeoutMs],
                 'read',
             ),
             'prompt_draft' => $targetId === null || $this->string($state['draftText'] ?? null) === null ? null : $this->contract(
-                'console.write.browser.session.input.draft',
+                'write.browser.session.input.draft',
                 ['ports' => $ports, 'expectedTargetId' => $targetId, 'draftText' => $this->string($state['draftText']), 'allowOverwrite' => ($state['allowOverwrite'] ?? false) === true, 'confirmDraft' => true, 'timeoutMs' => $timeoutMs],
                 'write',
             ),
             'prompt_submit' => $targetId === null ? null : $this->contract(
-                'console.write.browser.session.submit',
+                'write.browser.session.submit',
                 array_filter(['ports' => $ports, 'expectedTargetId' => $targetId, 'expectedDraftHash' => $this->string($state['draftHash'] ?? null), 'expectedDraftLength' => is_numeric($state['draftLength'] ?? null) ? (int) $state['draftLength'] : null, 'confirmSubmit' => true, 'timeoutMs' => $timeoutMs], static fn (mixed $value): bool => $value !== null),
                 'write',
             ),
-            'answer_watch' => $this->capture('console.read_.browser.chatgpt.watch.probe', $taskId, $chatId, $targetId, $ports, $timeoutMs, $state),
-            'answer_settle' => $this->capture('console.read_.browser.chatgpt.answer.settle', $taskId, $chatId, $targetId, $ports, $timeoutMs, $state),
-            'message_capture' => $this->capture('console.read_.browser.chatgpt.message.capture', $taskId, $chatId, $targetId, $ports, $timeoutMs, $state),
+            'answer_watch' => $this->capture('read_.browser.chatgpt.watch.probe', $taskId, $chatId, $targetId, $ports, $timeoutMs, $state),
+            'answer_settle' => $this->capture('read_.browser.chatgpt.answer.settle', $taskId, $chatId, $targetId, $ports, $timeoutMs, $state),
+            'message_capture' => $this->capture('read_.browser.chatgpt.message.capture', $taskId, $chatId, $targetId, $ports, $timeoutMs, $state),
             default => null,
         };
 
@@ -59,11 +59,11 @@ final class ChatGptLoopM5AtomicDispatchPlanner
         if ($taskId === null || $targetId === null) return null;
 
         $arguments = ['ports' => $ports, 'preferredChatId' => $chatId, 'expectedTargetId' => $targetId, 'expectedTaskId' => $taskId, 'requireChatId' => $chatId !== null, 'maxMessages' => max(1, min(100, (int) ($state['maxMessages'] ?? 30))), 'timeoutMs' => $timeoutMs];
-        if ($tool === 'console.read_.browser.chatgpt.watch.probe') {
+        if ($tool === 'read_.browser.chatgpt.watch.probe') {
             $arguments['phase'] = 'reply_watch';
             $arguments['taskClass'] = $state['taskClass'] ?? 'repo_rc_implementation';
         }
-        if ($tool === 'console.read_.browser.chatgpt.answer.settle') {
+        if ($tool === 'read_.browser.chatgpt.answer.settle') {
             $arguments['readinessProfile'] = $state['readinessProfile'] ?? 'rc_gate';
             $arguments['requireComposerSendMode'] = true;
             if ($this->string($state['baselineAssistantHash'] ?? null) !== null) $arguments['baselineAssistantHash'] = $this->string($state['baselineAssistantHash']);

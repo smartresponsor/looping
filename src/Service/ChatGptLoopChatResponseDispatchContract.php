@@ -39,7 +39,7 @@ final class ChatGptLoopChatResponseDispatchContract
             'sequence' => [
                 [
                     'stage' => 'reply_draft',
-                    'tool' => 'console.write.engine.reply.draft',
+                    'tool' => 'write.engine.reply.draft',
                     'arguments' => [
                         'taskId' => $taskId,
                         'expectedTargetId' => $targetId,
@@ -52,7 +52,7 @@ final class ChatGptLoopChatResponseDispatchContract
                 ],
                 [
                     'stage' => 'reply_submit',
-                    'tool' => 'console.write.engine.reply.submit',
+                    'tool' => 'write.engine.reply.submit',
                     'arguments' => [
                         'taskId' => $taskId,
                         'expectedTargetId' => $targetId,

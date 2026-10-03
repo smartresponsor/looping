@@ -70,7 +70,7 @@ function New-EngineDispatchContract {
         ok = $true
         status = 'ENGINE_EXECUTOR_CONTRACT_READY'
         stage = 'engine_executor'
-        tool = 'console.write.browser.session.cmcp.go'
+        tool = 'write.browser.session.cmcp.go'
         arguments = [ordered]@{
             rawCommand = $RawCommand
             workspacePath = $TargetRepo
@@ -129,7 +129,7 @@ $InitialDispatchContract = if ($EngineExecutor) {
         ok = $true
         status = 'REPO_CONTEXT_CAPTURE_CONTRACT_READY'
         stage = 'repo_context'
-        tool = 'console.read_.repo.context.capture'
+        tool = 'read_.repo.context.capture'
         arguments = [ordered]@{ workspacePath = $TargetRepo }
         mutation = 'read_only'
         confirmationRequired = $false
@@ -184,16 +184,16 @@ for ($Index = 0; $Index -lt $Limit; $Index++) {
     $DecisionStages += @('runner-daemon', 'runner-dispatcher')
     $Tools += $Tool
 
-    if ($EngineExecutor -and $Tool -eq 'console.write.browser.chatgpt.chat.create.send') {
+    if ($EngineExecutor -and $Tool -eq 'write.browser.chatgpt.chat.create.send') {
         throw 'legacy fallback tool is not allowed in engine executor chain'
     }
-    if ($EngineExecutor -and $Chain -and $Tool -ne 'console.write.browser.session.cmcp.go' -and $Tool -ne 'console.write.browser.session.title.prefix' -and $Tool -notin @('console.read_.repo.context.capture','console.read_.repo.workspace.status','console.read_.repo.memory.graph.plan','console.write.engine.task.enqueue','console.write.engine.worker.tick','console.write.engine.chat.bind','console.write.engine.answer.capture','console.write.engine.gateway.decide','console.write.engine.reply.draft','console.write.engine.reply.submit')) {
+    if ($EngineExecutor -and $Chain -and $Tool -ne 'write.browser.session.cmcp.go' -and $Tool -ne 'write.browser.session.title.prefix' -and $Tool -notin @('read_.repo.context.capture','read_.repo.workspace.status','read_.repo.memory.graph.plan','write.engine.task.enqueue','write.engine.worker.tick','write.engine.chat.bind','write.engine.answer.capture','write.engine.gateway.decide','write.engine.reply.draft','write.engine.reply.submit')) {
         throw "selected tool is not supported by runner bridge: $Tool"
     }
 
     $ExecuteStatus = 'not_started'
     $BridgePayload = $null
-    if ($Tool -eq 'console.read_.repo.context.capture' -and $CaptureResultPath -and (Test-Path $CaptureResultPath) -and -not $EngineExecutor) {
+    if ($Tool -eq 'read_.repo.context.capture' -and $CaptureResultPath -and (Test-Path $CaptureResultPath) -and -not $EngineExecutor) {
         Copy-Item -Path $CaptureResultPath -Destination $Payload.expectedResultPath -Force
         $Capture = Read-JsonFile -Path $Payload.expectedResultPath
         if (-not $Capture.tool) { $Capture | Add-Member -NotePropertyName tool -NotePropertyValue $Tool -Force }
@@ -259,11 +259,11 @@ if ($LastAdapter -and [string]$LastAdapter.status -ne 'RUNNER_TRANSPORT_ADAPTER_
 }
 
 $UniqueDecisionStages = @($DecisionStages | Select-Object -Unique)
-$FallbackUsed = @($Tools | Where-Object { $_ -eq 'console.write.browser.chatgpt.chat.create.send' }).Count -gt 0
+$FallbackUsed = @($Tools | Where-Object { $_ -eq 'write.browser.chatgpt.chat.create.send' }).Count -gt 0
 $SyntheticUsed = $false
 $Ok = (-not $FallbackUsed) -and (-not ($EngineExecutor -and $Chain -and $SyntheticUsed)) -and (@($Steps).Count -eq $Limit)
 if ($EngineExecutor -and $Chain) {
-    $Ok = $Ok -and $Submitted -and (@($Tools | Where-Object { $_ -eq 'console.write.browser.session.cmcp.go' }).Count -ge 1)
+    $Ok = $Ok -and $Submitted -and (@($Tools | Where-Object { $_ -eq 'write.browser.session.cmcp.go' }).Count -ge 1)
 }
 
 $BlockedStage = Get-FirstValue -Payload $LastResult -Names @('blockedStage','blocked_stage','executionBlockedStage','execution_blocked_stage')

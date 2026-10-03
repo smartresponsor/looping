@@ -29,8 +29,8 @@ if ($ResponsePayload.chatResponseDispatchContract.status -ne 'CHAT_RESPONSE_DISP
 if (-not $ResponsePayload.responseDispatcherPayload) { throw 'responseDispatcherPayload missing' }
 if ($ResponsePayload.responseDispatcherPayload[0].status -ne 'DISPATCHER_BOUNDARY_READY') { throw "response draft boundary was not ready" }
 if ($ResponsePayload.responseDispatcherPayload[1].status -ne 'DISPATCHER_BOUNDARY_READY') { throw "response submit boundary was not ready" }
-if ($ResponsePayload.responseDispatcherPayload[0].tool -ne 'console.write.engine.reply.draft') { throw "unexpected response draft tool" }
-if ($ResponsePayload.responseDispatcherPayload[1].tool -ne 'console.write.engine.reply.submit') { throw "unexpected response submit tool" }
+if ($ResponsePayload.responseDispatcherPayload[0].tool -ne 'write.engine.reply.draft') { throw "unexpected response draft tool" }
+if ($ResponsePayload.responseDispatcherPayload[1].tool -ne 'write.engine.reply.submit') { throw "unexpected response submit tool" }
 if ($ResponsePayload.responseDispatcherPayload[0].realExecution -ne 'disabled') { throw "response dispatch real execution is not disabled: $($ResponsePayload.responseDispatcherPayload[0].realExecution)" }
 
 $RealBlockedRaw = & $Runner -Task $Task -MaxIterations 1 -AutoFinalAction -ExecuteReal -AskVerdict revise -AskMessageToChat 'Please revise before continuing.' -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' 2>&1
@@ -51,8 +51,8 @@ try {
 
 if (-not $RealReadyPayload.responseDispatcherPayload) { throw 'real ready responseDispatcherPayload missing' }
 if ($RealReadyPayload.responseDispatcherPayload[0].status -ne 'DISPATCHER_REAL_EXECUTION_ADAPTER_READY') { throw "real execution adapter was not ready" }
-if ($RealReadyPayload.responseDispatcherPayload[0].toolCall.name -ne 'console.write.engine.reply.draft') { throw "real draft tool call was not canonical" }
-if ($RealReadyPayload.responseDispatcherPayload[1].toolCall.name -ne 'console.write.engine.reply.submit') { throw "real submit tool call was not canonical" }
+if ($RealReadyPayload.responseDispatcherPayload[0].toolCall.name -ne 'write.engine.reply.draft') { throw "real draft tool call was not canonical" }
+if ($RealReadyPayload.responseDispatcherPayload[1].toolCall.name -ne 'write.engine.reply.submit') { throw "real submit tool call was not canonical" }
 
 $HostBridge = Join-Path $Root 'tool/runner-host-bridge.ps1'
 $HostPayloadPath = Join-Path $Root 'var/runner/host-bridge-smoke.json'
@@ -62,14 +62,14 @@ $HostBridgePayload = $HostBridgeRaw | ConvertFrom-Json
 
 if ($HostBridgePayload.status -ne 'HOST_BRIDGE_INVOCATION_PLAN_READY') { throw "host bridge plan was not ready" }
 if ($HostBridgePayload.invocationCount -ne 2) { throw "host bridge invocation count mismatch" }
-if ($HostBridgePayload.invocations[0].tool -ne 'console.write.engine.reply.draft') { throw "host bridge draft invocation was not canonical" }
-if ($HostBridgePayload.invocations[1].tool -ne 'console.write.engine.reply.submit') { throw "host bridge submit invocation was not canonical" }
+if ($HostBridgePayload.invocations[0].tool -ne 'write.engine.reply.draft') { throw "host bridge draft invocation was not canonical" }
+if ($HostBridgePayload.invocations[1].tool -ne 'write.engine.reply.submit') { throw "host bridge submit invocation was not canonical" }
 
 $HostResultPath = Join-Path $Root 'var/runner/host-bridge-result-smoke.json'
 [pscustomobject]@{
     results = @(
-        @{ ok = $true; tool = 'console.write.engine.reply.draft'; status = 'ENGINE_REPLY_BACK_DRAFTED' },
-        @{ ok = $true; tool = 'console.write.engine.reply.submit'; status = 'ENGINE_REPLY_BACK_SUBMITTED' }
+        @{ ok = $true; tool = 'write.engine.reply.draft'; status = 'ENGINE_REPLY_BACK_DRAFTED' },
+        @{ ok = $true; tool = 'write.engine.reply.submit'; status = 'ENGINE_REPLY_BACK_SUBMITTED' }
     )
 } | ConvertTo-Json -Depth 20 | Set-Content -Path $HostResultPath -Encoding UTF8
 $HostResultRaw = & $HostBridge -PayloadPath $HostPayloadPath -ResultPath $HostResultPath 2>&1
@@ -89,10 +89,10 @@ if ($AdapterHostResultPayload.nextLoopTickPlan.stage -ne 'answer_capture') { thr
 if ($AdapterHostResultPayload.nextLoopTickPlan.phase -ne 'reply_watch') { throw "next loop tick phase was not reply_watch" }
 if ($AdapterHostResultPayload.nextLoopTickPlan.action -ne 'capture_next_answer') { throw "next loop tick action was not capture_next_answer" }
 if ($AdapterHostResultPayload.nextLoopTickContract.status -ne 'NEXT_LOOP_TICK_CONTRACT_READY') { throw "next loop tick contract was not ready" }
-if ($AdapterHostResultPayload.nextLoopTickContract.tool -ne 'console.write.engine.answer.capture') { throw "next loop tick contract tool was not answer capture" }
+if ($AdapterHostResultPayload.nextLoopTickContract.tool -ne 'write.engine.answer.capture') { throw "next loop tick contract tool was not answer capture" }
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.taskId -ne 'smoke-engine-task') { throw "next loop tick contract task id mismatch" }
 if ($AdapterHostResultPayload.nextLoopTickContract.arguments.confirmCapture -ne $true) { throw "next loop tick contract confirmCapture was not true" }
-if ($AdapterHostResultPayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "next dispatch contract did not expose answer capture" }
+if ($AdapterHostResultPayload.nextDispatchContract.tool -ne 'write.engine.answer.capture') { throw "next dispatch contract did not expose answer capture" }
 if ($AdapterHostResultPayload.runnerStateStatus -ne 'RUNNER_STATE_PERSISTED') { throw "runner state was not persisted" }
 if (-not (Test-Path $AdapterHostResultPayload.runnerStatePath)) { throw "runner state path does not exist" }
 if ($AdapterHostResultPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "next dispatch boundary was not ready" }
@@ -113,10 +113,10 @@ try {
     $env:CHATGPT_LOOP_REAL_EXECUTION = $PreviousNextDispatchEnv
 }
 if ($NextDispatchReadyPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_REAL_ADAPTER_READY') { throw "next dispatch real adapter was not ready" }
-if ($NextDispatchReadyPayload.nextDispatchBoundary[0].toolCall.name -ne 'console.write.engine.answer.capture') { throw "next dispatch toolCall was not answer capture" }
+if ($NextDispatchReadyPayload.nextDispatchBoundary[0].toolCall.name -ne 'write.engine.answer.capture') { throw "next dispatch toolCall was not answer capture" }
 
 $TransportResultPath = Join-Path $Root 'var/runner/transport-result-smoke.json'
-[pscustomobject]@{ ok = $true; tool = 'console.write.engine.answer.capture'; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $TransportResultPath -Encoding UTF8
+[pscustomobject]@{ ok = $true; tool = 'write.engine.answer.capture'; status = 'ENGINE_ANSWER_CAPTURED'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $TransportResultPath -Encoding UTF8
 $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
 $TransportResultRaw = & $Dispatcher -PayloadPath $NextDispatchReadyPayload.nextDispatchPayload[0].path -ResultPath $TransportResultPath 2>&1
 $TransportResultPayload = $TransportResultRaw | ConvertFrom-Json
@@ -138,9 +138,9 @@ $AnswerCapturedPayload = $AnswerCapturedRaw | ConvertFrom-Json
 if ($AnswerCapturedPayload.runnerMode -ne 'answer_capture_result') { throw "runner did not enter answer capture result mode" }
 if ($AnswerCapturedPayload.finalActionResult.status -ne 'FINAL_ACTION_ANSWER_CAPTURED') { throw "answer capture final action was not captured" }
 if ($AnswerCapturedPayload.gatewayDecisionContract.status -ne 'GATEWAY_DECISION_CONTRACT_READY') { throw "gateway decision contract was not ready" }
-if ($AnswerCapturedPayload.gatewayDecisionContract.tool -ne 'console.write.engine.gateway.decide') { throw "gateway decision contract tool mismatch" }
+if ($AnswerCapturedPayload.gatewayDecisionContract.tool -ne 'write.engine.gateway.decide') { throw "gateway decision contract tool mismatch" }
 if ($AnswerCapturedPayload.gatewayDecisionContract.arguments.confirmDecision -ne $true) { throw "gateway decision confirmDecision was not true" }
-if ($AnswerCapturedPayload.nextDispatchContract.tool -ne 'console.write.engine.gateway.decide') { throw "next dispatch contract did not expose gateway decision" }
+if ($AnswerCapturedPayload.nextDispatchContract.tool -ne 'write.engine.gateway.decide') { throw "next dispatch contract did not expose gateway decision" }
 
 $AnswerNotReadyPath = Join-Path $Root 'var/runner/answer-not-ready-smoke.json'
 [pscustomobject]@{ ok = $false; status = 'ENGINE_ANSWER_CAPTURE_NOT_READY'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $AnswerNotReadyPath -Encoding UTF8
@@ -161,31 +161,31 @@ if ($AnswerRetryExhaustedPayload.retryPolicy.status -ne 'RETRY_POLICY_EXHAUSTED'
 if ($AnswerRetryExhaustedPayload.retryPolicy.attempt -ne 5) { throw "answer capture exhausted attempt mismatch" }
 if ($AnswerRetryExhaustedPayload.recoveryPlan.action -ne 'recover_browser_target') { throw "answer capture recovery plan mismatch" }
 if ($AnswerRetryExhaustedPayload.finalActionResult.action -ne 'recover_browser_target') { throw "answer capture final recovery action mismatch" }
-if ($AnswerRetryExhaustedPayload.recoveryPlan.dispatchContract.tool -ne 'console.write.engine.chat.bind') { throw "answer capture recovery dispatch contract mismatch" }
-if ($AnswerRetryExhaustedPayload.nextDispatchContract.tool -ne 'console.write.engine.chat.bind') { throw "answer capture recovery next dispatch mismatch" }
+if ($AnswerRetryExhaustedPayload.recoveryPlan.dispatchContract.tool -ne 'write.engine.chat.bind') { throw "answer capture recovery dispatch contract mismatch" }
+if ($AnswerRetryExhaustedPayload.nextDispatchContract.tool -ne 'write.engine.chat.bind') { throw "answer capture recovery next dispatch mismatch" }
 if ($AnswerRetryExhaustedPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "answer capture recovery next dispatch boundary not ready" }
 
 $RecoveryTransportPath = Join-Path $Root 'var/runner/recovery-transport-smoke.json'
 [pscustomobject]@{
     ok = $true
     status = 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED'
-    tool = 'console.write.engine.chat.bind'
-    result = @{ ok = $true; tool = 'console.write.engine.chat.bind'; status = 'ENGINE_CHAT_BIND_RECOVERED'; task_id = 'smoke-engine-task'; chat_id = 'smoke-chat-recovered' }
+    tool = 'write.engine.chat.bind'
+    result = @{ ok = $true; tool = 'write.engine.chat.bind'; status = 'ENGINE_CHAT_BIND_RECOVERED'; task_id = 'smoke-engine-task'; chat_id = 'smoke-chat-recovered' }
 } | ConvertTo-Json -Depth 20 | Set-Content -Path $RecoveryTransportPath -Encoding UTF8
 $RecoveryResultRaw = & $Runner -Task $Task -MaxIterations 1 -RetryAttempt 5 -ResponseTaskId 'smoke-engine-task' -TransportResultPath $RecoveryTransportPath 2>&1
 $RecoveryResultPayload = $RecoveryResultRaw | ConvertFrom-Json
 if ($RecoveryResultPayload.finalActionResult.status -ne 'FINAL_ACTION_RECOVERY_RESULT_ACCEPTED') { throw "recovery result final action mismatch" }
-if ($RecoveryResultPayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "recovery result did not continue to answer capture" }
+if ($RecoveryResultPayload.nextDispatchContract.tool -ne 'write.engine.answer.capture') { throw "recovery result did not continue to answer capture" }
 if ($RecoveryResultPayload.nextDispatchContract.arguments.retryAttempt -ne 0) { throw "recovery result did not reset retry attempt" }
 if ($RecoveryResultPayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "recovery result next dispatch boundary not ready" }
 
 $TransportAdapterResultPath = Join-Path $Root 'var/runner/transport-adapter-result-smoke.json'
-[pscustomobject]@{ ok = $true; tool = 'console.write.engine.chat.bind'; status = 'ENGINE_CHAT_BIND_RECOVERED'; task_id = 'smoke-engine-task'; chat_id = 'smoke-chat-adapter' } | ConvertTo-Json -Depth 20 | Set-Content -Path $TransportAdapterResultPath -Encoding UTF8
+[pscustomobject]@{ ok = $true; tool = 'write.engine.chat.bind'; status = 'ENGINE_CHAT_BIND_RECOVERED'; task_id = 'smoke-engine-task'; chat_id = 'smoke-chat-adapter' } | ConvertTo-Json -Depth 20 | Set-Content -Path $TransportAdapterResultPath -Encoding UTF8
 $TransportAdapterRaw = & (Join-Path $Root 'tool/runner-transport-adapter.ps1') -Task $Task -MaxIterations 1 -PayloadPath $AnswerRetryExhaustedPayload.nextDispatchPayload[0].path -ResultPath $TransportAdapterResultPath 2>&1
 $TransportAdapterPayload = $TransportAdapterRaw | ConvertFrom-Json
 if ($TransportAdapterPayload.status -ne 'RUNNER_TRANSPORT_ADAPTER_FED') { throw "transport adapter did not feed result" }
 if ($TransportAdapterPayload.feed.finalActionResult.status -ne 'FINAL_ACTION_RECOVERY_RESULT_ACCEPTED') { throw "transport adapter feed final action mismatch" }
-if ($TransportAdapterPayload.feed.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "transport adapter feed next dispatch mismatch" }
+if ($TransportAdapterPayload.feed.nextDispatchContract.tool -ne 'write.engine.answer.capture') { throw "transport adapter feed next dispatch mismatch" }
 $TransportJournalPath = Join-Path $Root 'var/runner/journal/runner.ndjson'
 if (-not (Test-Path $TransportJournalPath)) { throw "transport adapter journal file missing" }
 $TransportJournalRaw = Get-Content -Raw -Path $TransportJournalPath
@@ -204,7 +204,7 @@ if ($InvalidTransportPayload.status -ne 'RUNNER_TRANSPORT_RESULT_CONTRACT_INVALI
 if (@($InvalidTransportPayload.missingFields) -notcontains 'tool') { throw "transport adapter invalid contract did not report missing tool" }
 
 $MismatchTransportResultPath = Join-Path $Root 'var/runner/transport-adapter-mismatch-smoke.json'
-[pscustomobject]@{ ok = $true; tool = 'console.write.engine.worker.tick'; status = 'ENGINE_WORKER_TICK_ACCEPTED' } | ConvertTo-Json -Depth 20 | Set-Content -Path $MismatchTransportResultPath -Encoding UTF8
+[pscustomobject]@{ ok = $true; tool = 'write.engine.worker.tick'; status = 'ENGINE_WORKER_TICK_ACCEPTED' } | ConvertTo-Json -Depth 20 | Set-Content -Path $MismatchTransportResultPath -Encoding UTF8
 $MismatchTransportRaw = & (Join-Path $Root 'tool/runner-transport-adapter.ps1') -Task $Task -MaxIterations 1 -PayloadPath $AnswerRetryExhaustedPayload.nextDispatchPayload[0].path -ResultPath $MismatchTransportResultPath 2>&1
 $MismatchTransportPayload = $MismatchTransportRaw | ConvertFrom-Json
 if ($MismatchTransportPayload.status -ne 'RUNNER_TRANSPORT_RESULT_TOOL_MISMATCH') { throw "transport adapter tool mismatch was not rejected" }
@@ -219,8 +219,8 @@ $WorkerRecoveryTransportPath = Join-Path $Root 'var/runner/worker-recovery-trans
 [pscustomobject]@{
     ok = $true
     status = 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED'
-    tool = 'console.write.engine.worker.tick'
-    result = @{ ok = $true; tool = 'console.write.engine.worker.tick'; status = 'ENGINE_WORKER_TICK_ACCEPTED'; task_id = 'smoke-engine-task'; recoveryMode = 'worker_state' }
+    tool = 'write.engine.worker.tick'
+    result = @{ ok = $true; tool = 'write.engine.worker.tick'; status = 'ENGINE_WORKER_TICK_ACCEPTED'; task_id = 'smoke-engine-task'; recoveryMode = 'worker_state' }
 } | ConvertTo-Json -Depth 20 | Set-Content -Path $WorkerRecoveryTransportPath -Encoding UTF8
 $WorkerRecoveryRaw = & $Runner -Task $Task -MaxIterations 2 -RetryAttempt 3 -ResponseTaskId 'smoke-engine-task' -TransportResultPath $WorkerRecoveryTransportPath 2>&1
 $WorkerRecoveryPayload = $WorkerRecoveryRaw | ConvertFrom-Json
@@ -238,9 +238,9 @@ if ($GatewayContinuePayload.runnerMode -ne 'gateway_decision_result') { throw "r
 if ($GatewayContinuePayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_CONTINUE') { throw "gateway continue final action mismatch" }
 if ($GatewayContinuePayload.gatewayContinuePlan.status -ne 'GATEWAY_CONTINUE_PLAN_READY') { throw "gateway continue plan was not ready" }
 if ($GatewayContinuePayload.gatewayContinueContract.status -ne 'GATEWAY_CONTINUE_CONTRACT_READY') { throw "gateway continue contract was not ready" }
-if ($GatewayContinuePayload.gatewayContinueContract.tool -ne 'console.write.engine.worker.tick') { throw "gateway continue contract tool mismatch" }
+if ($GatewayContinuePayload.gatewayContinueContract.tool -ne 'write.engine.worker.tick') { throw "gateway continue contract tool mismatch" }
 if ($GatewayContinuePayload.gatewayContinueContract.arguments.maxTicks -ne 1) { throw "gateway continue maxTicks mismatch" }
-if ($GatewayContinuePayload.nextDispatchContract.tool -ne 'console.write.engine.worker.tick') { throw "next dispatch contract did not expose worker tick" }
+if ($GatewayContinuePayload.nextDispatchContract.tool -ne 'write.engine.worker.tick') { throw "next dispatch contract did not expose worker tick" }
 
 $GatewayReplyPath = Join-Path $Root 'var/runner/gateway-reply-smoke.json'
 [pscustomobject]@{ ok = $true; status = 'ENGINE_GATEWAY_DECISION_RECORDED'; decision_status = 'REVISE'; task_id = 'smoke-engine-task' } | ConvertTo-Json -Depth 20 | Set-Content -Path $GatewayReplyPath -Encoding UTF8
@@ -250,34 +250,34 @@ $GatewayReplyPayload = $GatewayReplyRaw | ConvertFrom-Json
 if ($GatewayReplyPayload.finalActionResult.status -ne 'FINAL_ACTION_GATEWAY_REPLY_BACK') { throw "gateway reply-back final action mismatch" }
 if ($GatewayReplyPayload.gatewayReplyBackPlan.status -ne 'GATEWAY_REPLY_BACK_PLAN_READY') { throw "gateway reply-back plan was not ready" }
 if ($GatewayReplyPayload.gatewayReplyBackContract.status -ne 'GATEWAY_REPLY_BACK_CONTRACT_READY') { throw "gateway reply-back contract was not ready" }
-if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].tool -ne 'console.write.engine.reply.draft') { throw "gateway reply-back draft tool mismatch" }
-if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[1].tool -ne 'console.write.engine.reply.submit') { throw "gateway reply-back submit tool mismatch" }
+if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].tool -ne 'write.engine.reply.draft') { throw "gateway reply-back draft tool mismatch" }
+if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[1].tool -ne 'write.engine.reply.submit') { throw "gateway reply-back submit tool mismatch" }
 if ($GatewayReplyPayload.gatewayReplyBackContract.sequence[0].arguments.taskId -ne 'smoke-engine-task') { throw "gateway reply-back task id mismatch" }
-if ($GatewayReplyPayload.nextDispatchContract.sequence[0].tool -ne 'console.write.engine.reply.draft') { throw "next dispatch contract did not expose reply draft" }
-if ($GatewayReplyPayload.nextDispatchContract.sequence[1].tool -ne 'console.write.engine.reply.submit') { throw "next dispatch contract did not expose reply submit" }
+if ($GatewayReplyPayload.nextDispatchContract.sequence[0].tool -ne 'write.engine.reply.draft') { throw "next dispatch contract did not expose reply draft" }
+if ($GatewayReplyPayload.nextDispatchContract.sequence[1].tool -ne 'write.engine.reply.submit') { throw "next dispatch contract did not expose reply submit" }
 if ($GatewayReplyPayload.nextDispatchBoundary.Count -ne 2) { throw "reply-back next dispatch boundary count mismatch" }
-if ($GatewayReplyPayload.nextDispatchBoundary[0].tool -ne 'console.write.engine.reply.draft') { throw "reply-back next dispatch draft boundary mismatch" }
-if ($GatewayReplyPayload.nextDispatchBoundary[1].tool -ne 'console.write.engine.reply.submit') { throw "reply-back next dispatch submit boundary mismatch" }
+if ($GatewayReplyPayload.nextDispatchBoundary[0].tool -ne 'write.engine.reply.draft') { throw "reply-back next dispatch draft boundary mismatch" }
+if ($GatewayReplyPayload.nextDispatchBoundary[1].tool -ne 'write.engine.reply.submit') { throw "reply-back next dispatch submit boundary mismatch" }
 
 $ReplySequenceResultPath = Join-Path $Root 'var/runner/reply-sequence-result-smoke.json'
 [pscustomobject]@{
     results = @(
-        @{ ok = $true; tool = 'console.write.engine.reply.draft'; status = 'ENGINE_REPLY_BACK_DRAFTED'; task_id = 'smoke-engine-task'; target_id = 'smoke-target-response' },
-        @{ ok = $true; tool = 'console.write.engine.reply.submit'; status = 'ENGINE_REPLY_BACK_SUBMITTED'; task_id = 'smoke-engine-task'; target_id = 'smoke-target-response' }
+        @{ ok = $true; tool = 'write.engine.reply.draft'; status = 'ENGINE_REPLY_BACK_DRAFTED'; task_id = 'smoke-engine-task'; target_id = 'smoke-target-response' },
+        @{ ok = $true; tool = 'write.engine.reply.submit'; status = 'ENGINE_REPLY_BACK_SUBMITTED'; task_id = 'smoke-engine-task'; target_id = 'smoke-target-response' }
     )
 } | ConvertTo-Json -Depth 20 | Set-Content -Path $ReplySequenceResultPath -Encoding UTF8
 $ReplySequenceRaw = & $Runner -Task $Task -MaxIterations 1 -ResponseTaskId 'smoke-engine-task' -ResponseTargetId 'smoke-target-response' -ReplySequenceResultPath $ReplySequenceResultPath 2>&1
 $ReplySequencePayload = $ReplySequenceRaw | ConvertFrom-Json
 if ($ReplySequencePayload.runnerMode -ne 'reply_sequence_result') { throw "runner did not enter reply sequence result mode" }
 if ($ReplySequencePayload.finalActionResult.status -ne 'FINAL_ACTION_REPLY_SEQUENCE_ACCEPTED') { throw "reply sequence was not accepted" }
-if ($ReplySequencePayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "reply sequence did not advance to answer capture" }
+if ($ReplySequencePayload.nextDispatchContract.tool -ne 'write.engine.answer.capture') { throw "reply sequence did not advance to answer capture" }
 if ($ReplySequencePayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "reply sequence next dispatch boundary was not ready" }
 
 $ResumeRaw = & $Runner -Task $Task -MaxIterations 1 -ResumeLatest 2>&1
 $ResumePayload = $ResumeRaw | ConvertFrom-Json
 if ($ResumePayload.runnerMode -ne 'resume_latest') { throw "runner did not enter resume latest mode" }
 if ($ResumePayload.finalActionResult.status -ne 'FINAL_ACTION_RESUME_LATEST') { throw "resume latest final action mismatch" }
-if ($ResumePayload.nextDispatchContract.tool -ne 'console.write.engine.answer.capture') { throw "resume latest did not restore answer capture next dispatch" }
+if ($ResumePayload.nextDispatchContract.tool -ne 'write.engine.answer.capture') { throw "resume latest did not restore answer capture next dispatch" }
 if ($ResumePayload.nextDispatchStatus -ne 'NEXT_DISPATCH_BOUNDARY_READY') { throw "resume latest next dispatch boundary was not ready" }
 if (-not $ResumePayload.budget) { throw "resume latest budget cursor missing" }
 if ($ResumePayload.budget.remaining -ne 1) { throw "resume latest budget remaining mismatch" }
@@ -370,9 +370,9 @@ $ClosedFlow = @(
     @{ step = 'worker_tick'; status = $WorkerStopPayload.finalActionResult.status; next = $WorkerStopPayload.workerStopPlan.nextAction }
 )
 
-if ($ClosedFlow[0].next -ne 'console.write.engine.answer.capture') { throw "closed flow did not advance from reply to answer capture" }
-if ($ClosedFlow[1].next -ne 'console.write.engine.gateway.decide') { throw "closed flow did not advance from answer capture to gateway decision" }
-if ($ClosedFlow[2].next -ne 'console.write.engine.worker.tick') { throw "closed flow did not advance from gateway continue to worker tick" }
+if ($ClosedFlow[0].next -ne 'write.engine.answer.capture') { throw "closed flow did not advance from reply to answer capture" }
+if ($ClosedFlow[1].next -ne 'write.engine.gateway.decide') { throw "closed flow did not advance from answer capture to gateway decision" }
+if ($ClosedFlow[2].next -ne 'write.engine.worker.tick') { throw "closed flow did not advance from gateway continue to worker tick" }
 if ($ClosedFlow[3].next -ne 'stop_loop') { throw "closed flow did not stop on worker idle" }
 
 [pscustomobject]@{

@@ -38,8 +38,8 @@ assert($verified['blockers'] === []);
 
 $collection = $planner->collectionPlan('D:\\PhpstormProjects\\www\\Viewing', $web);
 assert($collection['status'] === 'SHADOW_BEHAVIORAL_COLLECTION_PLAN_READY');
-assert($collection['contracts'][0]['tool'] === 'console.read_.runtime.visual.gallery.server.status');
-assert($collection['contracts'][1]['tool'] === 'console.read_.runtime.php.server.status');
+assert($collection['contracts'][0]['tool'] === 'read_.runtime.visual.gallery.server.status');
+assert($collection['contracts'][1]['tool'] === 'read_.runtime.php.server.status');
 
 $visualPlan = $planner->visualManifestPlan(
     'D:\\PhpstormProjects\\www\\Viewing',

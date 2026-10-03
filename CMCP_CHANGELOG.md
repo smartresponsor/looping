@@ -6,7 +6,7 @@
 
 Console MCP commit `f45d5ac` is the architectural divergence point where Console acquired a durable task/phase engine. The hardened Console engine through `ffae5d7` is treated as the behavioral baseline that must be preserved during migration.
 
-ChatGPT Loop already owns task-bank/chat-bank state and runner retry/recovery logic, but production code still delegates substantial orchestration to Console MCP through `console.write.engine.*`, `console.read_.browser.chatgpt.run.loop.*`, and the run-loop daemon surface.
+ChatGPT Loop already owns task-bank/chat-bank state and runner retry/recovery logic, but production code still delegates substantial orchestration to Console MCP through `write.engine.*`, `read_.browser.chatgpt.run.loop.*`, and the run-loop daemon surface.
 
 ### Work completed
 

@@ -156,9 +156,9 @@ function Add-RetryPolicy {
                 default { 'stop_hard' }
             }
             $RecoveryContract = switch ($RecoveryAction) {
-                'recover_browser_target' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'console.write.engine.chat.bind'; arguments = [ordered]@{ taskId = if ($ResponseTaskId) { $ResponseTaskId } else { $null }; requireVisibleTarget = $true; refreshBinding = $true; recoveryMode = 'browser_target' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_chat_bind' } }
-                'recover_chat_binding' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'console.write.engine.chat.bind'; arguments = [ordered]@{ taskId = if ($ResponseTaskId) { $ResponseTaskId } else { $null }; requireVisibleTarget = $true; refreshBinding = $true; recoveryMode = 'chat_binding' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_chat_bind' } }
-                'recover_worker_state' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'console.write.engine.worker.tick'; arguments = [ordered]@{ maxTicks = 1; stopOnIdle = $true; stopOnWaitingUser = $true; recoveryMode = 'worker_state' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_worker_tick' } }
+                'recover_browser_target' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'write.engine.chat.bind'; arguments = [ordered]@{ taskId = if ($ResponseTaskId) { $ResponseTaskId } else { $null }; requireVisibleTarget = $true; refreshBinding = $true; recoveryMode = 'browser_target' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_chat_bind' } }
+                'recover_chat_binding' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'write.engine.chat.bind'; arguments = [ordered]@{ taskId = if ($ResponseTaskId) { $ResponseTaskId } else { $null }; requireVisibleTarget = $true; refreshBinding = $true; recoveryMode = 'chat_binding' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_chat_bind' } }
+                'recover_worker_state' { [ordered]@{ ok = $true; status = 'RECOVERY_DISPATCH_CONTRACT_READY'; stage = 'recovery'; tool = 'write.engine.worker.tick'; arguments = [ordered]@{ maxTicks = 1; stopOnIdle = $true; stopOnWaitingUser = $true; recoveryMode = 'worker_state' }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_recovery_worker_tick' } }
                 default { $null }
             }
             $Payload | Add-Member -NotePropertyName recoveryPlan -NotePropertyValue ([pscustomobject]@{
@@ -345,8 +345,8 @@ if ($ReplySequenceResultPath) {
     $ReplySequenceResult = Get-Content -Raw -Path $ReplySequenceResultPath | ConvertFrom-Json
     $ReplyResults = @($ReplySequenceResult.results)
     if ($ReplyResults.Count -ne 2) { throw "reply sequence result count mismatch: $($ReplyResults.Count)" }
-    if ($ReplyResults[0].tool -ne 'console.write.engine.reply.draft') { throw "reply sequence draft result tool mismatch" }
-    if ($ReplyResults[1].tool -ne 'console.write.engine.reply.submit') { throw "reply sequence submit result tool mismatch" }
+    if ($ReplyResults[0].tool -ne 'write.engine.reply.draft') { throw "reply sequence draft result tool mismatch" }
+    if ($ReplyResults[1].tool -ne 'write.engine.reply.submit') { throw "reply sequence submit result tool mismatch" }
     if ($ReplyResults[0].ok -ne $true -or $ReplyResults[1].ok -ne $true) { throw "reply sequence result was not successful" }
 
     $ReplyTaskId1 = Get-OptionalProperty -InputObject $ReplyResults[1] -Name 'task_id'
@@ -371,7 +371,7 @@ if ($ReplySequenceResultPath) {
         ok = $true
         status = 'REPLY_SEQUENCE_NEXT_CAPTURE_CONTRACT_READY'
         stage = 'answer_capture'
-        tool = 'console.write.engine.answer.capture'
+        tool = 'write.engine.answer.capture'
         arguments = [ordered]@{
             taskId = $NextLoopTickPlan.taskId
             preferredChatId = if ($ResponseChatId) { $ResponseChatId } else { $null }
@@ -410,23 +410,23 @@ if ($TransportResultPath) {
 
     $TransportTaskId = Get-OptionalProperty -InputObject $TransportPayload -Name 'task_id'
     $IntakeArgs = @{ Task = $Task; MaxIterations = $MaxIterations; ResponseTaskId = $(if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportTaskId) { $TransportTaskId } else { '' }) }
-    if ($TransportTool -eq 'console.write.engine.answer.capture') {
+    if ($TransportTool -eq 'write.engine.answer.capture') {
         $IntakeArgs.AnswerCaptureResultPath = $TransportPayloadPath
-    } elseif ($TransportTool -eq 'console.write.engine.gateway.decide') {
+    } elseif ($TransportTool -eq 'write.engine.gateway.decide') {
         $IntakeArgs.GatewayDecisionResultPath = $TransportPayloadPath
-    } elseif ($TransportTool -eq 'console.write.engine.worker.tick') {
+    } elseif ($TransportTool -eq 'write.engine.worker.tick') {
         $IntakeArgs.WorkerTickResultPath = $TransportPayloadPath
         if ([string]$TransportPayload.recoveryMode -eq 'worker_state') {
             $IntakeArgs.RetryAttempt = 0
             $Payload | Add-Member -NotePropertyName recoveryResult -NotePropertyValue $TransportResult -Force
         }
-    } elseif ($TransportTool -eq 'console.write.engine.chat.bind') {
+    } elseif ($TransportTool -eq 'write.engine.chat.bind') {
         $RecoveredTaskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($TransportTaskId) { $TransportTaskId } else { $null }
         $RecoveryCaptureContract = [ordered]@{
             ok = $true
             status = 'RECOVERY_RESULT_NEXT_CAPTURE_CONTRACT_READY'
             stage = 'answer_capture'
-            tool = 'console.write.engine.answer.capture'
+            tool = 'write.engine.answer.capture'
             arguments = [ordered]@{
                 taskId = $RecoveredTaskId
                 preferredChatId = if ($TransportPayload.chat_id) { $TransportPayload.chat_id } else { $null }
@@ -452,7 +452,7 @@ if ($TransportResultPath) {
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.write.browser.session.cmcp.go') {
+    } elseif ($TransportTool -eq 'write.browser.session.cmcp.go') {
         $WorkspacePath = if ($TransportPayload.workspace_path) { [string]$TransportPayload.workspace_path } elseif ($TransportPayload.workspacePath) { [string]$TransportPayload.workspacePath } elseif ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
         $Payload | Add-Member -NotePropertyName engineExecutorResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
@@ -473,10 +473,10 @@ if ($TransportResultPath) {
             if (-not $ResultTargetId) { $ResultTargetId = Get-OptionalProperty -InputObject $TransportResult -Name 'targetId' }
             $TargetId = if ($PayloadTargetId) { [string]$PayloadTargetId } elseif ($TraceTargetId) { [string]$TraceTargetId } elseif ($ResultTargetId) { [string]$ResultTargetId } else { $null }
             if ($ChatId) {
-                $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_TITLE_PREFIX_CONTRACT_READY'; stage = 'chat_title_prefix'; tool = 'console.write.browser.session.title.prefix'; arguments = @{ workspacePath = $WorkspacePath; expectedChatId = $ChatId; expectedTargetId = $TargetId; chatTitleMode = 'auto'; waitForChatId = $true; confirmTitlePrefix = $true; timeoutMs = 30000 }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_chat_title_prefix' } -Force
+                $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_TITLE_PREFIX_CONTRACT_READY'; stage = 'chat_title_prefix'; tool = 'write.browser.session.title.prefix'; arguments = @{ workspacePath = $WorkspacePath; expectedChatId = $ChatId; expectedTargetId = $TargetId; chatTitleMode = 'auto'; waitForChatId = $true; confirmTitlePrefix = $true; timeoutMs = 30000 }; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_chat_title_prefix' } -Force
                 $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_TITLE_PREFIX_PENDING'; action = 'dispatch_chat_title_prefix'; nextAction = 'dispatch_next_from_state' } -Force
             } else {
-                $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
+                $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'ENGINE_EXECUTOR_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
                 $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_ENGINE_EXECUTOR_ACCEPTED'; action = 'engine_executor_accepted'; nextAction = 'dispatch_next_from_state' } -Force
             }
         } else {
@@ -490,7 +490,7 @@ if ($TransportResultPath) {
                 $RetryAfterMs = if ($TransportPayload.recommended_retry_after_ms) { [int]$TransportPayload.recommended_retry_after_ms } else { 90000 }
                 $OriginalArguments = if ($TransportResult.arguments) { $TransportResult.arguments } elseif ($TransportResult.toolCall -and $TransportResult.toolCall.arguments) { $TransportResult.toolCall.arguments } else { $null }
                 if ($OriginalArguments) {
-                    $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'CMCP_GO_RATE_LIMIT_REDISPATCH_CONTRACT_READY'; stage = 'cmcp_go_retry'; tool = 'console.write.browser.session.cmcp.go'; arguments = $OriginalArguments; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'redispatch_cmcp_go_after_rate_limit_wait' } -Force
+                    $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'CMCP_GO_RATE_LIMIT_REDISPATCH_CONTRACT_READY'; stage = 'cmcp_go_retry'; tool = 'write.browser.session.cmcp.go'; arguments = $OriginalArguments; mutation = 'write'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'redispatch_cmcp_go_after_rate_limit_wait' } -Force
                 } else {
                     $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
                 }
@@ -504,38 +504,38 @@ if ($TransportResultPath) {
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.write.browser.session.title.prefix') {
+    } elseif ($TransportTool -eq 'write.browser.session.title.prefix') {
         $WorkspacePath = if ($TransportPayload.workspace_path) { [string]$TransportPayload.workspace_path } elseif ($TransportPayload.workspacePath) { [string]$TransportPayload.workspacePath } elseif ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
         $Payload | Add-Member -NotePropertyName chatTitlePrefixResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
-        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'TITLE_PREFIX_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'TITLE_PREFIX_NEXT_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_TITLE_PREFIX_ACCEPTED'; action = 'title_prefix_accepted'; nextAction = 'dispatch_next_from_state' } -Force
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.read_.repo.context.capture') {
+    } elseif ($TransportTool -eq 'read_.repo.context.capture') {
         $Payload | Add-Member -NotePropertyName repoContextResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
         $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue $null -Force
         $WorkspacePath = if ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } elseif ($TransportResult.capture -and $TransportResult.capture.cwd) { [string]$TransportResult.capture.cwd } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
-        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'REPO_WORKSPACE_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'console.read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'REPO_WORKSPACE_STATUS_CONTRACT_READY'; stage = 'repo_status'; tool = 'read_.repo.workspace.status'; arguments = @{ workspacePath = $WorkspacePath }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_workspace_status' } -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_REPO_CONTEXT_CAPTURE_ACCEPTED'; action = 'repo_context_capture_accepted'; nextAction = 'dispatch_next_from_state' } -Force
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.read_.repo.workspace.status') {
+    } elseif ($TransportTool -eq 'read_.repo.workspace.status') {
         $WorkspacePath = if ($TransportPayload.workspace_path) { [string]$TransportPayload.workspace_path } elseif ($TransportPayload.workspacePath) { [string]$TransportPayload.workspacePath } elseif ($TransportResult.workspace_path) { [string]$TransportResult.workspace_path } elseif ($TransportResult.workspacePath) { [string]$TransportResult.workspacePath } else { [string]$Payload.nextDispatchContract.arguments.workspacePath }
         $Payload | Add-Member -NotePropertyName repoWorkspaceStatusResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
-        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'REPO_MEMORY_GRAPH_PLAN_CONTRACT_READY'; stage = 'repo_memory_graph_plan'; tool = 'console.read_.repo.memory.graph.plan'; arguments = @{ workspacePath = $WorkspacePath; operation = 'search_graph'; implementationFlow = $true }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_memory_graph_plan' } -Force
+        $Payload | Add-Member -NotePropertyName nextDispatchContract -NotePropertyValue @{ ok = $true; status = 'REPO_MEMORY_GRAPH_PLAN_CONTRACT_READY'; stage = 'repo_memory_graph_plan'; tool = 'read_.repo.memory.graph.plan'; arguments = @{ workspacePath = $WorkspacePath; operation = 'search_graph'; implementationFlow = $true }; mutation = 'read_only'; confirmationRequired = $false; execution = 'external_console_mcp_required'; nextAction = 'dispatch_repo_memory_graph_plan' } -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{ ok = $true; status = 'FINAL_ACTION_REPO_WORKSPACE_STATUS_ACCEPTED'; action = 'repo_workspace_status_accepted'; nextAction = 'dispatch_next_from_state' } -Force
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.read_.repo.memory.graph.plan') {
+    } elseif ($TransportTool -eq 'read_.repo.memory.graph.plan') {
         $Payload | Add-Member -NotePropertyName repoMemoryGraphPlanResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
@@ -544,7 +544,7 @@ if ($TransportResultPath) {
         Write-RunnerState -Payload $Payload
         $Payload | ConvertTo-Json -Depth 40
         exit 0
-    } elseif ($TransportTool -eq 'console.write.engine.reply.draft' -or $TransportTool -eq 'console.write.engine.reply.submit') {
+    } elseif ($TransportTool -eq 'write.engine.reply.draft' -or $TransportTool -eq 'write.engine.reply.submit') {
         $Payload | Add-Member -NotePropertyName transportResult -NotePropertyValue $TransportResult -Force
         $Payload | Add-Member -NotePropertyName transportIntakePath -NotePropertyValue $TransportPayloadPath -Force
         $Payload | Add-Member -NotePropertyName finalActionResult -NotePropertyValue @{
@@ -675,7 +675,7 @@ if ($GatewayDecisionResultPath) {
             ok = $true
             status = 'GATEWAY_CONTINUE_CONTRACT_READY'
             stage = 'bounded_worker_tick'
-            tool = 'console.write.engine.worker.tick'
+            tool = 'write.engine.worker.tick'
             arguments = [ordered]@{
                 maxTicks = 1
                 stopOnIdle = $true
@@ -730,7 +730,7 @@ if ($GatewayDecisionResultPath) {
             sequence = @(
                 [ordered]@{
                     stage = 'reply_draft'
-                    tool = 'console.write.engine.reply.draft'
+                    tool = 'write.engine.reply.draft'
                     arguments = [ordered]@{
                         taskId = $ReplyPlan.taskId
                         expectedTargetId = if ($ResponseTargetId) { $ResponseTargetId } else { $null }
@@ -743,7 +743,7 @@ if ($GatewayDecisionResultPath) {
                 },
                 [ordered]@{
                     stage = 'reply_submit'
-                    tool = 'console.write.engine.reply.submit'
+                    tool = 'write.engine.reply.submit'
                     arguments = [ordered]@{
                         taskId = $ReplyPlan.taskId
                         expectedTargetId = if ($ResponseTargetId) { $ResponseTargetId } else { $null }
@@ -782,7 +782,7 @@ if ($AnswerCaptureResultPath) {
             ok = $true
             status = 'GATEWAY_DECISION_CONTRACT_READY'
             stage = 'gateway_decision'
-            tool = 'console.write.engine.gateway.decide'
+            tool = 'write.engine.gateway.decide'
             arguments = [ordered]@{
                 taskId = if ($ResponseTaskId) { $ResponseTaskId } elseif ($AnswerCaptureTaskId) { $AnswerCaptureTaskId } else { $null }
                 maxOutputTokens = 900
@@ -854,7 +854,7 @@ if ($HostBridgeResultPath) {
         ok = $true
         status = 'NEXT_LOOP_TICK_CONTRACT_READY'
         stage = 'answer_capture'
-        tool = 'console.write.engine.answer.capture'
+        tool = 'write.engine.answer.capture'
         arguments = [ordered]@{
             taskId = $NextLoopTickPlan.taskId
             preferredChatId = if ($ResponseChatId) { $ResponseChatId } else { $null }

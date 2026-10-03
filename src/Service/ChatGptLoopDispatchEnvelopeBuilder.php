@@ -34,12 +34,12 @@ final class ChatGptLoopDispatchEnvelopeBuilder
     private function toolName(string $capability): ?string
     {
         return match ($capability) {
-            'browser.chatgpt.entrypoint.plan' => 'console.read_.browser.chatgpt.entrypoint.plan',
-            'engine.task.enqueue' => 'console.write.engine.task.enqueue',
-            'engine.worker.tick' => 'console.write.engine.worker.tick',
-            'engine.chat.bind' => 'console.write.engine.chat.bind',
-            'engine.answer.capture' => 'console.write.engine.answer.capture',
-            'engine.gateway.decide' => 'console.write.engine.gateway.decide',
+            'browser.chatgpt.entrypoint.plan' => 'read_.browser.chatgpt.entrypoint.plan',
+            'engine.task.enqueue' => 'write.engine.task.enqueue',
+            'engine.worker.tick' => 'write.engine.worker.tick',
+            'engine.chat.bind' => 'write.engine.chat.bind',
+            'engine.answer.capture' => 'write.engine.answer.capture',
+            'engine.gateway.decide' => 'write.engine.gateway.decide',
             default => null,
         };
     }

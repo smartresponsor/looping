@@ -4,12 +4,12 @@
   "consoleMcpBehavioralBaseline": "ffae5d7",
   "mode": "shadow_migration",
   "forbiddenOwnershipPrefixes": [
-    "console.write.engine.",
-    "console.read_.browser.chatgpt.run.loop.",
-    "console.write.browser.session.run.loop.daemon.",
-    "console.write.browser.session.cmcp.go",
-    "console.write.browser.chatgpt.chat.adopt_go",
-    "console.read_.browser.chatgpt.watch.next"
+    "write.engine.",
+    "read_.browser.chatgpt.run.loop.",
+    "write.browser.session.run.loop.daemon.",
+    "write.browser.session.cmcp.go",
+    "write.browser.chatgpt.chat.adopt_go",
+    "read_.browser.chatgpt.watch.next"
   ],
   "legacyReferenceFiles": [
     "docs/console-mcp-delegation.md",

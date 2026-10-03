@@ -23,7 +23,7 @@ The decision layer is not a new heavy code engine. The intended model is orchest
 
 - Captures stable ChatGPT executor answers in `recordEngineAnswerCapture()`.
 - Calls local Ask through `executeAsk()` and records a decision in `recordEngineGatewayDecision()`.
-- Has `console.write.engine.cycle.rounds.run`, which can run multiple full ChatGPT rounds within a bounded budget.
+- Has `write.engine.cycle.rounds.run`, which can run multiple full ChatGPT rounds within a bounded budget.
 - Has round reset via `resetEngineCycleRoundState()` after a full reply-back cycle.
 - Has generic reply-back drafting via `buildReplyBackText()`.
 - Has Ask transcript persistence under `var/transcript`.

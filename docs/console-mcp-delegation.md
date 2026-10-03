@@ -6,31 +6,31 @@ It must not duplicate browser, composer, answer capture, gateway, or engine-bank
 
 ## Planning capabilities
 
-- `console.read_.browser.chatgpt.entrypoint.plan`
-- `console.write.browser.session.cmcp.go`
+- `read_.browser.chatgpt.entrypoint.plan`
+- `write.browser.session.cmcp.go`
 
 ## Engine bank capabilities
 
-- `console.write.engine.task.enqueue`
-- `console.read_.engine.task.list`
-- `console.read_.engine.task.status`
-- `console.write.engine.worker.tick`
+- `write.engine.task.enqueue`
+- `read_.engine.task.list`
+- `read_.engine.task.status`
+- `write.engine.worker.tick`
 
 ## Chat execution capabilities
 
-- `console.write.engine.chat.bind`
-- `console.write.engine.prompt.draft`
-- `console.write.engine.prompt.submit`
-- `console.write.engine.answer.capture`
-- `console.write.engine.gateway.decide`
-- `console.write.engine.reply.draft`
-- `console.write.engine.reply.submit`
+- `write.engine.chat.bind`
+- `write.engine.prompt.draft`
+- `write.engine.prompt.submit`
+- `write.engine.answer.capture`
+- `write.engine.gateway.decide`
+- `write.engine.reply.draft`
+- `write.engine.reply.submit`
 
 ## Recovery capabilities
 
-- `console.read_.browser.chatgpt.run.loop.recover.plan`
-- `console.write.browser.session.run.loop.recover.step`
-- `console.write.browser.session.run.loop.recover.prune.missing`
+- `read_.browser.chatgpt.run.loop.recover.plan`
+- `write.browser.session.run.loop.recover.step`
+- `write.browser.session.run.loop.recover.prune.missing`
 
 ## Rule
 

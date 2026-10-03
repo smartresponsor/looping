@@ -117,7 +117,7 @@ function New-CmcpDispatchContract {
         ok = $true
         status = 'TASK_BANK_UI_INTERACTION_CONTRACT_READY'
         stage = 'ui_interaction_submit'
-        tool = 'console.write.browser.session.cmcp.go'
+        tool = 'write.browser.session.cmcp.go'
         arguments = $Arguments
         mutation = 'write'
         confirmationRequired = $false
@@ -202,7 +202,7 @@ function Invoke-RunnerDispatch {
     $DaemonPayload = $DaemonRaw | ConvertFrom-Json
     if ($DaemonPayload.status -ne 'RUNNER_DAEMON_DISPATCH_READY') { throw "runner daemon did not select dispatch: $($DaemonPayload.status)" }
     $Tool = [string]$DaemonPayload.dispatchTool
-    if ($Tool -ne 'console.write.browser.session.cmcp.go') { throw "task-bank UI submit expected cmcp.go, got $Tool" }
+    if ($Tool -ne 'write.browser.session.cmcp.go') { throw "task-bank UI submit expected cmcp.go, got $Tool" }
     $BridgeRaw = & $Bridge -PayloadPath $DaemonPayload.dispatchPayloadPath -ResultPath $DaemonPayload.expectedResultPath 2>&1
     $BridgePayload = $BridgeRaw | ConvertFrom-Json
     $Result = Read-JsonFile -Path $DaemonPayload.expectedResultPath
@@ -233,13 +233,18 @@ function Get-SemanticStatus {
 function Get-ReadyToDeleteSignal {
     param([AllowNull()][string]$AssistantText)
     if ([string]::IsNullOrEmpty($AssistantText)) { return $null }
-    $Normalized = $AssistantText -replace '(\r\n|\r|\n)+$',''
-    if ([string]::IsNullOrEmpty($Normalized)) { return $null }
-    $Lines = $Normalized -split '\r?\n|\r'
-    $FinalLine = [string]$Lines[-1]
-    if ($FinalLine -ceq '{"ready_to_delete":true}') { return $true }
-    if ($FinalLine -ceq '{"ready_to_delete":false}') { return $false }
-    return $null
+    $VisibleLines = @()
+    $InsideFence = $false
+    foreach ($Line in @($AssistantText -split '\r?\n|\r')) {
+        $Trimmed = ([string]$Line).Trim()
+        if ($Trimmed.StartsWith('```')) { $InsideFence = -not $InsideFence; continue }
+        if (-not $InsideFence -and $Trimmed -ne '') { $VisibleLines += $Trimmed }
+    }
+    $Tail = @($VisibleLines | Select-Object -Last 5)
+    $HasTrue = @($Tail | Where-Object { $_ -ceq '{"ready_to_delete":true}' }).Count -gt 0
+    $HasFalse = @($Tail | Where-Object { $_ -ceq '{"ready_to_delete":false}' }).Count -gt 0
+    if ($HasTrue -eq $HasFalse) { return $null }
+    return $HasTrue
 }
 
 function ConvertTo-NormalizedAnswer {
@@ -637,10 +642,10 @@ while ($true) {
 
         if ($Task.targetId) {
             $PreflightArgs = [ordered]@{ expectedTargetId = $Task.targetId; timeoutMs = 5000 }
-            $Preflight = Invoke-BridgeTool -Tool 'console.read_.browser.chatgpt.composer.preflight' -Arguments $PreflightArgs -TaskId $TaskId
-            $ToolsUsed += 'console.read_.browser.chatgpt.composer.preflight'
+            $Preflight = Invoke-BridgeTool -Tool 'read_.browser.chatgpt.composer.preflight' -Arguments $PreflightArgs -TaskId $TaskId
+            $ToolsUsed += 'read_.browser.chatgpt.composer.preflight'
             $InternalStepCount++
-            Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'console.read_.browser.chatgpt.composer.preflight'; status = $Preflight.result.status; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+            Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'read_.browser.chatgpt.composer.preflight'; status = $Preflight.result.status; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
         } elseif ($Task.lockedChatId) {
             $Task.chatId = [string]$Task.lockedChatId
             $Chat.chatId = [string]$Task.lockedChatId
@@ -749,11 +754,11 @@ while ($true) {
         if ($Task.lastSeenOutlineHash) { $ProbeArgs.previousOutlineHash = $Task.lastSeenOutlineHash }
         if ($Task.lastSeenScrollHeight -gt 0) { $ProbeArgs.previousScrollHeight = [int]$Task.lastSeenScrollHeight }
         if ($Task.lastProgressAt) { $ProbeArgs.lastProgressAt = $Task.lastProgressAt }
-        $Probe = Invoke-BridgeTool -Tool 'console.read_.browser.chatgpt.watch.probe' -Arguments $ProbeArgs -TaskId $TaskId
-        $ToolsUsed += 'console.read_.browser.chatgpt.watch.probe'
+        $Probe = Invoke-BridgeTool -Tool 'read_.browser.chatgpt.watch.probe' -Arguments $ProbeArgs -TaskId $TaskId
+        $ToolsUsed += 'read_.browser.chatgpt.watch.probe'
         $InternalStepCount++
         Update-TaskAndChatFromProbe -Task $Task -Chat $Chat -Probe $Probe.result
-        Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'console.read_.browser.chatgpt.watch.probe'; status = $Probe.result.status; watchNextAction = $Probe.result.decision.next_action; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 30 -Compress))
+        Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'read_.browser.chatgpt.watch.probe'; status = $Probe.result.status; watchNextAction = $Probe.result.decision.next_action; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 30 -Compress))
 
         $StepArgs = [ordered]@{
             workspacePath = $TargetRepo
@@ -770,10 +775,10 @@ while ($true) {
             executePreAsk = $false
         }
         if (-not $Task.chatId) { $StepArgs.Remove('preferredChatId') }
-        $StepSummary = Invoke-BridgeTool -Tool 'console.read_.browser.chatgpt.run.loop.step.summary' -Arguments $StepArgs -TaskId $TaskId
-        $ToolsUsed += 'console.read_.browser.chatgpt.run.loop.step.summary'
+        $StepSummary = Invoke-BridgeTool -Tool 'read_.browser.chatgpt.run.loop.step.summary' -Arguments $StepArgs -TaskId $TaskId
+        $ToolsUsed += 'read_.browser.chatgpt.run.loop.step.summary'
         $InternalStepCount++
-        Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'console.read_.browser.chatgpt.run.loop.step.summary'; status = $StepSummary.result.status; nextAction = $StepSummary.result.next_action; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
+        Write-Host ("progress " + ([ordered]@{ event = 'internalPoll'; tool = 'read_.browser.chatgpt.run.loop.step.summary'; status = $StepSummary.result.status; nextAction = $StepSummary.result.next_action; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
         $Ready = Test-CaptureReady -ProbeResult $Probe.result -StepResult $StepSummary.result
         $QuietEmptyBinding = Test-QuietEmptyCaptureBinding -ProbeResult $Probe.result -StepResult $StepSummary.result
         $ShadowObservation = Write-LiveShadowBrowserObservationArtifact -TaskId $TaskId -Probe $Probe.result -Step $StepSummary.result -Authoritative ([ordered]@{ readyForCapture = [bool]$Ready; quietEmptyBinding = [bool]$QuietEmptyBinding })
@@ -826,8 +831,8 @@ while ($true) {
         }
         if ($Task.chatId) { $SettleArgs.preferredChatId = $Task.chatId }
         if ($Task.currentCycleBaselineAssistantHash) { $SettleArgs.baselineAssistantHash = $Task.currentCycleBaselineAssistantHash }
-        $Settled = Invoke-BridgeTool -Tool 'console.read_.browser.chatgpt.answer.settle' -Arguments $SettleArgs -TaskId $TaskId
-        $ToolsUsed += 'console.read_.browser.chatgpt.answer.settle'
+        $Settled = Invoke-BridgeTool -Tool 'read_.browser.chatgpt.answer.settle' -Arguments $SettleArgs -TaskId $TaskId
+        $ToolsUsed += 'read_.browser.chatgpt.answer.settle'
         $InternalStepCount++
         if ($Settled.result.selected -and $Settled.result.selected.chat_id) {
             $SelectedChatId = [string]$Settled.result.selected.chat_id
@@ -925,8 +930,8 @@ while ($true) {
                     timeoutMs = 5000
                 }
                 for ($CleanupAttempt = 1; $CleanupAttempt -le 3; $CleanupAttempt++) {
-                    $Cleanup = Invoke-BridgeTool -Tool 'console.write.browser.chatgpt.chat.delete.execute' -Arguments $DeleteArgs -TaskId $TaskId
-                    $ToolsUsed += 'console.write.browser.chatgpt.chat.delete.execute'
+                    $Cleanup = Invoke-BridgeTool -Tool 'write.browser.chatgpt.chat.delete.execute' -Arguments $DeleteArgs -TaskId $TaskId
+                    $ToolsUsed += 'write.browser.chatgpt.chat.delete.execute'
                     $InternalStepCount++
                     $CleanupResult = $Cleanup.result
                     if ($CleanupResult.ok -eq $true) { break }
