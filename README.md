@@ -1,4 +1,6 @@
-# ChatGPT Loop
+# Looping
+
+Repository name: `Looping`. The CLI/service compatibility identifier remains `chatgpt-loop`.
 
 ChatGPT Loop is the ChatGPT-specific consumer/product lifecycle layer.
 
@@ -32,7 +34,7 @@ M2 shadow-state parity is intentionally read-only: captured Console receipts are
 
 A normal clone is supported on Windows and Ubuntu/Linux. PHP 8.3+ and `pwsh` are required for the current regression/orchestration helpers.
 
-The canonical workspace root is derived from the repository layout (`<workspace>/mcp/chatgpt-loop`) instead of a hard-coded Windows path. Set `CHATGPT_LOOP_WORKSPACE_ROOT` only when the clone is intentionally placed outside that canonical layout.
+The canonical workspace root is derived from the repository layout (`<workspace>/mcp/Looping`) instead of a hard-coded Windows path. Set `CHATGPT_LOOP_WORKSPACE_ROOT` only when the clone is intentionally placed outside that canonical layout.
 
 ## First RC behavior
 
