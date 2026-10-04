@@ -21,13 +21,15 @@ final class ConsoleMcpCapabilityMap
         }
 
         $component = strtolower($match[1]);
+        $configuredWorkspaceRoot = trim((string) getenv('CHATGPT_LOOP_WORKSPACE_ROOT'));
+        $workspaceRoot = $configuredWorkspaceRoot !== '' ? $configuredWorkspaceRoot : dirname(__DIR__, 4);
 
         return [
             'ok' => true,
             'status' => 'DELEGATION_PLAN_READY',
             'component' => $component,
             'preset' => 'repo_rc_implementation',
-            'workspacePath' => 'D:\\PhpstormProjects\\www\\' . $component,
+            'workspacePath' => rtrim($workspaceRoot, '/\\') . DIRECTORY_SEPARATOR . $component,
             'stages' => [
                 'entrypoint_plan',
                 'task_bank_resume_or_enqueue',

@@ -2,11 +2,14 @@ param(
     [Parameter(Mandatory=$true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$')][string]$ComponentName,
     [Parameter(Mandatory=$true)][string]$ExistingLocation,
     [ValidateRange(1,100)][int]$MaxIterations = 3,
-    [string]$WorkspaceRoot = 'D:\PhpstormProjects\www'
+    [string]$WorkspaceRoot = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
+    $WorkspaceRoot = Split-Path -Parent (Split-Path -Parent $Root)
+}
 $Bridge = Join-Path $Root 'tool/runner-console-mcp-bridge.ps1'
 $BridgeDir = Join-Path $Root 'var/runner/task-bank/bridge'
 $ChatId = $null
