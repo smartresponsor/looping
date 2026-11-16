@@ -26,7 +26,7 @@ function Enter-RunnerLock {
         if (-not (Test-Path -LiteralPath $LockPath)) { throw 'RUNNER_SCHEDULE_SESSION_LOCK_MISSING' }
         try { $SessionLock = Get-Content -Raw -LiteralPath $LockPath | ConvertFrom-Json }
         catch { throw 'RUNNER_SCHEDULE_SESSION_LOCK_INVALID' }
-        if ($SessionLock.owner -ne 'scheduled-task' -or $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN) { throw 'RUNNER_SCHEDULE_SESSION_MISMATCH' }
+        if ($SessionLock.owner -notin @('scheduled-task','repo-smoke','runtime-smoke','task-bank') -or $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN) { throw 'RUNNER_SCHEDULE_SESSION_MISMATCH' }
         return $null
     }
     try {
