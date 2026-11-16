@@ -17,6 +17,6 @@ require $autoload;
 $application = new Application('Looping CLI');
 $application->setAutoExit(false);
 foreach (LoopingCliCommand::supportedCommands() as $name => $options) {
-    $application->add(new LoopingCliCommand($name, $root, $options));
+    $application->addCommand(new LoopingCliCommand($name, $root, $options));
 }
 exit($application->run());
