@@ -24,10 +24,10 @@ export function plannedM5Actions(state) {
   const names={
     PREPARED:['read_.browser.chatgpt.composer.preflight','write.browser.session.input.draft'],
     DRAFTED:['read_.browser.chatgpt.composer.preflight','write.browser.session.submit'],
-    SUBMIT_OUTCOME_UNKNOWN:['read_.browser.chatgpt.message.capture'],
-    SUBMIT_CONFIRMED:['read_.browser.chatgpt.message.capture'],
+    SUBMIT_OUTCOME_UNKNOWN:['read_.browser.chatgpt.message.capture','read_.browser.chatgpt.answer.settle'],
+    SUBMIT_CONFIRMED:['read_.browser.chatgpt.message.capture','read_.browser.chatgpt.answer.settle'],
     CAPTURED:[],
-    NEEDS_RECONCILIATION:['read_.browser.chatgpt.message.capture'],
+    NEEDS_RECONCILIATION:['read_.browser.chatgpt.message.capture','read_.browser.chatgpt.answer.settle'],
   };
   return {stage:state.stage,allowedTools:names[state.stage],retrySubmitAllowed:false,
     verifiedCompleted:false};

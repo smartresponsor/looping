@@ -59,7 +59,7 @@ try{
  const unknown=await runScheduledM5({stateDir:join(root,'unknown'),identity,prompt,invoke:uncertain.invoke,cutoverEnabled:true,leaseVerified:true});
  assert.equal(unknown.status,'M5_RECONCILIATION_REQUIRED');
  assert.equal(unknown.submitRetryAllowed,false);
- assert.deepEqual((await inspectScheduledM5(unknown.path)).policy.allowedTools,['read_.browser.chatgpt.message.capture']);
+ assert.deepEqual((await inspectScheduledM5(unknown.path)).policy.allowedTools,['read_.browser.chatgpt.message.capture','read_.browser.chatgpt.answer.settle']);
  const state={schemaVersion:1,identity:buildScheduledM5Identity({...identity,prompt}),
    stage:'SUBMIT_OUTCOME_UNKNOWN',sequence:2,submitAttemptRecorded:true};
  assert.throws(()=>applyM5Observation(state,{type:'submit_dispatched',...identity}),/M5_DUPLICATE_SUBMISSION_FORBIDDEN/);
