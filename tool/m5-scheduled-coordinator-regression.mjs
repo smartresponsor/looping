@@ -20,9 +20,10 @@ function adapter({ambiguous=false,wrongTarget=false,noCapture=false}={}) {
   if(name==='write.browser.session.input.draft')return {ok:true,draft_hash:hash,draft_length:prompt.length};
   if(name==='write.browser.session.submit')return ambiguous?
    {ok:false,status:'SESSION_SUBMIT_NOT_CONFIRMED'}:{ok:true,submitted:true};
-  if(name==='read_.browser.chatgpt.message.capture')return noCapture?{ok:true,messages:[]}:
-   {ok:true,selected:{id:identity.targetId,chat_id:identity.chatId},
-    userText:prompt,assistantText:'M5_SMOKE_OK',responseComplete:true};
+  if(name==='read_.browser.chatgpt.message.capture')return noCapture?{ok:true,status:'MESSAGES_CAPTURED',messages:[]}:
+   {ok:true,status:'MESSAGES_CAPTURED',selected:{id:identity.targetId,chat_id:identity.chatId},
+    binding:{chatId:identity.chatId},messages:[
+      {role:'user',text:prompt},{role:'assistant',text:'M5_SMOKE_OK',responseComplete:true}]};
   throw Error('Unexpected tool '+name);
  };
  return {calls,invoke};
