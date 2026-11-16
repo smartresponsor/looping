@@ -7,7 +7,11 @@ $StateDir=Join-Path $Root "var/runner/state"
 $StatePath=Join-Path $StateDir "latest.json"
 $BackupPath=$null
 $LockPath=Join-Path $Root "var/runner/lock/runner.lock"
-if(Test-Path -LiteralPath $LockPath){throw 'RUNTIME_SMOKE_SHARED_RUNNER_LOCK_BUSY'}
+. (Join-Path $PSScriptRoot 'runner-entry-lock.ps1')
+$PriorSessionToken = $env:LOOPING_SCHEDULE_SESSION_TOKEN
+$LegacySession = Enter-RunnerSessionLock -Owner 'runtime-smoke'
+$env:LOOPING_SCHEDULE_SESSION_TOKEN = $LegacySession.token
+try {
 if(Test-Path $StatePath){$BackupPath=$StatePath+".runtime-smoke.bak";Move-Item -Path $StatePath -Destination $BackupPath -Force}
 trap{if($BackupPath -and (Test-Path $BackupPath)){Move-Item -Path $BackupPath -Destination $StatePath -Force};throw $_}
 if(-not(Test-Path $StateDir)){New-Item -ItemType Directory -Path $StateDir|Out-Null}
@@ -28,3 +32,7 @@ $SecondRaw=& $Daemon -Task $Task -MaxIterations $MaxIterations 2>&1
 $Second=$SecondRaw|ConvertFrom-Json
 if($BackupPath -and (Test-Path $BackupPath)){Move-Item -Path $BackupPath -Destination $StatePath -Force}
 [pscustomobject]@{ok=$true;status="RUNNER_RUNTIME_SMOKE_PASSED";task=$Task;firstStatus=$First.status;tool=$Tool;resultStatus=$ResultStatus;adapterStatus=$AdapterPayload.status;secondStatus=$Second.status;handoffPath=$First.handoffPath;resultPath=$First.expectedResultPath}|ConvertTo-Json -Depth 40
+} finally {
+    $env:LOOPING_SCHEDULE_SESSION_TOKEN = $PriorSessionToken
+    Exit-RunnerSessionLock -Session $LegacySession
+}
