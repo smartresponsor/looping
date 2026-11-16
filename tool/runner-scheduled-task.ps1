@@ -2,7 +2,10 @@ param(
     [Parameter(Mandatory=$true)][string]$TargetRepo,
     [Parameter(Mandatory=$true)][int]$MaxIterations,
     [Parameter(Mandatory=$true)][string]$Name,
-    [Parameter(Mandatory=$true)][string]$InitialPrompt
+    [Parameter(Mandatory=$true)][string]$InitialPrompt,
+    [Parameter(Mandatory=$true)][ValidatePattern('^[0-9a-fA-F-]{36}$')][string]$AdoptChatId,
+    [Parameter(Mandatory=$true)][ValidatePattern('^[A-Fa-f0-9]{32}$')][string]$ExpectedTargetId,
+    [ValidateSet(9224)][int]$CdpPort = 9224
 )
 $ErrorActionPreference='Stop'
 $Root=Split-Path -Parent $PSScriptRoot
@@ -24,7 +27,7 @@ try {
 $PriorToken=$env:LOOPING_SCHEDULE_SESSION_TOKEN
 try {
     $env:LOOPING_SCHEDULE_SESSION_TOKEN=$SessionToken
-    & (Join-Path $Root 'tool/runner-task-bank-loop.ps1') -TargetRepo $TargetRepo -MaxIterations $MaxIterations -Name $Name -InitialPrompt $InitialPrompt -TaskMode scheduled_task -DisableChatDeletion
+    & (Join-Path $Root 'tool/runner-task-bank-loop.ps1') -TargetRepo $TargetRepo -MaxIterations $MaxIterations -Name $Name -InitialPrompt $InitialPrompt -AdoptChatId $AdoptChatId -ExpectedTargetId $ExpectedTargetId -CdpPort $CdpPort -TaskMode scheduled_task -DisableChatDeletion
     if (-not $?) { throw 'SCHEDULED_TASK_RUNNER_FAILED' }
 } finally {
     $env:LOOPING_SCHEDULE_SESSION_TOKEN=$PriorToken
