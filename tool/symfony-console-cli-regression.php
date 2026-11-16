@@ -46,4 +46,37 @@ foreach (['chatgpt-loop:contract', 'chatgpt-loop:dispatcher-contract'] as $name)
     if ($code !== 0) throw new RuntimeException("Contract command failed: $name $err");
 }
 
+// Preserve established JSON error/exit-code contracts for supported options.
+[$code, $out, $err] = $run([
+    'chatgpt-loop:adopt-current-chat',
+    '--component=viewing',
+    '--plan-only=1',
+]);
+$error = json_decode($err, true, 512, JSON_THROW_ON_ERROR);
+if ($code !== 1 || ($error['status'] ?? null) !== 'ADOPT_CURRENT_CHAT_REJECTED'
+    || ($error['error'] ?? null) !== 'The --location option is required.') {
+    throw new RuntimeException('Adopt missing-location compatibility failed.');
+}
+
+[$code, $out, $err] = $run([
+    'chatgpt-loop:run', '--plan-only=1',
+]);
+$error = json_decode($err, true, 512, JSON_THROW_ON_ERROR);
+if ($code !== 1 || ($error['status'] ?? null) !== 'FAILED'
+    || ($error['error'] ?? null) !== 'The --task option is required.') {
+    throw new RuntimeException('Run missing-task compatibility failed.');
+}
+
+// Intentional strictness: Symfony rejects unknown flags that the old dispatcher silently ignored.
+[$code, $out, $err] = $run([
+    'chatgpt-loop:adopt-current-chat',
+    '--component=viewing',
+    '--location=@viewing',
+    '--plan-only=1',
+    '--unknown=1',
+]);
+if ($code === 0 || !str_contains($err . $out, 'unknown')) {
+    throw new RuntimeException('Unknown CLI option must be rejected.');
+}
+
 fwrite(STDOUT, "LOOPING_SYMFONY_CONSOLE_CLI_REGRESSION_PASS\n");
