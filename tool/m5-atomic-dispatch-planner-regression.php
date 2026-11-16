@@ -7,32 +7,36 @@ use App\Service\ChatGptLoopM5AtomicDispatchPlanner;
 require dirname(__DIR__) . '/src/Service/ChatGptLoopM5AtomicDispatchPlanner.php';
 
 $planner = new ChatGptLoopM5AtomicDispatchPlanner();
-$blocked = $planner->plan(['m5OptInEligible' => false], 'chat_bind', []);
-assert($blocked['status'] === 'M5_ATOMIC_DISPATCH_CUTOVER_GATE_CLOSED');
-assert($blocked['runnerExecutionPlan'] === null);
-
+$closed = $planner->plan(['m5OptInEligible' => false], 'chat_bind', []);
+assert($closed['status'] === 'M5_ATOMIC_DISPATCH_CUTOVER_GATE_CLOSED');
+assert($closed['runnerExecutionPlan'] === null);
 $gate = ['m5OptInEligible' => true];
-$open = $planner->plan($gate, 'chat_bind', []);
-assert($open['runnerExecutionPlan']['tool'] === 'write.browser.session.open');
-assert($open['runnerExecutionPlan']['authorityMode'] === 'm5_opt_in');
-assert($open['runnerExecutionPlan']['arguments']['confirmOpen'] === true);
-
-$draft = $planner->plan($gate, 'prompt_draft', ['targetId' => 'target-1', 'draftText' => 'hello']);
+$base = ['ports' => [9224], 'targetId' => str_repeat('a', 32),
+    'chatId' => '6afa61bc-fad0-83ea-8cb9-cdba1ac0a043','taskId' => 'm5-test'];
+$bind = $planner->plan($gate, 'chat_bind', $base);
+assert($bind['runnerExecutionPlan']['tool'] === 'read_.browser.chatgpt.composer.preflight');
+assert($bind['runnerExecutionPlan']['mutation'] === 'read');
+assert($bind['runnerExecutionPlan']['arguments']['ports'] === [9224]);
+assert($bind['runnerExecutionPlan']['arguments']['expectedTargetId'] === str_repeat('a', 32));
+$draft = $planner->plan($gate, 'prompt_draft', $base + ['draftText' => 'hello']);
 assert($draft['runnerExecutionPlan']['tool'] === 'write.browser.session.input.draft');
 assert($draft['runnerExecutionPlan']['arguments']['confirmDraft'] === true);
-
-$submit = $planner->plan($gate, 'prompt_submit', ['targetId' => 'target-1', 'draftHash' => str_repeat('a', 64), 'draftLength' => 5]);
+$submit = $planner->plan($gate, 'prompt_submit', $base + ['draftHash' => str_repeat('b', 64), 'draftLength' => 5]);
 assert($submit['runnerExecutionPlan']['tool'] === 'write.browser.session.submit');
 assert($submit['runnerExecutionPlan']['arguments']['confirmSubmit'] === true);
-
-$watch = $planner->plan($gate, 'answer_watch', ['taskId' => 'task-1', 'targetId' => 'target-1', 'chatId' => 'chat-1']);
+$watch = $planner->plan($gate, 'answer_watch', $base);
 assert($watch['runnerExecutionPlan']['tool'] === 'read_.browser.chatgpt.watch.probe');
-assert($watch['runnerExecutionPlan']['mutation'] === 'read');
-
-$settle = $planner->plan($gate, 'answer_settle', ['taskId' => 'task-1', 'targetId' => 'target-1', 'chatId' => 'chat-1']);
+assert($watch['runnerExecutionPlan']['arguments']['expectedTargetId'] === str_repeat('a', 32));
+assert($watch['runnerExecutionPlan']['arguments']['taskClass'] === 'normal_answer');
+$settle = $planner->plan($gate, 'answer_settle', $base);
 assert($settle['runnerExecutionPlan']['tool'] === 'read_.browser.chatgpt.answer.settle');
-
-$incomplete = $planner->plan($gate, 'prompt_draft', []);
-assert($incomplete['status'] === 'M5_ATOMIC_DISPATCH_STATE_INCOMPLETE');
-
-fwrite(STDOUT, "OK: M5 atomic dispatch planner regression passed.\n");
+foreach ([[9223], [9222,9223], [9223,9224], []] as $ports) {
+    $deny = $planner->plan($gate, 'chat_bind', array_replace($base, ['ports'=>$ports]));
+    assert($deny['status'] === 'M5_ATOMIC_EXACT_VISIBLE_TARGET_REQUIRED');
+}
+assert($planner->plan($gate, 'chat_bind', array_replace($base, ['targetId'=>'unsafe']))['ok'] === false);
+assert($planner->plan($gate, 'prompt_submit', array_replace($base, ['draftHash'=>null]))['ok'] === false);
+assert($planner->plan($gate, 'prompt_submit', array_replace($base, ['draftLength'=>0]))['ok'] === false);
+assert($planner->plan($gate, 'prompt_draft', array_replace($base, ['chatId'=>null,'draftText'=>'hello']))['ok'] === false);
+assert($planner->plan($gate, 'prompt_draft', [])['ok'] === false);
+fwrite(STDOUT, "OK: M5 strict visible target planner regression passed.\n");
