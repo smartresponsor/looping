@@ -25,6 +25,8 @@ $Adapter = Join-Path $Root 'tool/runner-transport-adapter.ps1'
 $Bridge = Join-Path $Root 'tool/runner-console-mcp-bridge.ps1'
 $StateDir = Join-Path $Root 'var/runner/state'
 $StatePath = Join-Path $StateDir 'latest.json'
+$SharedLockPath = Join-Path $Root 'var/runner/lock/runner.lock'
+if (Test-Path -LiteralPath $SharedLockPath) { throw 'REPO_SMOKE_SHARED_RUNNER_LOCK_BUSY' }
 
 function Read-JsonFile {
     param([Parameter(Mandatory=$true)][string]$Path)
