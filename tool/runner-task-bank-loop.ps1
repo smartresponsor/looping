@@ -13,12 +13,20 @@ param(
     [ValidateSet('medium','high')][string]$ContinueReasoningEffort = 'medium',
     [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'observe',
     [string]$AdoptChatId,
+    [string]$ExpectedTargetId,
+    [int]$CdpPort = 9224,
     [ValidateSet('repo_smoke','scheduled_task')][string]$TaskMode = 'repo_smoke',
     [switch]$DisableChatDeletion
 )
 
 $ErrorActionPreference = 'Stop'
 if ($TaskMode -eq 'scheduled_task' -and -not $DisableChatDeletion) { throw 'SCHEDULED_TASK_REQUIRES_DISABLE_CHAT_DELETION' }
+if ($TaskMode -eq 'scheduled_task') {
+    if ($AdoptChatId -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' -or $ExpectedTargetId -notmatch '^[A-Fa-f0-9]{32}$' -or $CdpPort -ne 9224) { throw 'SCHEDULED_TARGET_BINDING_REQUIRED' }
+    # The legacy cmcp.go bridge does not atomically pin a native CDP target.
+    # Reject before any prompt can be submitted; cutover needs dedicated M5 atomic admission.
+    throw 'SCHEDULED_ATOMIC_TARGET_TRANSPORT_NOT_ACTIVATED'
+}
 if ($TaskMode -eq 'scheduled_task') {
     $SessionLockPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'var/runner/lock/runner.lock'
     $SessionToken = [string]$env:LOOPING_SCHEDULE_SESSION_TOKEN
