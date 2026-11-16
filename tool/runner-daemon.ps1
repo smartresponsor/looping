@@ -22,6 +22,13 @@ function Enter-RunnerLock {
     $LockDir = Join-Path $Root 'var/runner/lock'
     New-Item -ItemType Directory -Path $LockDir -Force | Out-Null
     $LockPath = Join-Path $LockDir 'runner.lock'
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:LOOPING_SCHEDULE_SESSION_TOKEN)) {
+        if (-not (Test-Path -LiteralPath $LockPath)) { throw 'RUNNER_SCHEDULE_SESSION_LOCK_MISSING' }
+        try { $SessionLock = Get-Content -Raw -LiteralPath $LockPath | ConvertFrom-Json }
+        catch { throw 'RUNNER_SCHEDULE_SESSION_LOCK_INVALID' }
+        if ($SessionLock.owner -ne 'scheduled-task' -or $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN) { throw 'RUNNER_SCHEDULE_SESSION_MISMATCH' }
+        return $null
+    }
     try {
         $Handle = [System.IO.File]::Open($LockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
     } catch [System.IO.IOException] {
