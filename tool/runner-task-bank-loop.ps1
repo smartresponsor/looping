@@ -12,10 +12,37 @@ param(
     [ValidateSet('medium','high')][string]$InitialReasoningEffort = 'medium',
     [ValidateSet('medium','high')][string]$ContinueReasoningEffort = 'medium',
     [ValidateSet('observe','require','set_if_needed','set_and_require')][string]$ReasoningEnforcement = 'observe',
-    [string]$AdoptChatId
+    [string]$AdoptChatId,
+    [string]$ExpectedTargetId,
+    [int]$CdpPort = 9224,
+    [ValidateSet('repo_smoke','scheduled_task')][string]$TaskMode = 'repo_smoke',
+    [switch]$DisableChatDeletion
 )
 
 $ErrorActionPreference = 'Stop'
+if ($TaskMode -eq 'scheduled_task' -and -not $DisableChatDeletion) { throw 'SCHEDULED_TASK_REQUIRES_DISABLE_CHAT_DELETION' }
+if ($TaskMode -eq 'scheduled_task') {
+    if ($AdoptChatId -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' -or $ExpectedTargetId -notmatch '^[A-Fa-f0-9]{32}$' -or $CdpPort -ne 9224) { throw 'SCHEDULED_TARGET_BINDING_REQUIRED' }
+    # The legacy cmcp.go bridge does not atomically pin a native CDP target.
+    # Reject before any prompt can be submitted; cutover needs dedicated M5 atomic admission.
+    throw 'SCHEDULED_ATOMIC_TARGET_TRANSPORT_NOT_ACTIVATED'
+}
+if ($TaskMode -eq 'scheduled_task') {
+    $SessionLockPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'var/runner/lock/runner.lock'
+    $SessionToken = [string]$env:LOOPING_SCHEDULE_SESSION_TOKEN
+    if ([string]::IsNullOrWhiteSpace($SessionToken) -or -not (Test-Path -LiteralPath $SessionLockPath)) { throw 'SCHEDULED_TASK_EXCLUSIVE_SESSION_REQUIRED' }
+    try { $SessionLock = Get-Content -Raw -LiteralPath $SessionLockPath | ConvertFrom-Json }
+    catch { throw 'SCHEDULED_TASK_SESSION_LOCK_INVALID' }
+    if ($SessionLock.owner -ne 'scheduled-task' -or $SessionLock.sessionToken -ne $SessionToken) { throw 'SCHEDULED_TASK_SESSION_OWNER_MISMATCH' }
+}
+$TaskBankSession = $null
+$PriorSessionToken = $env:LOOPING_SCHEDULE_SESSION_TOKEN
+if ($TaskMode -eq 'repo_smoke') {
+    . (Join-Path $PSScriptRoot 'runner-entry-lock.ps1')
+    $TaskBankSession = Enter-RunnerSessionLock -Owner 'task-bank'
+    $env:LOOPING_SCHEDULE_SESSION_TOKEN = $TaskBankSession.token
+}
+try {
 $Root = Split-Path -Parent $PSScriptRoot
 $Daemon = Join-Path $Root 'tool/runner-daemon.ps1'
 $TransportAdapter = Join-Path $Root 'tool/runner-transport-adapter.ps1'
@@ -594,14 +621,15 @@ $TaskPath = Join-Path $TaskDir ($TaskId + '.json')
 $ChatPath = Join-Path $ChatDir ($TaskId + '.json')
 $Task = New-TaskRecord -TaskId $TaskId
 $Chat = New-ChatRecord -TaskId $TaskId
-$TaskTaskText = "Task-bank product loop. Name: $Name. Target workspace: $TargetRepo. Goal: read-only repository loop smoke; avoid file changes; avoid commits."
+$TaskTaskText = if ($TaskMode -eq 'scheduled_task') { "Scheduled task execution. Name: $Name. Target workspace: $TargetRepo. Prompt: $InitialPrompt" } else { "Task-bank product loop. Name: $Name. Target workspace: $TargetRepo. Goal: read-only repository loop smoke; avoid file changes; avoid commits." }
 if ([string]::IsNullOrWhiteSpace($InitialPromptMode)) { $InitialPromptMode = $PromptMode }
 if ([string]::IsNullOrWhiteSpace($ContinuePromptMode)) { $ContinuePromptMode = 'raw' }
+if ($TaskMode -eq 'scheduled_task' -and [string]::IsNullOrWhiteSpace($InitialPrompt)) { throw 'SCHEDULED_TASK_INITIAL_PROMPT_REQUIRED' }
 if ([string]::IsNullOrWhiteSpace($InitialPrompt)) {
     $InitialPrompt = "Run a read-only repository loop smoke for workspace $TargetRepo. Use only safe inspection. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, and summary."
 }
 if ([string]::IsNullOrWhiteSpace($ContinuePrompt)) {
-    $ContinuePrompt = "Continue the read-only repository loop smoke for workspace $TargetRepo based on the captured assistant answer. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, summary, and nextAction."
+    $ContinuePrompt = if ($TaskMode -eq 'scheduled_task') { "Continue the original scheduled task and its objective. Do not start an unrelated repository smoke. Return a clear completion or limitation summary, grounded in available evidence." } else { "Continue the read-only repository loop smoke for workspace $TargetRepo based on the captured assistant answer. Do not edit files. Do not commit. Return strict JSON with ok, status, tool, workspacePath, summary, and nextAction." }
 }
 $SubmittedCount = 0
 $AssistantCapturedCount = 0
@@ -921,7 +949,7 @@ while ($true) {
             Write-Host ("progress " + ([ordered]@{ event = 'nextInteractionScheduled'; interactionCycleCount = $Task.interactionCount; internalStepCount = $InternalStepCount } | ConvertTo-Json -Depth 20 -Compress))
         } else {
             $CleanupResult = $null
-            if ($ReadyToDelete -eq $true -and $Task.chatId -and -not ([string]$Task.chatId).StartsWith('WEB:', [System.StringComparison]::OrdinalIgnoreCase)) {
+            if (-not $DisableChatDeletion -and $ReadyToDelete -eq $true -and $Task.chatId -and -not ([string]$Task.chatId).StartsWith('WEB:', [System.StringComparison]::OrdinalIgnoreCase)) {
                 $DeleteArgs = [ordered]@{
                     expectedChatId = [string]$Task.chatId
                     authorizationMode = 'lifecycle_ready_to_delete'
@@ -982,7 +1010,9 @@ try {
 }
 $Ok = [bool]$AcceptanceArtifact.ok
 $OutputStatus = if ($Ok) { 'TASK_BANK_LOOP_COMPLETED' } else { 'TASK_BANK_LOOP_FAILED' }
-$OutputFinalStatus = if ($Ok) {
+$OutputFinalStatus = if ($TaskMode -eq 'scheduled_task' -and $FinalStatus -eq 'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED') {
+    'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED'
+} elseif ($Ok) {
     'M3_ACCEPTANCE_PASS'
 } elseif ($LastSemanticStatus -eq 'REFUSAL') {
     $LastSemanticStatus
@@ -1015,13 +1045,24 @@ $OutputFinalStatus = if ($Ok) {
     decisionStagesUsed = @($DecisionStages | Select-Object -Unique)
     toolsUsed = @($ToolsUsed | Select-Object -Unique)
     finalStatus = $OutputFinalStatus
+    executionStopReason = if ($TaskMode -eq 'scheduled_task') { [string]$FinalStatus } else { $null }
     acceptanceStatus = [string]$AcceptanceArtifact.status
     acceptanceFailures = @($AcceptanceArtifact.failures)
     acceptanceArtifactPath = $AcceptancePath
     taskBankPath = $TaskBankRoot
     chatBankPath = $ChatBankRoot
     runnerStatePath = $RunnerStatePath
+    taskMode = $TaskMode
+    chatDeletionDisabled = [bool]$DisableChatDeletion
+    completionVerified = $false
+    completionEvidence = $null
     readyToDelete = if ($Task.PSObject.Properties.Name -contains 'readyToDelete') { $Task.readyToDelete } else { $null }
     cleanupStatus = if ($Task.PSObject.Properties.Name -contains 'cleanupResult' -and $Task.cleanupResult) { [string]$Task.cleanupResult.status } else { $null }
     nextAction = if ($Ok) { 'task_bank_loop_completed' } else { 'inspect_acceptance_artifact' }
 } | ConvertTo-Json -Depth 100
+} finally {
+    if ($TaskBankSession) {
+        $env:LOOPING_SCHEDULE_SESSION_TOKEN = $PriorSessionToken
+        Exit-RunnerSessionLock -Session $TaskBankSession
+    }
+}

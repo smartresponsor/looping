@@ -1,6 +1,7 @@
 import { Client } from "../../console-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js";
 import { StreamableHTTPClientTransport } from "../../console-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js";
 import fs from "node:fs/promises";
+import { validateM5AtomicInvocation } from "./m5-atomic-transport-admission.mjs";
 
 const atomicTools = new Set([
   "write.browser.session.title.prefix",
@@ -148,6 +149,10 @@ async function main() {
   const toolCall = await readToolCall(payloadPath);
   if (!toolAllowed(toolCall)) {
     throw new Error(`console-mcp bridge tool not allowed: ${toolCall.name}`);
+  }
+  if (m5AtomicWriteTools.has(toolCall.name)) {
+    const admission = validateM5AtomicInvocation(toolCall);
+    if (!admission.ok) throw new Error(admission.status);
   }
 
   const token = process.env.CONSOLE_MCP_BEARER_TOKEN ?? "";
