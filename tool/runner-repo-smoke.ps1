@@ -26,7 +26,11 @@ $Bridge = Join-Path $Root 'tool/runner-console-mcp-bridge.ps1'
 $StateDir = Join-Path $Root 'var/runner/state'
 $StatePath = Join-Path $StateDir 'latest.json'
 $SharedLockPath = Join-Path $Root 'var/runner/lock/runner.lock'
-if (Test-Path -LiteralPath $SharedLockPath) { throw 'REPO_SMOKE_SHARED_RUNNER_LOCK_BUSY' }
+. (Join-Path $PSScriptRoot 'runner-entry-lock.ps1')
+$PriorSessionToken = $env:LOOPING_SCHEDULE_SESSION_TOKEN
+$LegacySession = Enter-RunnerSessionLock -Owner 'repo-smoke'
+$env:LOOPING_SCHEDULE_SESSION_TOKEN = $LegacySession.token
+try {
 
 function Read-JsonFile {
     param([Parameter(Mandatory=$true)][string]$Path)
@@ -302,3 +306,7 @@ $EffectiveNextAction = if ($Ok) {
     runnerStatePath = $StatePath
     nextAction = $EffectiveNextAction
 } | ConvertTo-Json -Depth 80
+} finally {
+    $env:LOOPING_SCHEDULE_SESSION_TOKEN = $PriorSessionToken
+    Exit-RunnerSessionLock -Session $LegacySession
+}
