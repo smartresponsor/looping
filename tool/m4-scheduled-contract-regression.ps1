@@ -6,7 +6,10 @@ $Scripts=@(
     'tool/runner-daemon.ps1',
     'tool/runner-transport-adapter.ps1',
     'tool/runner-adapter.ps1',
-    'tool/runner-scheduled-task.ps1'
+    'tool/runner-scheduled-task.ps1',
+    'tool/runner-entry-lock.ps1',
+    'tool/runner-repo-smoke.ps1',
+    'tool/runner-runtime-smoke.ps1'
 )
 foreach($Relative in $Scripts){
     $Path=Join-Path $Root $Relative
@@ -27,6 +30,13 @@ $Wrapper=Get-Content -Raw -LiteralPath (Join-Path $Root 'tool/runner-scheduled-t
 $Adapter=Get-Content -Raw -LiteralPath (Join-Path $Root 'tool/runner-adapter.ps1')
 if($Wrapper -notmatch 'FileMode\]::CreateNew' -or $Wrapper -notmatch 'DisableChatDeletion'){throw 'M4_WRAPPER_GUARD_MISSING'}
 if($Adapter -notmatch 'RUNNER_ADAPTER_SCHEDULE_SESSION_BUSY'){throw 'M4_ADAPTER_GUARD_MISSING'}
+$Entry=Get-Content -Raw -LiteralPath (Join-Path $Root 'tool/runner-entry-lock.ps1')
+$RepoSmoke=Get-Content -Raw -LiteralPath (Join-Path $Root 'tool/runner-repo-smoke.ps1')
+$RuntimeSmoke=Get-Content -Raw -LiteralPath (Join-Path $Root 'tool/runner-runtime-smoke.ps1')
+if($Entry -notmatch 'FileMode\]::CreateNew' -or $Entry -notmatch 'OWNER_MISMATCH'){throw 'M4_SHARED_ATOMIC_ENTRY_MISSING'}
+if($Task -notmatch "Enter-RunnerSessionLock -Owner 'task-bank'" -or $Task -notmatch 'Exit-RunnerSessionLock -Session \$TaskBankSession'){throw 'M4_DIRECT_TASK_BANK_UNPROTECTED'}
+if($RepoSmoke -notmatch "Enter-RunnerSessionLock -Owner 'repo-smoke'" -or $RepoSmoke -notmatch 'Exit-RunnerSessionLock -Session \$LegacySession'){throw 'M4_REPO_SMOKE_UNPROTECTED'}
+if($RuntimeSmoke -notmatch "Enter-RunnerSessionLock -Owner 'runtime-smoke'" -or $RuntimeSmoke -notmatch 'Exit-RunnerSessionLock -Session \$LegacySession'){throw 'M4_RUNTIME_SMOKE_UNPROTECTED'}
 if($Task -notmatch 'scheduled_task.*Continue the original scheduled task'){throw 'M4_CONTINUATION_MISSING'}
 foreach($Text in @($Daemon,$Transport)){
     if($Text -notmatch 'FileMode\]::CreateNew'){throw 'M4_ATOMIC_LOCK_MISSING'}
