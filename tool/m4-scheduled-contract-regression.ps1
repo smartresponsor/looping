@@ -37,6 +37,8 @@ if($Entry -notmatch 'FileMode\]::CreateNew' -or $Entry -notmatch 'OWNER_MISMATCH
 if($Task -notmatch "Enter-RunnerSessionLock -Owner 'task-bank'" -or $Task -notmatch 'Exit-RunnerSessionLock -Session \$TaskBankSession'){throw 'M4_DIRECT_TASK_BANK_UNPROTECTED'}
 if($RepoSmoke -notmatch "Enter-RunnerSessionLock -Owner 'repo-smoke'" -or $RepoSmoke -notmatch 'Exit-RunnerSessionLock -Session \$LegacySession'){throw 'M4_REPO_SMOKE_UNPROTECTED'}
 if($RuntimeSmoke -notmatch "Enter-RunnerSessionLock -Owner 'runtime-smoke'" -or $RuntimeSmoke -notmatch 'Exit-RunnerSessionLock -Session \$LegacySession'){throw 'M4_RUNTIME_SMOKE_UNPROTECTED'}
+$HistoricalSmoke=Get-Content -Raw -LiteralPath (Join-Path $Root 'tool/runner-smoke.ps1')
+if($HistoricalSmoke -notmatch 'RUNNER_SMOKE_RETIRED_UNSAFE_SHARED_STATE_FIXTURE'){throw 'M4_DESTRUCTIVE_LEGACY_SMOKE_NOT_QUARANTINED'}
 if($Task -notmatch 'scheduled_task.*Continue the original scheduled task'){throw 'M4_CONTINUATION_MISSING'}
 foreach($Text in @($Daemon,$Transport)){
     if($Text -notmatch 'FileMode\]::CreateNew'){throw 'M4_ATOMIC_LOCK_MISSING'}
