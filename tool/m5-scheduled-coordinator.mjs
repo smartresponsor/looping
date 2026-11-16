@@ -1,5 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import {validateM5AtomicInvocation} from './m5-atomic-transport-admission.mjs';
+import {normalizeM5Capture} from './m5-console-capture-adapter.mjs';
 import {
  buildScheduledM5Identity,claimScheduledM5,persistScheduledM5,plannedM5Actions
 } from './m5-scheduled-state-machine.mjs';
@@ -56,11 +57,10 @@ export async function runScheduledM5({
     capture=await invoke('read_.browser.chatgpt.message.capture',
       {...base,preferredChatId:identity.chatId,requireChatId:true,maxMessages:10});
   } catch {capture=null;}
-  if(capture?.ok===true && capture?.selected?.id?.toUpperCase()===identity.targetId &&
-    capture?.selected?.chat_id?.toLowerCase()===identity.chatId &&
-    typeof capture.userText==='string' && typeof capture.assistantText==='string') {
-    await update(event('capture_reconciled',{userText:capture.userText,
-      assistantText:capture.assistantText,responseComplete:capture.responseComplete}));
+  const normalized=normalizeM5Capture(capture,identity);
+  if(normalized.ok) {
+    await update(event('capture_reconciled',{userText:normalized.userText,
+      assistantText:normalized.assistantText,responseComplete:normalized.responseComplete}));
   } else await update(event('reconciliation_inconclusive'));
   return {ok:state.stage==='CAPTURED',
     status:state.stage==='CAPTURED'?'M5_CAPTURE_READY_FOR_INDEPENDENT_VERIFIER':'M5_RECONCILIATION_REQUIRED',
