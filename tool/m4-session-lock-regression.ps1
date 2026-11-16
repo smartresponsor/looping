@@ -29,5 +29,24 @@ try {
   $Out=@(& (Join-Path $Root 'tool/runner-scheduled-task.ps1') -TargetRepo $Root -MaxIterations 1 -Name 'm4-lock-test' -InitialPrompt 'DO_NOT_EXECUTE')
   if(@($Out).Count -ne 1 -or ([string]$Out[0]) -notmatch 'RUNNER_SCHEDULE_BUSY'){ throw 'WRAPPER_BUSY_GUARD_FAILED' }
   if((Get-Content -Raw -LiteralPath $LockPath) -ne $ActualBefore){throw 'WRAPPER_MUTATED_UNOWNED_LOCK'}
-  [pscustomobject]@{ok=$true;status='M4_SESSION_LOCK_ACCEPTANCE_PASS';competitors=12;winners=1;busy=11;wrapperDeclined=$true;browserCalls=0} | ConvertTo-Json -Compress
+  $LegacyDeclined=0
+  foreach($Legacy in @(
+      @{file='runner-repo-smoke.ps1';args=@('-TargetRepo',$Root)},
+      @{file='runner-runtime-smoke.ps1';args=@()}
+  )) {
+    try {
+      if ($Legacy.file -eq 'runner-repo-smoke.ps1') {
+        & (Join-Path $Root 'tool/runner-repo-smoke.ps1') -TargetRepo $Root | Out-Null
+      } else {
+        & (Join-Path $Root 'tool/runner-runtime-smoke.ps1') | Out-Null
+      }
+      throw ('LEGACY_LOCK_GUARD_BYPASSED:'+ $Legacy.file)
+    } catch {
+      if ($_.Exception.Message -notmatch '(REPO_SMOKE_SHARED_RUNNER_LOCK_BUSY|RUNTIME_SMOKE_SHARED_RUNNER_LOCK_BUSY)') { throw }
+      $LegacyDeclined++
+    }
+    if ((Get-Content -Raw -LiteralPath $LockPath) -ne $ActualBefore) {throw 'LEGACY_MUTATED_UNOWNED_LOCK'}
+  }
+  if ($LegacyDeclined -ne 2) {throw 'LEGACY_GUARD_MISSING'}
+  [pscustomobject]@{ok=$true;status='M4_SESSION_LOCK_ACCEPTANCE_PASS';competitors=12;winners=1;busy=11;wrapperDeclined=$true;legacyDeclined=$LegacyDeclined;browserCalls=0} | ConvertTo-Json -Compress
 } finally { if((Test-Path -LiteralPath $LockPath) -and (Get-Content -Raw -LiteralPath $LockPath) -match 'fixture-other'){Remove-Item -LiteralPath $LockPath -Force} }
