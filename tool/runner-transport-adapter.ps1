@@ -24,7 +24,7 @@ if (-not [string]::IsNullOrWhiteSpace([string]$env:LOOPING_SCHEDULE_SESSION_TOKE
     if (-not (Test-Path -LiteralPath $CandidateLockPath)) { throw 'TRANSPORT_SCHEDULE_LOCK_MISSING' }
     try { $SessionLock = Get-Content -Raw -LiteralPath $CandidateLockPath | ConvertFrom-Json }
     catch { throw 'TRANSPORT_SCHEDULE_LOCK_INVALID' }
-    if ($SessionLock.owner -ne 'scheduled-task' -or $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN) { throw 'TRANSPORT_SCHEDULE_LOCK_MISMATCH' }
+    if ($SessionLock.owner -notin @('scheduled-task','repo-smoke','runtime-smoke','task-bank') -or $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN) { throw 'TRANSPORT_SCHEDULE_LOCK_MISMATCH' }
     $InheritedScheduledLock = $true
 }
 if (-not $InheritedScheduledLock) {
