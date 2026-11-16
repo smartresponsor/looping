@@ -67,6 +67,40 @@ if ($code !== 1 || ($error['status'] ?? null) !== 'FAILED'
     throw new RuntimeException('Run missing-task compatibility failed.');
 }
 
+// All actual Looping continuation and evidence flags must be accepted by Symfony.
+// These args come from runner-adapter.ps1 and PHP services; this plan-only test
+// intentionally does not submit a browser prompt or start the PowerShell runner.
+$legacyContinuationOptions = [
+    'dispatch-status=accepted',
+    'external-task-id=task_fixture',
+    'external-chat-id=11111111-1111-1111-1111-111111111111',
+    'external-target-id=target_fixture',
+    'response-task-id=task_fixture',
+    'response-chat-id=11111111-1111-1111-1111-111111111111',
+    'response-target-id=target_fixture',
+    'ask-verdict=continue',
+    'ask-next-action=go',
+    'ask-message-to-chat=ok',
+    'ask-policy-references=none',
+    'ask-risks=none',
+    'repo-before-head=abc',
+    'repo-after-head=def',
+    'repo-changed-files=0',
+    'repo-diff-stat=none',
+    'repo-dirty-before=0',
+    'repo-dirty-after=0',
+    'gate-available=1',
+    'gate-passed=1',
+    'gate-failed=0',
+];
+[$code, $out, $err] = $run(array_merge([
+    'chatgpt-loop:run', '--task=!diagnose', '--mode=diagnostic', '--plan-only=1',
+], array_map(static fn (string $flag): string => '--' . $flag, $legacyContinuationOptions)));
+$payload = json_decode($out, true, 512, JSON_THROW_ON_ERROR);
+if ($code !== 0 || ($payload['status'] ?? null) !== 'PLAN_ONLY_READY') {
+    throw new RuntimeException("Legacy continuation flags rejected: $err $out");
+}
+
 // Intentional strictness: Symfony rejects unknown flags that the old dispatcher silently ignored.
 [$code, $out, $err] = $run([
     'chatgpt-loop:adopt-current-chat',
