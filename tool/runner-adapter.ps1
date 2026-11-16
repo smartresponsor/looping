@@ -42,7 +42,7 @@ $SessionLockPath = Join-Path $Root 'var/runner/lock/runner.lock'
 if (Test-Path -LiteralPath $SessionLockPath) {
     try { $SessionLock = Get-Content -Raw -LiteralPath $SessionLockPath | ConvertFrom-Json }
     catch { throw 'RUNNER_ADAPTER_SESSION_LOCK_INVALID' }
-    if ($SessionLock.owner -eq 'scheduled-task' -and (
+    if ($SessionLock.owner -in @('scheduled-task','repo-smoke','runtime-smoke','task-bank') -and (
         [string]::IsNullOrWhiteSpace([string]$env:LOOPING_SCHEDULE_SESSION_TOKEN) -or
         $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN)) { throw 'RUNNER_ADAPTER_SCHEDULE_SESSION_BUSY' }
 }
