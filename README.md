@@ -36,6 +36,21 @@ A normal clone is supported on Windows and Ubuntu/Linux. PHP 8.3+ and `pwsh` are
 
 The canonical workspace root is derived from the repository layout (`<workspace>/mcp/Looping`) instead of a hard-coded Windows path. Set `CHATGPT_LOOP_WORKSPACE_ROOT` only when the clone is intentionally placed outside that canonical layout.
 
+## CLI front-end (Symfony Console)
+
+The PHP `bin/console` command dispatcher uses the standalone **Symfony Console component 8.x** on PHP 8.4+. Install locked dependencies with `composer install`. This is a CLI and observability dependency **only**: Looping decision/planning services, PowerShell task-bank runner, Node MCP bridge and Console MCP execution ownership are unchanged.
+
+Compatible command names:
+
+- `php bin/console chatgpt-loop:run --task="!diagnose lifecycle" --mode=diagnostic --plan-only=1`
+- `php bin/console chatgpt-loop:adopt-current-chat --component=Carting --location=@carting-investigation --max-auto-iterations=13 --plan-only=1`
+- `php bin/console chatgpt-loop:contract`
+- `php bin/console chatgpt-loop:dispatcher-contract`
+
+Symfony provides `list`, `--help` and validation of recognized option names; **unknown options are now rejected** rather than silently ignored by the legacy dispatcher. Existing supported flags preserve JSON payloads, error statuses and exit codes. `adopt` without `--plan-only=1` can execute the existing bridge, and must not be used as a harmless smoke test.
+
+Verification: `php tool/symfony-console-cli-regression.php`, `php tool/adopt-contract-regression.php`, `composer test`. The CLI migration is independent of the M4–M6 orchestration authority cutover.
+
 ## First RC behavior
 
 The first slice is intentionally closed and deterministic:
