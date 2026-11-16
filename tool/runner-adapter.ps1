@@ -38,6 +38,14 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $RunnerStateSchemaVersion = 2
 $RunnerRuntimeVersion = '2026.07.runner-loop'
+$SessionLockPath = Join-Path $Root 'var/runner/lock/runner.lock'
+if (Test-Path -LiteralPath $SessionLockPath) {
+    try { $SessionLock = Get-Content -Raw -LiteralPath $SessionLockPath | ConvertFrom-Json }
+    catch { throw 'RUNNER_ADAPTER_SESSION_LOCK_INVALID' }
+    if ($SessionLock.owner -eq 'scheduled-task' -and (
+        [string]::IsNullOrWhiteSpace([string]$env:LOOPING_SCHEDULE_SESSION_TOKEN) -or
+        $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN)) { throw 'RUNNER_ADAPTER_SCHEDULE_SESSION_BUSY' }
+}
 
 function Get-OptionalProperty {
     param(
