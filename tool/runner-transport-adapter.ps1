@@ -17,14 +17,23 @@ trap {
 $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 $LockDir = Join-Path $Root 'var/runner/lock'
-if (-not (Test-Path $LockDir)) { New-Item -ItemType Directory -Path $LockDir | Out-Null }
-$RunnerLockPath = Join-Path $LockDir 'runner.lock'
-if (Test-Path $RunnerLockPath) {
-    $Lock = Get-Content -Raw -Path $RunnerLockPath | ConvertFrom-Json
-    $AgeMinutes = ((Get-Date).ToUniversalTime() - ([datetime]$Lock.acquiredAt)).TotalMinutes
-    if ($AgeMinutes -lt 30) { [pscustomobject]@{ ok = $false; status = 'RUNNER_LOCK_BUSY'; lockPath = $RunnerLockPath; owner = $Lock.owner; acquiredAt = $Lock.acquiredAt; nextAction = 'retry_later' } | ConvertTo-Json -Depth 20; exit 0 }
+New-Item -ItemType Directory -Path $LockDir -Force | Out-Null
+$CandidateLockPath = Join-Path $LockDir 'runner.lock'
+try {
+    $Handle = [System.IO.File]::Open($CandidateLockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+} catch [System.IO.IOException] {
+    [pscustomobject]@{ ok = $false; status = 'RUNNER_LOCK_BUSY'; lockPath = $CandidateLockPath; nextAction = 'manual_reconcile_if_stale' } | ConvertTo-Json -Depth 20
+    exit 0
 }
-[pscustomobject]@{ owner = 'runner-transport-adapter'; pid = $PID; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Depth 20 | Set-Content -Path $RunnerLockPath -Encoding UTF8
+$RunnerLockPath = $CandidateLockPath
+try {
+    $Payload = [pscustomobject]@{ owner = 'runner-transport-adapter'; pid = $PID; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') }
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes(($Payload | ConvertTo-Json -Depth 20))
+    $Handle.Write($Bytes, 0, $Bytes.Length)
+    $Handle.Flush($true)
+} finally {
+    $Handle.Dispose()
+}
 
 function Write-RunnerJournalEvent {
     param([Parameter(Mandatory=$true)]$Event)
