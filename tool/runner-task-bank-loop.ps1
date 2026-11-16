@@ -27,6 +27,14 @@ if ($TaskMode -eq 'scheduled_task') {
     catch { throw 'SCHEDULED_TASK_SESSION_LOCK_INVALID' }
     if ($SessionLock.owner -ne 'scheduled-task' -or $SessionLock.sessionToken -ne $SessionToken) { throw 'SCHEDULED_TASK_SESSION_OWNER_MISMATCH' }
 }
+$TaskBankSession = $null
+$PriorSessionToken = $env:LOOPING_SCHEDULE_SESSION_TOKEN
+if ($TaskMode -eq 'repo_smoke') {
+    . (Join-Path $PSScriptRoot 'runner-entry-lock.ps1')
+    $TaskBankSession = Enter-RunnerSessionLock -Owner 'task-bank'
+    $env:LOOPING_SCHEDULE_SESSION_TOKEN = $TaskBankSession.token
+}
+try {
 $Root = Split-Path -Parent $PSScriptRoot
 $Daemon = Join-Path $Root 'tool/runner-daemon.ps1'
 $TransportAdapter = Join-Path $Root 'tool/runner-transport-adapter.ps1'
@@ -1044,3 +1052,9 @@ $OutputFinalStatus = if ($TaskMode -eq 'scheduled_task' -and $FinalStatus -eq 'T
     cleanupStatus = if ($Task.PSObject.Properties.Name -contains 'cleanupResult' -and $Task.cleanupResult) { [string]$Task.cleanupResult.status } else { $null }
     nextAction = if ($Ok) { 'task_bank_loop_completed' } else { 'inspect_acceptance_artifact' }
 } | ConvertTo-Json -Depth 100
+} finally {
+    if ($TaskBankSession) {
+        $env:LOOPING_SCHEDULE_SESSION_TOKEN = $PriorSessionToken
+        Exit-RunnerSessionLock -Session $TaskBankSession
+    }
+}
