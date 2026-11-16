@@ -26,7 +26,7 @@ try {
   $Metadata=[pscustomobject]@{owner='fixture-other';pid=42;acquiredAt=(Get-Date).ToUniversalTime().ToString('o')}
   $Metadata | ConvertTo-Json -Compress | Set-Content -LiteralPath $LockPath
   $ActualBefore=Get-Content -Raw -LiteralPath $LockPath
-  $Out=@(& (Join-Path $Root 'tool/runner-scheduled-task.ps1') -TargetRepo $Root -MaxIterations 1 -Name 'm4-lock-test' -InitialPrompt 'DO_NOT_EXECUTE')
+  $Out=@(& (Join-Path $Root 'tool/runner-scheduled-task.ps1') -TargetRepo $Root -MaxIterations 1 -Name 'm4-lock-test' -InitialPrompt 'DO_NOT_EXECUTE' -AdoptChatId '00000000-0000-0000-0000-000000000001' -ExpectedTargetId '00000000000000000000000000000001')
   if(@($Out).Count -ne 1 -or ([string]$Out[0]) -notmatch 'RUNNER_SCHEDULE_BUSY'){ throw 'WRAPPER_BUSY_GUARD_FAILED' }
   if((Get-Content -Raw -LiteralPath $LockPath) -ne $ActualBefore){throw 'WRAPPER_MUTATED_UNOWNED_LOCK'}
   $LegacyDeclined=0
