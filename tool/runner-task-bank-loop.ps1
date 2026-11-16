@@ -19,6 +19,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 if ($TaskMode -eq 'scheduled_task' -and -not $DisableChatDeletion) { throw 'SCHEDULED_TASK_REQUIRES_DISABLE_CHAT_DELETION' }
+if ($TaskMode -eq 'scheduled_task') {
+    $SessionLockPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'var/runner/lock/runner.lock'
+    $SessionToken = [string]$env:LOOPING_SCHEDULE_SESSION_TOKEN
+    if ([string]::IsNullOrWhiteSpace($SessionToken) -or -not (Test-Path -LiteralPath $SessionLockPath)) { throw 'SCHEDULED_TASK_EXCLUSIVE_SESSION_REQUIRED' }
+    try { $SessionLock = Get-Content -Raw -LiteralPath $SessionLockPath | ConvertFrom-Json }
+    catch { throw 'SCHEDULED_TASK_SESSION_LOCK_INVALID' }
+    if ($SessionLock.owner -ne 'scheduled-task' -or $SessionLock.sessionToken -ne $SessionToken) { throw 'SCHEDULED_TASK_SESSION_OWNER_MISMATCH' }
+}
 $Root = Split-Path -Parent $PSScriptRoot
 $Daemon = Join-Path $Root 'tool/runner-daemon.ps1'
 $TransportAdapter = Join-Path $Root 'tool/runner-transport-adapter.ps1'
@@ -986,7 +994,9 @@ try {
 }
 $Ok = [bool]$AcceptanceArtifact.ok
 $OutputStatus = if ($Ok) { 'TASK_BANK_LOOP_COMPLETED' } else { 'TASK_BANK_LOOP_FAILED' }
-$OutputFinalStatus = if ($Ok) {
+$OutputFinalStatus = if ($TaskMode -eq 'scheduled_task' -and $FinalStatus -eq 'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED') {
+    'TASK_BANK_INTERACTION_BUDGET_EXHAUSTED'
+} elseif ($Ok) {
     'M3_ACCEPTANCE_PASS'
 } elseif ($LastSemanticStatus -eq 'REFUSAL') {
     $LastSemanticStatus
@@ -1019,6 +1029,7 @@ $OutputFinalStatus = if ($Ok) {
     decisionStagesUsed = @($DecisionStages | Select-Object -Unique)
     toolsUsed = @($ToolsUsed | Select-Object -Unique)
     finalStatus = $OutputFinalStatus
+    executionStopReason = if ($TaskMode -eq 'scheduled_task') { [string]$FinalStatus } else { $null }
     acceptanceStatus = [string]$AcceptanceArtifact.status
     acceptanceFailures = @($AcceptanceArtifact.failures)
     acceptanceArtifactPath = $AcceptancePath
