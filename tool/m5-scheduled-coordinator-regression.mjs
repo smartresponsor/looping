@@ -24,6 +24,12 @@ function adapter({ambiguous=false,wrongTarget=false,noCapture=false}={}) {
    {ok:true,status:'MESSAGES_CAPTURED',selected:{id:identity.targetId,chat_id:identity.chatId},
     binding:{chatId:identity.chatId},messages:[
       {role:'user',text:prompt},{role:'assistant',text:'M5_SMOKE_OK',responseComplete:true}]};
+  if(name==='read_.browser.chatgpt.answer.settle')return {ok:true,status:'ANSWER_STABLE',
+   settled:true,ready_for_gate:true,
+   selected:{id:identity.targetId,chat_id:identity.chatId},
+   binding:{chatId:identity.chatId},
+   messages:[{role:'user',text:prompt},{role:'assistant',text:'M5_SMOKE_OK'}],
+   latest_assistant:{role:'assistant',text:'M5_SMOKE_OK'}};
   throw Error('Unexpected tool '+name);
  };
  return {calls,invoke};

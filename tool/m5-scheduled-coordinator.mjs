@@ -57,7 +57,15 @@ export async function runScheduledM5({
     capture=await invoke('read_.browser.chatgpt.message.capture',
       {...base,preferredChatId:identity.chatId,requireChatId:true,maxMessages:10});
   } catch {capture=null;}
-  const normalized=normalizeM5Capture(capture,identity);
+  let settle=null;
+  if(capture?.ok===true && capture?.status==='MESSAGES_CAPTURED') {
+    try {
+      settle=await invoke('read_.browser.chatgpt.answer.settle',
+        {...base,preferredChatId:identity.chatId,requireChatId:true,maxMessages:10,
+          readinessProfile:'quick_probe'});
+    } catch {settle=null;}
+  }
+  const normalized=normalizeM5Capture(capture,identity,settle);
   if(normalized.ok) {
     await update(event('capture_reconciled',{userText:normalized.userText,
       assistantText:normalized.assistantText,responseComplete:normalized.responseComplete}));
