@@ -66,7 +66,7 @@ export async function runScheduledM5({
     } catch {settle=null;}
   }
   const normalized=normalizeM5Capture(capture,identity,settle);
-  if(normalized.ok) {
+  if(normalized.ok && normalized.userText===prompt) {
     await update(event('capture_reconciled',{userText:normalized.userText,
       assistantText:normalized.assistantText,responseComplete:normalized.responseComplete}));
   } else await update(event('reconciliation_inconclusive'));

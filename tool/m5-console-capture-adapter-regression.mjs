@@ -20,6 +20,7 @@ for(const bad of [
  {...settle,status:'ANSWER_MAX_WAIT_EXPIRED'},
  {...settle,selected:{...selected,id:'F'.repeat(32)}},
  {...settle,binding:{chatId:'other'}},
+ {...settle,messages:[{...messages[0],text:'different prompt'},messages[1]]},
  {...settle,messages:[messages[0],{...messages[1],text:'wrong'}]},
  {...settle,latest_assistant:{...messages[1],text:'wrong'}},
  {...settle,messages:[]}

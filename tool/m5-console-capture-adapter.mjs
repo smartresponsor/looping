@@ -17,6 +17,8 @@ export function normalizeM5Capture(raw,identity,settle=null) {
      settle.selected?.chat_id?.toLowerCase()!==identity.chatId ||
      settle.binding?.chatId?.toLowerCase()!==identity.chatId ||
      !Array.isArray(settle.messages) ||
+     settle.messages.at(-2)?.role!=='user' ||
+     settle.messages.at(-2)?.text!==textOf(prev) ||
      settle.messages.at(-1)?.role!=='assistant' ||
      settle.messages.at(-1)?.text!==textOf(last) ||
      settle.latest_assistant?.text!==textOf(last)) return {ok:false,status:'M5_CAPTURE_NOT_SETTLED'};
