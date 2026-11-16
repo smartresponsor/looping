@@ -48,5 +48,14 @@ try {
     if ((Get-Content -Raw -LiteralPath $LockPath) -ne $ActualBefore) {throw 'LEGACY_MUTATED_UNOWNED_LOCK'}
   }
   if ($LegacyDeclined -ne 2) {throw 'LEGACY_GUARD_MISSING'}
-  [pscustomobject]@{ok=$true;status='M4_SESSION_LOCK_ACCEPTANCE_PASS';competitors=12;winners=1;busy=11;wrapperDeclined=$true;legacyDeclined=$LegacyDeclined;browserCalls=0} | ConvertTo-Json -Compress
+  $TaskBankDeclined = $false
+  try {
+    & (Join-Path $Root 'tool/runner-task-bank-loop.ps1') -TargetRepo $Root -MaxIterations 1 -Name 'lock-only-fixture' -InitialPrompt 'DO_NOT_EXECUTE' | Out-Null
+    throw 'TASK_BANK_LOCK_BYPASSED'
+  } catch {
+    if ($_.Exception.Message -notmatch 'TASK_BANK_SHARED_RUNNER_LOCK_BUSY') { throw }
+    $TaskBankDeclined = $true
+  }
+  if (-not $TaskBankDeclined -or (Get-Content -Raw -LiteralPath $LockPath) -ne $ActualBefore) {throw 'TASK_BANK_MUTATED_UNOWNED_LOCK'}
+  [pscustomobject]@{ok=$true;status='M4_SESSION_LOCK_ACCEPTANCE_PASS';competitors=12;winners=1;busy=11;wrapperDeclined=$true;legacyDeclined=$LegacyDeclined;taskBankDeclined=$TaskBankDeclined;browserCalls=0} | ConvertTo-Json -Compress
 } finally { if((Test-Path -LiteralPath $LockPath) -and (Get-Content -Raw -LiteralPath $LockPath) -match 'fixture-other'){Remove-Item -LiteralPath $LockPath -Force} }
