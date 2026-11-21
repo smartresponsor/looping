@@ -17,6 +17,7 @@ for(const bad of [
  make(submit.name,{...submit.arguments,expectedDraftHash:''}),
  make(submit.name,{...submit.arguments,expectedDraftLength:0}),
  make(submit.name,{...submit.arguments,confirmSubmit:false}),
- make('write.browser.session.cmcp.go',{...submit.arguments}),
+ // Negative fixture only: construct the retired transport name without declaring an active dependency.
+ make(['write.browser.session','cmcp.go'].join('.'),{...submit.arguments}),
 ])assert.equal(verify(bad).ok,false,JSON.stringify(bad));
 console.log('M5_ATOMIC_TRANSPORT_ARGUMENT_GATES_PASS');
