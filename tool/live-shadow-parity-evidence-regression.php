@@ -83,4 +83,57 @@ assert($divergent['ok'] === false);
 assert($divergent['m4EvidenceReady'] === false);
 assert(count($divergent['divergences']) === 1);
 
+
+// Exercise the actual CLI capture boundary, including provenance binding and spoof rejection.
+$inputPath = tempnam(sys_get_temp_dir(), 'loop-m4-in-');
+$outputPath = tempnam(sys_get_temp_dir(), 'loop-m4-out-');
+assert(is_string($inputPath) && is_string($outputPath));
+$receipt = [
+    'task_id' => 'engine-completion-1',
+    'event_id' => 'event-completion-1',
+    'event_ts' => '2026-11-24T00:00:00Z',
+    'status' => 'ENGINE_COMPLETION_FACTS_AND_GATES_VERIFIED',
+    'current_worktree_fingerprint' => str_repeat('a', 64),
+    'current_head' => str_repeat('b', 40),
+    'git_diff_check' => 'PASS',
+    'gate_results' => [['ok' => true, 'check_name' => 'composer_validate']],
+    'applicability' => ['required' => false],
+    'runtime_verification' => ['required' => false, 'ok' => true],
+];
+$payload = [
+    'snapshot' => ['task' => ['task_id' => 'engine-completion-1', 'status' => 'completed', 'decision_status' => 'done'], 'completion_verified' => true],
+    'authoritative' => ['continue' => false, 'terminal' => true, 'decisionStatus' => 'done'],
+    'provenance' => [
+        'origin' => 'console_engine_history',
+        'immutableReceipt' => true,
+        'sourceTaskId' => 'engine-completion-1',
+        'sourceEventId' => 'event-completion-1',
+        'sourceEventTs' => '2026-11-24T00:00:00Z',
+    ],
+    'completion_receipt' => $receipt,
+];
+$capture = static function (array $input) use ($inputPath, $outputPath): array {
+    file_put_contents($inputPath, json_encode($input, JSON_THROW_ON_ERROR));
+    $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/live-shadow-parity-capture.php')
+        . ' --input=' . escapeshellarg($inputPath) . ' --output=' . escapeshellarg($outputPath);
+    exec($command, $lines, $exitCode);
+    assert($exitCode === 0);
+    return json_decode((string) file_get_contents($outputPath), true, 512, JSON_THROW_ON_ERROR);
+};
+try {
+    $validCapture = $capture($payload);
+    assert($validCapture['completionVerification']['verified'] === true);
+    $payload['provenance']['sourceEventId'] = 'event-unrelated';
+    $invalidCapture = $capture($payload);
+    assert($invalidCapture['completionVerification']['verified'] === false);
+    assert($invalidCapture['completionVerification']['outcomeCode'] === 'COMPLETION_RECEIPT_PROVENANCE_MISMATCH');
+    unset($payload['completion_receipt']);
+    $spoofedCapture = $capture($payload);
+    assert(!isset($spoofedCapture['completionVerification']));
+    assert(($spoofedCapture['shadowState']['decision']['stopReason'] ?? null) !== 'decision_done_verified:done');
+} finally {
+    unlink($inputPath);
+    unlink($outputPath);
+}
+
 fwrite(STDOUT, "OK: M4 live shadow parity evidence regression passed.\n");
