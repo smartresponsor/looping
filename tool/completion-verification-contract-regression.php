@@ -37,7 +37,19 @@ $failed = $contract->evaluateReceipt([
 ]);
 assert($failed['verified'] === false);
 assert($failed['failedGateCount'] === 1);
-assert($failed['failedChecks'] === ['deterministicGatesPass']);
+assert(in_array('deterministicGatesPass', $failed['failedChecks'], true));
 assert($failed['outcomeCode'] === 'COMPLETION_CHECKS_FAILED');
+assert(in_array('runtimeRequirementDeclared', $failed['failedChecks'], true));
+
+$missingEvidence = $contract->evaluateReceipt([
+    'status' => 'ENGINE_COMPLETION_FACTS_AND_GATES_VERIFIED',
+    'current_worktree_fingerprint' => str_repeat('a', 64),
+    'current_head' => str_repeat('b', 40),
+    'git_diff_check' => 'PASS',
+]);
+assert($missingEvidence['verified'] === false);
+assert(in_array('deterministicGatesPass', $missingEvidence['failedChecks'], true));
+assert(in_array('applicabilityDeclared', $missingEvidence['failedChecks'], true));
+assert(in_array('runtimeRequirementDeclared', $missingEvidence['failedChecks'], true));
 
 fwrite(STDOUT, "OK: completion verification contract regression passed.\n");
