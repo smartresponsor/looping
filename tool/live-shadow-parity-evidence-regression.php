@@ -60,8 +60,9 @@ assert($unverifiedCompletion['m4EvidenceReady'] === false);
 $spoofedVerification = $evidence->summarize([
     $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'coverageClass' => 'completion', 'completionVerification' => ['verified' => true]], 'spoofed-boolean'),
 ]);
-assert(in_array('completion', $spoofedVerification['missingCompleteCoverage'], true));
-assert($spoofedVerification['m4EvidenceReady'] === false);
+if (!in_array('completion', $spoofedVerification['missingCompleteCoverage'], true) || $spoofedVerification['m4EvidenceReady'] !== false) {
+    throw new RuntimeException('Spoofed completion flag must not satisfy M4 evidence coverage');
+}
 
 $partialRetry = $evidence->summarize([
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['continue' => true]],
