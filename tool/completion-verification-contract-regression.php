@@ -24,6 +24,8 @@ $verified = $contract->evaluateReceipt([
     'behavioral_evidence' => ['ok' => true],
 ]);
 assert($verified['verified'] === true);
+assert($verified['failedChecks'] === []);
+assert($verified['outcomeCode'] === 'COMPLETION_ALL_CHECKS_VERIFIED');
 
 $failed = $contract->evaluateReceipt([
     'status' => 'ENGINE_COMPLETION_FACTS_AND_GATES_VERIFIED',
@@ -35,5 +37,7 @@ $failed = $contract->evaluateReceipt([
 ]);
 assert($failed['verified'] === false);
 assert($failed['failedGateCount'] === 1);
+assert($failed['failedChecks'] === ['deterministicGatesPass']);
+assert($failed['outcomeCode'] === 'COMPLETION_CHECKS_FAILED');
 
 fwrite(STDOUT, "OK: completion verification contract regression passed.\n");

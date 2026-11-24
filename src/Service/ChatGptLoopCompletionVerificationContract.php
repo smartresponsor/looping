@@ -50,7 +50,8 @@ final class ChatGptLoopCompletionVerificationContract
             'runtimePassWhenRequired' => ($runtime['required'] ?? false) !== true || ($runtime['ok'] ?? false) === true,
             'behavioralEvidencePassWhenRequired' => ($applicability['required'] ?? false) !== true || ($evidence['ok'] ?? false) === true,
         ];
-        $verified = !in_array(false, $checks, true);
+        $failedChecks = array_keys(array_filter($checks, static fn (bool $passed): bool => !$passed));
+        $verified = $failedChecks === [];
 
         return [
             'ok' => true,
@@ -59,6 +60,8 @@ final class ChatGptLoopCompletionVerificationContract
             'verified' => $verified,
             'checks' => $checks,
             'failedGateCount' => count($failedGates),
+            'failedChecks' => $failedChecks,
+            'outcomeCode' => $verified ? 'COMPLETION_ALL_CHECKS_VERIFIED' : 'COMPLETION_CHECKS_FAILED',
             'nextAction' => $verified ? 'shadow_allow_verified_done_candidate' : 'shadow_reject_completion_claim',
         ];
     }
