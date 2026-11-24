@@ -57,6 +57,12 @@ assert(in_array('completion', $unverifiedCompletion['observedCoverage'], true));
 assert(in_array('completion', $unverifiedCompletion['missingCompleteCoverage'], true));
 assert($unverifiedCompletion['m4EvidenceReady'] === false);
 
+$spoofedVerification = $evidence->summarize([
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'coverageClass' => 'completion', 'completionVerification' => ['verified' => true]], 'spoofed-boolean'),
+]);
+assert(in_array('completion', $spoofedVerification['missingCompleteCoverage'], true));
+assert($spoofedVerification['m4EvidenceReady'] === false);
+
 $partialRetry = $evidence->summarize([
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['continue' => true]],
     ['status' => 'LIVE_SHADOW_PARITY_MATCH_PARTIAL', 'coverageClass' => 'retry', 'normalizedTask' => ['status' => 'blocked'], 'actual' => ['recoveryClass' => 'rebind_chat']],
