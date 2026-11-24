@@ -42,13 +42,20 @@ $ready = $evidence->summarize([
     $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['recoveryClass' => 'resubmit_orphaned_answer']], 'orphan'),
     $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'human_decision_required']], 'human'),
     $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'stalled_no_semantic_progress']], 'stall'),
-    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'decision_done_verified:done']], 'completion'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'decision_done_verified:done'], 'completionVerification' => ['verified' => true]], 'completion'),
 ]);
 assert($ready['status'] === 'M4_SHADOW_PARITY_EVIDENCE_READY');
 assert($ready['m4EvidenceReady'] === true);
 assert($ready['missingCoverage'] === []);
 assert($ready['missingCompleteCoverage'] === []);
 assert($ready['provenanceRejected'] === []);
+
+$unverifiedCompletion = $evidence->summarize([
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'coverageClass' => 'completion', 'normalizedTask' => ['status' => 'completed', 'decision_status' => 'continue']], 'completed-without-proof'),
+]);
+assert(in_array('completion', $unverifiedCompletion['observedCoverage'], true));
+assert(in_array('completion', $unverifiedCompletion['missingCompleteCoverage'], true));
+assert($unverifiedCompletion['m4EvidenceReady'] === false);
 
 $partialRetry = $evidence->summarize([
     ['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['continue' => true]],
