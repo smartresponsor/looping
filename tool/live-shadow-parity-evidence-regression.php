@@ -97,6 +97,7 @@ assert(is_string($inputPath) && is_string($outputPath));
 $receipt = [
     'task_id' => 'engine-completion-1',
     'event_id' => 'event-completion-1',
+        'event' => 'engine_execution_completed',
     'event_ts' => '2026-11-24T00:00:00Z',
     'status' => 'ENGINE_COMPLETION_FACTS_AND_GATES_VERIFIED',
     'current_worktree_fingerprint' => str_repeat('a', 64),

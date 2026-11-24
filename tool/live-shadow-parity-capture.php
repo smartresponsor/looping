@@ -48,6 +48,8 @@ if ($completionReceipt !== null) {
     $receiptEventId = $completionReceipt['event_id'] ?? null;
     $receiptEventTs = $completionReceipt['event_ts'] ?? null;
     $receiptProvenanceValid = ($provenance['immutableReceipt'] ?? false) === true
+        && ($provenance['origin'] ?? null) === 'console_engine_history'
+        && ($completionReceipt['event'] ?? null) === 'engine_execution_completed'
         && is_string($sourceTaskId) && $sourceTaskId !== ''
         && $receiptTaskId === $sourceTaskId
         && is_string($receiptEventId) && $receiptEventId !== ''
