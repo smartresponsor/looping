@@ -42,7 +42,7 @@ $ready = $evidence->summarize([
     $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['recoveryClass' => 'resubmit_orphaned_answer']], 'orphan'),
     $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'human_decision_required']], 'human'),
     $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'stalled_no_semantic_progress']], 'stall'),
-    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'decision_done_verified:done'], 'completionVerification' => ['verified' => true]], 'completion'),
+    $historical(['status' => 'LIVE_SHADOW_PARITY_MATCH', 'actual' => ['stopReason' => 'decision_done_verified:done'], 'completionVerification' => ['verified' => true, 'status' => 'SHADOW_COMPLETION_VERIFIED', 'outcomeCode' => 'COMPLETION_ALL_CHECKS_VERIFIED']], 'completion'),
 ]);
 assert($ready['status'] === 'M4_SHADOW_PARITY_EVIDENCE_READY');
 assert($ready['m4EvidenceReady'] === true);

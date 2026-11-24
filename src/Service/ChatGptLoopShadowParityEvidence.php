@@ -31,7 +31,7 @@ final class ChatGptLoopShadowParityEvidence
                 $counts['match']++;
                 if ($provenanceEligible) {
                     foreach ($classes as $class) {
-                        if ($class !== 'completion' || ($artifact['completionVerification']['verified'] ?? false) === true) {
+                        if ($class !== 'completion' || (($artifact['completionVerification']['verified'] ?? false) === true && ($artifact['completionVerification']['status'] ?? null) === 'SHADOW_COMPLETION_VERIFIED' && ($artifact['completionVerification']['outcomeCode'] ?? null) === 'COMPLETION_ALL_CHECKS_VERIFIED')) {
                             $completeCoverage[$class] = true;
                         }
                     }
@@ -50,7 +50,7 @@ final class ChatGptLoopShadowParityEvidence
                     $counts['match']++;
                     if ($provenanceEligible) {
                         foreach ($classes as $class) {
-                            if ($class !== 'completion' || ($artifact['completionVerification']['verified'] ?? false) === true) {
+                            if ($class !== 'completion' || (($artifact['completionVerification']['verified'] ?? false) === true && ($artifact['completionVerification']['status'] ?? null) === 'SHADOW_COMPLETION_VERIFIED' && ($artifact['completionVerification']['outcomeCode'] ?? null) === 'COMPLETION_ALL_CHECKS_VERIFIED')) {
                             $completeCoverage[$class] = true;
                         }
                         }
