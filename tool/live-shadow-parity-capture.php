@@ -39,10 +39,6 @@ $evaluator = new ChatGptLoopShadowParityEvaluator(
     new ChatGptLoopShadowStateProjector(new ChatGptLoopShadowDecisionProjector()),
     new ChatGptLoopShadowRecoveryProjector(),
 );
-$artifact = $evaluator->evaluate(
-    $snapshot,
-    is_array($payload['authoritative'] ?? null) ? $payload['authoritative'] : [],
-);
 $completionReceipt = is_array($payload['completion_receipt'] ?? null) ? $payload['completion_receipt'] : null;
 $provenance = is_array($payload['provenance'] ?? null) ? $payload['provenance'] : [];
 if ($completionReceipt !== null) {
@@ -64,6 +60,14 @@ if ($completionReceipt !== null) {
         $verification['outcomeCode'] = 'COMPLETION_RECEIPT_PROVENANCE_MISMATCH';
         $verification['failedChecks'][] = 'receiptProvenanceValid';
     }
+}
+// Never trust a caller-supplied completion_verified flag.
+$snapshot['completion_verified'] = ($verification['verified'] ?? false) === true;
+$artifact = $evaluator->evaluate(
+    $snapshot,
+    is_array($payload['authoritative'] ?? null) ? $payload['authoritative'] : [],
+);
+if (isset($verification)) {
     $artifact['completionVerification'] = $verification;
 }
 $artifact['semanticRoute'] = $semanticRoute;
