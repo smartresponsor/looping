@@ -62,7 +62,7 @@ Assert-True ($TaskBankLoop -match 'Normalize-ChatId') 'task-bank loop must norma
 Assert-True ($AdoptRunner -match '\[string\]\$ExistingLocation') 'adoption entrypoint must require an explicit existing chat location from the calling layer'
 Assert-True ($AdoptRunner -notmatch 'console\.read_\.browser\.chatgpt\.tab\.bind') 'adoption entrypoint must not guess this chat from supervised browser inventory'
 Assert-True ($AdoptRunner -match 'preferredChatId = \$ChatId' -and $AdoptRunner -match 'locator = \$ExistingLocation') 'adoption entrypoint must pass the explicit chat id or locator to the adoption tool'
-Assert-True ($AdoptRunner -match 'console\.write\.browser\.chatgpt\.chat\.adopt_go') 'adoption entrypoint must dispatch the canonical adopt_go execution path'
+Assert-True ($AdoptRunner -cmatch "tool\s*=\s*'write\.browser\.chatgpt\.chat\.adopt_go'") 'adoption entrypoint must dispatch the canonical unprefixed adopt_go execution path'
 Assert-True ($CmcpShim -match "'adopt'") 'cmcp shim must expose adopt command'
 Assert-True ($TaskBankLoop -match '\$UseInitialPrompt = \(\$Task\.interactionCount -eq 0 -and -not \$AdoptedChatId\)') 'adopt mode must not dispatch the initial prompt/mixin first'
 Assert-True ($TaskBankLoop -match 'SINGLE_CHAT_REBIND_FAILED') 'task-bank loop must fail explicitly when single-chat rebind fails'
