@@ -1,4 +1,4 @@
-param()
+param([switch]$RuntimeCheckOnly)
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -13,6 +13,85 @@ function Assert-True {
     if (-not $Condition) {
         throw $Message
     }
+}
+
+if ($RuntimeCheckOnly) {
+    $PSNativeCommandUseErrorActionPreference = $false
+    $BridgePath = Join-Path $Root 'tool/runner-console-mcp-bridge.mjs'
+    $McpRoot = Split-Path -Parent $Root
+    if ((Split-Path -Leaf $McpRoot) -eq '.worktrees') {
+        $McpRoot = Split-Path -Parent $McpRoot
+    }
+    $SdkRoot = Join-Path $McpRoot 'console-mcp'
+    $Temp = Join-Path ([System.IO.Path]::GetTempPath()) ('looping-runtime-check-' + [guid]::NewGuid().ToString('N'))
+    $null = New-Item -ItemType Directory -Path $Temp
+    $Saved = @{}
+    foreach ($Name in @('LOOPING_CONSOLE_MCP_ROOT','CONSOLE_MCP_BEARER_TOKEN','CONSOLE_MCP_BEARER_TOKEN_PREVIOUS','CONSOLE_MCP_ENDPOINT','LOOPING_SECRET_RUNTIME_ENABLED')) {
+        $Saved[$Name] = [Environment]::GetEnvironmentVariable($Name,'Process')
+    }
+    function Invoke-Probe([string[]]$Arguments) {
+        $Output = & node $BridgePath @Arguments 2>&1
+        [pscustomobject]@{ code = $LASTEXITCODE; output = ($Output -join "\n") }
+    }
+    try {
+        $env:CONSOLE_MCP_BEARER_TOKEN = $null
+        $env:CONSOLE_MCP_ENDPOINT = $null
+        $env:LOOPING_CONSOLE_MCP_ROOT = $null
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -eq 0) 'default SDK resolution failed'
+        $Receipt = $Probe.output | ConvertFrom-Json
+        Assert-True ($Receipt.status -eq 'LOOPING_CONSOLE_MCP_SDK_READY' -and $Receipt.connected -eq $false -and $Receipt.dispatched -eq $false) 'SDK probe must be offline'
+        $env:LOOPING_CONSOLE_MCP_ROOT = $SdkRoot
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -eq 0) 'explicit SDK resolution failed'
+        $env:LOOPING_CONSOLE_MCP_ROOT = 'relative/path'
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('LOOPING_CONSOLE_MCP_ROOT_INVALID')) 'relative SDK root accepted'
+        $env:LOOPING_CONSOLE_MCP_ROOT = Join-Path $Temp 'missing-sdk'
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('LOOPING_CONSOLE_MCP_SDK_UNAVAILABLE')) 'missing SDK accepted or fallback used'
+        $Payload = Join-Path $Temp 'payload.json'
+        $Result = Join-Path $Temp 'result.json'
+        '{"runnerExecutionPlan":{"tool":"read_.repo.workspace.status","arguments":{}}}' | Set-Content -LiteralPath $Payload -Encoding UTF8
+        $env:LOOPING_CONSOLE_MCP_ROOT = $SdkRoot
+        $env:CONSOLE_MCP_BEARER_TOKEN = 'dev'
+        $Probe = Invoke-Probe @('--payload',$Payload,'--result',$Result)
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('CONSOLE_MCP_BEARER_TOKEN_MISSING_OR_PLACEHOLDER')) 'placeholder credential accepted'
+        $env:CONSOLE_MCP_BEARER_TOKEN = 'offline-fixture-not-a-real-credential'
+        $env:CONSOLE_MCP_ENDPOINT = 'http://127.0.0.1:1/mcp'
+        $Probe = Invoke-Probe @('--payload',$Payload,'--result',$Result)
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('CONSOLE_MCP_ENDPOINT_NOT_RUNNER_PROFILE')) 'non-runner endpoint accepted'
+        Assert-True (-not (Test-Path -LiteralPath $Result)) 'negative probe produced a tool receipt'
+        $BridgeSource = Read-Text 'tool/runner-console-mcp-bridge.mjs'
+        $WrapperSource = Read-Text 'tool/runner-console-mcp-bridge.ps1'
+        Assert-True ($BridgeSource.IndexOf('CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH') -lt $BridgeSource.IndexOf('await client.callTool(') -and $BridgeSource.Contains('process.exitCode = 77')) 'handshake rejection must precede tool dispatch'
+        Assert-True ($WrapperSource.Contains('exitCode -ne 77') -and $WrapperSource.Contains("-cne 'CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH'")) 'retry must require exact pre-dispatch rejection'
+        Assert-True ($WrapperSource.Contains("[Parameter(ParameterSetName='Handshake')][switch]"+'$DiagnosticAwsProvider') -and $WrapperSource.Contains('if ($DiagnosticAwsProvider) {') -and $WrapperSource.Contains("throw 'CONSOLE_MCP_AWS_DIAGNOSTIC_ONLY'")) 'AWS provider must be restricted to explicit handshake diagnostics'
+        $WrapperPath = Join-Path $Root 'tool/runner-console-mcp-bridge.ps1'
+        $env:LOOPING_SECRET_RUNTIME_ENABLED = $null
+        $env:CONSOLE_MCP_BEARER_TOKEN = 'dev'
+        $env:CONSOLE_MCP_BEARER_TOKEN_PREVIOUS = 'synthetic-previous'
+        $env:CONSOLE_MCP_ENDPOINT = 'http://127.0.0.1:1/mcp'
+        $MissingRejected = $false
+        try { & $WrapperPath -HandshakeCheck | Out-Null } catch {
+            $MissingRejected = $_.Exception.Message.Contains('CONSOLE_MCP_BEARER_TOKEN_MISSING')
+        }
+        Assert-True $MissingRejected 'missing authorized credential must fail before dispatch'
+        Assert-True ($env:CONSOLE_MCP_BEARER_TOKEN -ceq 'dev' -and $env:CONSOLE_MCP_BEARER_TOKEN_PREVIOUS -ceq 'synthetic-previous' -and $env:CONSOLE_MCP_ENDPOINT -ceq 'http://127.0.0.1:1/mcp') 'failed admission must restore all process variables'
+        $BindingRejected = $false
+        try { & $WrapperPath -PayloadPath $Payload -ResultPath $Result -DiagnosticAwsProvider | Out-Null } catch {
+            $BindingRejected = $_.FullyQualifiedErrorId -match 'AmbiguousParameterSet|ParameterSetCannotBeResolved'
+        }
+        Assert-True $BindingRejected 'AWS diagnostic cannot be combined with dispatch'
+        Assert-True ($WrapperSource.Contains("-Name CONSOLE_MCP_BEARER_TOKEN -IncludePrevious") -and $WrapperSource.Contains('$env:LOOPING_SECRET_RUNTIME_ENABLED')) 'shared provider must be scoped and opt-in'
+        [pscustomobject]@{ok=$true;status='LOOPING_RUNTIME_BOOTSTRAP_DELTA_PASS';sdkVersion=$Receipt.sdkVersion;checks=13;liveDispatches=0;browserCalls=0} | ConvertTo-Json -Compress
+    } finally {
+        foreach ($Name in $Saved.Keys) {
+            [Environment]::SetEnvironmentVariable($Name,$Saved[$Name],'Process')
+        }
+        Remove-Item -LiteralPath $Temp -Recurse -Force
+    }
+    return
 }
 
 $RepoSmoke = Read-Text 'tool/runner-repo-smoke.ps1'
@@ -62,7 +141,7 @@ Assert-True ($TaskBankLoop -match 'Normalize-ChatId') 'task-bank loop must norma
 Assert-True ($AdoptRunner -match '\[string\]\$ExistingLocation') 'adoption entrypoint must require an explicit existing chat location from the calling layer'
 Assert-True ($AdoptRunner -notmatch 'console\.read_\.browser\.chatgpt\.tab\.bind') 'adoption entrypoint must not guess this chat from supervised browser inventory'
 Assert-True ($AdoptRunner -match 'preferredChatId = \$ChatId' -and $AdoptRunner -match 'locator = \$ExistingLocation') 'adoption entrypoint must pass the explicit chat id or locator to the adoption tool'
-Assert-True ($AdoptRunner -match 'console\.write\.browser\.chatgpt\.chat\.adopt_go') 'adoption entrypoint must dispatch the canonical adopt_go execution path'
+Assert-True ($AdoptRunner -cmatch "tool\s*=\s*'write\.browser\.chatgpt\.chat\.adopt_go'") 'adoption entrypoint must dispatch the canonical unprefixed adopt_go execution path'
 Assert-True ($CmcpShim -match "'adopt'") 'cmcp shim must expose adopt command'
 Assert-True ($TaskBankLoop -match '\$UseInitialPrompt = \(\$Task\.interactionCount -eq 0 -and -not \$AdoptedChatId\)') 'adopt mode must not dispatch the initial prompt/mixin first'
 Assert-True ($TaskBankLoop -match 'SINGLE_CHAT_REBIND_FAILED') 'task-bank loop must fail explicitly when single-chat rebind fails'

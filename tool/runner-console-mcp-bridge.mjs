@@ -1,6 +1,42 @@
-import { Client } from "../../console-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js";
-import { StreamableHTTPClientTransport } from "../../console-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js";
 import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+// Resolve only the configured Console MCP installation or the conventional
+// sibling installation, including checkouts under the dedicated .worktrees root.
+function resolveConsoleMcpRoot() {
+  const configured = process.env.LOOPING_CONSOLE_MCP_ROOT;
+  if (configured !== undefined) {
+    if (!configured.trim() || !path.isAbsolute(configured)) {
+      throw new Error("LOOPING_CONSOLE_MCP_ROOT_INVALID");
+    }
+    return path.normalize(configured);
+  }
+  const projectRoot = fileURLToPath(new URL("../", import.meta.url));
+  const parent = path.dirname(path.resolve(projectRoot));
+  const workspace = path.basename(parent) === ".worktrees" ? path.dirname(parent) : parent;
+  return path.join(workspace, "console-mcp");
+}
+
+async function loadConsoleMcpSdk() {
+  const sdkRoot = path.join(resolveConsoleMcpRoot(), "node_modules", "@modelcontextprotocol", "sdk");
+  try {
+    const metadata = JSON.parse(await fs.readFile(path.join(sdkRoot, "package.json"), "utf8"));
+    if (metadata.name !== "@modelcontextprotocol/sdk" || typeof metadata.version !== "string") {
+      throw new Error("SDK metadata invalid");
+    }
+    const { Client } = await import(pathToFileURL(path.join(sdkRoot, "dist", "esm", "client", "index.js")).href);
+    const { StreamableHTTPClientTransport, StreamableHTTPError } = await import(pathToFileURL(path.join(sdkRoot, "dist", "esm", "client", "streamableHttp.js")).href);
+    const { UnauthorizedError } = await import(pathToFileURL(path.join(sdkRoot, "dist", "esm", "client", "auth.js")).href);
+    if ([Client, StreamableHTTPClientTransport, StreamableHTTPError, UnauthorizedError].some(value => typeof value !== "function")) {
+      throw new Error("SDK exports invalid");
+    }
+    return { Client, StreamableHTTPClientTransport, StreamableHTTPError, UnauthorizedError, version: metadata.version };
+  } catch {
+    throw new Error("LOOPING_CONSOLE_MCP_SDK_UNAVAILABLE");
+  }
+}
+import { validateM5AtomicInvocation } from "./m5-atomic-transport-admission.mjs";
 
 const atomicTools = new Set([
   "write.browser.session.title.prefix",
@@ -139,27 +175,72 @@ function resolveToolRequestTimeoutMs(toolName) {
 }
 
 async function main() {
+  if (process.argv.length === 3 && process.argv[2] === "--runtime-check") {
+    const { version } = await loadConsoleMcpSdk();
+    process.stdout.write(JSON.stringify({
+      ok: true, status: "LOOPING_CONSOLE_MCP_SDK_READY", sdkVersion: version,
+      connected: false, dispatched: false
+    }) + "\n");
+    return;
+  }
+  const handshakeOnly = process.argv.length === 3 && process.argv[2] === "--handshake-check";
   const args = parseArgs(process.argv);
+  if (args["handshake-check"] && !handshakeOnly) {
+    throw new Error("CONSOLE_MCP_HANDSHAKE_CHECK_ARGUMENTS_INVALID");
+  }
   const payloadPath = args.payload;
   const resultPath = args.result;
-  if (!payloadPath) throw new Error("--payload is required");
-  if (!resultPath) throw new Error("--result is required");
-
-  const toolCall = await readToolCall(payloadPath);
-  if (!toolAllowed(toolCall)) {
-    throw new Error(`console-mcp bridge tool not allowed: ${toolCall.name}`);
+  let toolCall;
+  if (!handshakeOnly) {
+    if (!payloadPath) throw new Error("--payload is required");
+    if (!resultPath) throw new Error("--result is required");
+    toolCall = await readToolCall(payloadPath);
+    if (!toolAllowed(toolCall)) {
+      throw new Error(`console-mcp bridge tool not allowed: ${toolCall.name}`);
+    }
+    if (m5AtomicWriteTools.has(toolCall.name)) {
+      const admission = validateM5AtomicInvocation(toolCall);
+      if (!admission.ok) throw new Error(admission.status);
+    }
   }
 
   const token = process.env.CONSOLE_MCP_BEARER_TOKEN ?? "";
-  if (!token) throw new Error("CONSOLE_MCP_BEARER_TOKEN is required");
+  const placeholderTokens = new Set(["dev", "test", "changeme", "change-me", "dev-token", "local-dev-token", "console-mcp-dev-token"]);
+  if (!token.trim() || placeholderTokens.has(token.trim().toLowerCase())) {
+    throw new Error("CONSOLE_MCP_BEARER_TOKEN_MISSING_OR_PLACEHOLDER");
+  }
   const endpoint = new URL(process.env.CONSOLE_MCP_ENDPOINT ?? "http://127.0.0.1:3335/mcp");
+  if (endpoint.href !== "http://127.0.0.1:3335/mcp") {
+    throw new Error("CONSOLE_MCP_ENDPOINT_NOT_RUNNER_PROFILE");
+  }
+  const { Client, StreamableHTTPClientTransport, StreamableHTTPError, UnauthorizedError } = await loadConsoleMcpSdk();
   const transport = new StreamableHTTPClientTransport(endpoint, {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   });
   const client = new Client({ name: "chatgpt-loop-runner-bridge", version: "1.0.0" });
 
   try {
-    await client.connect(transport);
+    try {
+      await client.connect(transport);
+    } catch (error) {
+      // Token rotation is safe only before any tool dispatch. Never classify
+      // an error from callTool (or a result write/close failure) as retryable.
+      if (error instanceof UnauthorizedError || (error instanceof StreamableHTTPError && error.code === 401)) {
+        process.stderr.write("CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH\n");
+        process.exitCode = 77;
+        return;
+      }
+      throw error;
+    }
+    if (handshakeOnly) {
+      const toolsAdvertised = Boolean(client.getServerCapabilities()?.tools);
+      if (!toolsAdvertised) throw new Error("CONSOLE_MCP_HANDSHAKE_TOOLS_CAPABILITY_MISSING");
+      process.stdout.write(JSON.stringify({
+        ok: true, status: "LOOPING_RUNNER_HANDSHAKE_PASS", connected: true,
+        toolsAdvertised, dispatched: false, endpoint: endpoint.toString()
+      }) + "\n");
+      return;
+    }
     const requestTimeoutMs = resolveToolRequestTimeoutMs(toolCall.name);
     const requestOptions = { timeout: requestTimeoutMs, maxTotalTimeout: requestTimeoutMs };
     const result = await client.callTool(
@@ -203,6 +284,10 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  if (process.argv.includes("--handshake-check")) {
+    process.stderr.write("CONSOLE_MCP_HANDSHAKE_CHECK_FAILED\n");
+  } else {
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  }
   process.exitCode = 1;
 });

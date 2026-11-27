@@ -15,28 +15,36 @@ final class ChatGptLoopM5AtomicDispatchPlanner
         $taskId = $this->string($state['taskId'] ?? $state['task_id'] ?? null);
         $targetId = $this->string($state['targetId'] ?? $state['target_id'] ?? null);
         $chatId = $this->string($state['chatId'] ?? $state['chat_id'] ?? null);
-        $ports = is_array($state['ports'] ?? null) ? $state['ports'] : [9222, 9223];
+        $ports = $state['ports'] ?? null;
+        if ($ports !== [9224] || $targetId === null || preg_match('/^[A-Fa-f0-9]{32}$/D', $targetId) !== 1) {
+            return $this->blocked('M5_ATOMIC_EXACT_VISIBLE_TARGET_REQUIRED');
+        }
+        if ($chatId !== null && preg_match('/^[A-Fa-f0-9-]{36}$/D', $chatId) !== 1) {
+            return $this->blocked('M5_ATOMIC_CHAT_ID_INVALID');
+        }
+        if ($stage === 'prompt_submit' && (preg_match('/^[a-f0-9]{64}$/D', (string) ($state['draftHash'] ?? '')) !== 1)) {
+            return $this->blocked('M5_ATOMIC_SUBMIT_EVIDENCE_REQUIRED');
+        }
         $timeoutMs = max(250, min(10000, (int) ($state['timeoutMs'] ?? 3000)));
 
         $plan = match ($stage) {
-            'chat_bind' => $this->contract('write.browser.session.open', [
+            // Browser creation remains a separately supervised step; binding is read-only.
+            'chat_bind' => $this->contract('read_.browser.chatgpt.composer.preflight', [
                 'ports' => $ports,
-                'url' => $this->string($state['url'] ?? null) ?? 'https://chatgpt.com/',
-                'activate' => true,
-                'confirmOpen' => true,
+                'expectedTargetId' => $targetId,
                 'timeoutMs' => $timeoutMs,
-            ], 'write'),
+            ], 'read'),
             'composer_preflight' => $targetId === null ? null : $this->contract(
                 'read_.browser.chatgpt.composer.preflight',
                 ['ports' => $ports, 'expectedTargetId' => $targetId, 'timeoutMs' => $timeoutMs],
                 'read',
             ),
-            'prompt_draft' => $targetId === null || $this->string($state['draftText'] ?? null) === null ? null : $this->contract(
+            'prompt_draft' => $chatId === null || $this->string($state['draftText'] ?? null) === null ? null : $this->contract(
                 'write.browser.session.input.draft',
                 ['ports' => $ports, 'expectedTargetId' => $targetId, 'draftText' => $this->string($state['draftText']), 'allowOverwrite' => ($state['allowOverwrite'] ?? false) === true, 'confirmDraft' => true, 'timeoutMs' => $timeoutMs],
                 'write',
             ),
-            'prompt_submit' => $targetId === null ? null : $this->contract(
+            'prompt_submit' => $chatId === null || $this->string($state['draftHash'] ?? null) === null || !is_int($state['draftLength'] ?? null) || $state['draftLength'] < 1 ? null : $this->contract(
                 'write.browser.session.submit',
                 array_filter(['ports' => $ports, 'expectedTargetId' => $targetId, 'expectedDraftHash' => $this->string($state['draftHash'] ?? null), 'expectedDraftLength' => is_numeric($state['draftLength'] ?? null) ? (int) $state['draftLength'] : null, 'confirmSubmit' => true, 'timeoutMs' => $timeoutMs], static fn (mixed $value): bool => $value !== null),
                 'write',
@@ -61,7 +69,7 @@ final class ChatGptLoopM5AtomicDispatchPlanner
         $arguments = ['ports' => $ports, 'preferredChatId' => $chatId, 'expectedTargetId' => $targetId, 'expectedTaskId' => $taskId, 'requireChatId' => $chatId !== null, 'maxMessages' => max(1, min(100, (int) ($state['maxMessages'] ?? 30))), 'timeoutMs' => $timeoutMs];
         if ($tool === 'read_.browser.chatgpt.watch.probe') {
             $arguments['phase'] = 'reply_watch';
-            $arguments['taskClass'] = $state['taskClass'] ?? 'repo_rc_implementation';
+            $arguments['taskClass'] = $state['taskClass'] ?? 'normal_answer';
         }
         if ($tool === 'read_.browser.chatgpt.answer.settle') {
             $arguments['readinessProfile'] = $state['readinessProfile'] ?? 'rc_gate';

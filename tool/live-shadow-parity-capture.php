@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Service\ChatGptLoopActionMarkerRouter;
+use App\Service\ChatGptLoopCompletionVerificationContract;
 use App\Service\ChatGptLoopOrchestrationReceiptNormalizer;
 use App\Service\ChatGptLoopShadowDecisionProjector;
 use App\Service\ChatGptLoopShadowParityEvaluator;
@@ -11,6 +12,7 @@ use App\Service\ChatGptLoopShadowStateProjector;
 
 require dirname(__DIR__) . '/src/Service/ChatGptLoopCleanupSignalParser.php';
 require dirname(__DIR__) . '/src/Service/ChatGptLoopActionMarkerRouter.php';
+require dirname(__DIR__) . '/src/Service/ChatGptLoopCompletionVerificationContract.php';
 require dirname(__DIR__) . '/src/Service/ChatGptLoopOrchestrationReceiptNormalizer.php';
 require dirname(__DIR__) . '/src/Service/ChatGptLoopShadowDecisionProjector.php';
 require dirname(__DIR__) . '/src/Service/ChatGptLoopShadowStateProjector.php';
@@ -37,10 +39,39 @@ $evaluator = new ChatGptLoopShadowParityEvaluator(
     new ChatGptLoopShadowStateProjector(new ChatGptLoopShadowDecisionProjector()),
     new ChatGptLoopShadowRecoveryProjector(),
 );
+$completionReceipt = is_array($payload['completion_receipt'] ?? null) ? $payload['completion_receipt'] : null;
+$provenance = is_array($payload['provenance'] ?? null) ? $payload['provenance'] : [];
+if ($completionReceipt !== null) {
+    $verification = (new ChatGptLoopCompletionVerificationContract())->evaluateReceipt($completionReceipt);
+    $sourceTaskId = $provenance['sourceTaskId'] ?? null;
+    $receiptTaskId = $completionReceipt['task_id'] ?? null;
+    $receiptEventId = $completionReceipt['event_id'] ?? null;
+    $receiptEventTs = $completionReceipt['event_ts'] ?? null;
+    $receiptProvenanceValid = ($provenance['immutableReceipt'] ?? false) === true
+        && ($provenance['origin'] ?? null) === 'console_engine_history'
+        && ($completionReceipt['event'] ?? null) === 'engine_execution_completed'
+        && is_string($sourceTaskId) && $sourceTaskId !== ''
+        && $receiptTaskId === $sourceTaskId
+        && is_string($receiptEventId) && $receiptEventId !== ''
+        && is_string($receiptEventTs) && $receiptEventTs !== ''
+        && ($provenance['sourceEventId'] ?? null) === $receiptEventId
+        && ($provenance['sourceEventTs'] ?? null) === $receiptEventTs;
+    $verification['verified'] = $verification['verified'] === true && $receiptProvenanceValid;
+    if (!$receiptProvenanceValid) {
+        $verification['status'] = 'SHADOW_COMPLETION_NOT_VERIFIED';
+        $verification['outcomeCode'] = 'COMPLETION_RECEIPT_PROVENANCE_MISMATCH';
+        $verification['failedChecks'][] = 'receiptProvenanceValid';
+    }
+}
+// Never trust a caller-supplied completion_verified flag.
+$snapshot['completion_verified'] = ($verification['verified'] ?? false) === true;
 $artifact = $evaluator->evaluate(
     $snapshot,
     is_array($payload['authoritative'] ?? null) ? $payload['authoritative'] : [],
 );
+if (isset($verification)) {
+    $artifact['completionVerification'] = $verification;
+}
 $artifact['semanticRoute'] = $semanticRoute;
 $artifact['provenance'] = is_array($payload['provenance'] ?? null) ? $payload['provenance'] : [];
 $artifact['schema'] = 'chatgpt-loop-live-shadow-parity-v1';

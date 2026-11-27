@@ -46,11 +46,14 @@ final class ChatGptLoopCompletionVerificationContract
             'worktreeFingerprintPresent' => is_string($receipt['current_worktree_fingerprint'] ?? null) && trim($receipt['current_worktree_fingerprint']) !== '',
             'headPresent' => is_string($receipt['current_head'] ?? null) && preg_match('/^[a-f0-9]{40}$/i', $receipt['current_head']) === 1,
             'gitDiffCheckPass' => ($receipt['git_diff_check'] ?? null) === 'PASS',
-            'deterministicGatesPass' => $failedGates === [],
+            'deterministicGatesPass' => $gates !== [] && $failedGates === [],
+            'applicabilityDeclared' => array_key_exists('required', $applicability) && is_bool($applicability['required']),
+            'runtimeRequirementDeclared' => array_key_exists('required', $runtime) && is_bool($runtime['required']),
             'runtimePassWhenRequired' => ($runtime['required'] ?? false) !== true || ($runtime['ok'] ?? false) === true,
             'behavioralEvidencePassWhenRequired' => ($applicability['required'] ?? false) !== true || ($evidence['ok'] ?? false) === true,
         ];
-        $verified = !in_array(false, $checks, true);
+        $failedChecks = array_keys(array_filter($checks, static fn (bool $passed): bool => !$passed));
+        $verified = $failedChecks === [];
 
         return [
             'ok' => true,
@@ -59,6 +62,8 @@ final class ChatGptLoopCompletionVerificationContract
             'verified' => $verified,
             'checks' => $checks,
             'failedGateCount' => count($failedGates),
+            'failedChecks' => $failedChecks,
+            'outcomeCode' => $verified ? 'COMPLETION_ALL_CHECKS_VERIFIED' : 'COMPLETION_CHECKS_FAILED',
             'nextAction' => $verified ? 'shadow_allow_verified_done_candidate' : 'shadow_reject_completion_claim',
         ];
     }
