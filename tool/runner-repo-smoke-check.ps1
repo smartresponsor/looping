@@ -26,7 +26,7 @@ if ($RuntimeCheckOnly) {
     $Temp = Join-Path ([System.IO.Path]::GetTempPath()) ('looping-runtime-check-' + [guid]::NewGuid().ToString('N'))
     $null = New-Item -ItemType Directory -Path $Temp
     $Saved = @{}
-    foreach ($Name in @('LOOPING_CONSOLE_MCP_ROOT','CONSOLE_MCP_BEARER_TOKEN','CONSOLE_MCP_ENDPOINT')) {
+    foreach ($Name in @('LOOPING_CONSOLE_MCP_ROOT','CONSOLE_MCP_BEARER_TOKEN','CONSOLE_MCP_BEARER_TOKEN_PREVIOUS','CONSOLE_MCP_ENDPOINT','LOOPING_SECRET_RUNTIME_ENABLED')) {
         $Saved[$Name] = [Environment]::GetEnvironmentVariable($Name,'Process')
     }
     function Invoke-Probe([string[]]$Arguments) {
@@ -66,7 +66,25 @@ if ($RuntimeCheckOnly) {
         $WrapperSource = Read-Text 'tool/runner-console-mcp-bridge.ps1'
         Assert-True ($BridgeSource.IndexOf('CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH') -lt $BridgeSource.IndexOf('await client.callTool(') -and $BridgeSource.Contains('process.exitCode = 77')) 'handshake rejection must precede tool dispatch'
         Assert-True ($WrapperSource.Contains('exitCode -ne 77') -and $WrapperSource.Contains("-cne 'CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH'")) 'retry must require exact pre-dispatch rejection'
-        [pscustomobject]@{ok=$true;status='LOOPING_RUNTIME_BOOTSTRAP_DELTA_PASS';sdkVersion=$Receipt.sdkVersion;checks=8;liveDispatches=0;browserCalls=0} | ConvertTo-Json -Compress
+        Assert-True ($WrapperSource.Contains("[Parameter(ParameterSetName='Handshake')][switch]"+'$DiagnosticAwsProvider') -and $WrapperSource.Contains('if ($DiagnosticAwsProvider) {') -and $WrapperSource.Contains("throw 'CONSOLE_MCP_AWS_DIAGNOSTIC_ONLY'")) 'AWS provider must be restricted to explicit handshake diagnostics'
+        $WrapperPath = Join-Path $Root 'tool/runner-console-mcp-bridge.ps1'
+        $env:LOOPING_SECRET_RUNTIME_ENABLED = $null
+        $env:CONSOLE_MCP_BEARER_TOKEN = 'dev'
+        $env:CONSOLE_MCP_BEARER_TOKEN_PREVIOUS = 'synthetic-previous'
+        $env:CONSOLE_MCP_ENDPOINT = 'http://127.0.0.1:1/mcp'
+        $MissingRejected = $false
+        try { & $WrapperPath -HandshakeCheck | Out-Null } catch {
+            $MissingRejected = $_.Exception.Message.Contains('CONSOLE_MCP_BEARER_TOKEN_MISSING')
+        }
+        Assert-True $MissingRejected 'missing authorized credential must fail before dispatch'
+        Assert-True ($env:CONSOLE_MCP_BEARER_TOKEN -ceq 'dev' -and $env:CONSOLE_MCP_BEARER_TOKEN_PREVIOUS -ceq 'synthetic-previous' -and $env:CONSOLE_MCP_ENDPOINT -ceq 'http://127.0.0.1:1/mcp') 'failed admission must restore all process variables'
+        $BindingRejected = $false
+        try { & $WrapperPath -PayloadPath $Payload -ResultPath $Result -DiagnosticAwsProvider | Out-Null } catch {
+            $BindingRejected = $_.FullyQualifiedErrorId -match 'AmbiguousParameterSet|ParameterSetCannotBeResolved'
+        }
+        Assert-True $BindingRejected 'AWS diagnostic cannot be combined with dispatch'
+        Assert-True ($WrapperSource.Contains("-Name CONSOLE_MCP_BEARER_TOKEN -IncludePrevious") -and $WrapperSource.Contains('$env:LOOPING_SECRET_RUNTIME_ENABLED')) 'shared provider must be scoped and opt-in'
+        [pscustomobject]@{ok=$true;status='LOOPING_RUNTIME_BOOTSTRAP_DELTA_PASS';sdkVersion=$Receipt.sdkVersion;checks=13;liveDispatches=0;browserCalls=0} | ConvertTo-Json -Compress
     } finally {
         foreach ($Name in $Saved.Keys) {
             [Environment]::SetEnvironmentVariable($Name,$Saved[$Name],'Process')

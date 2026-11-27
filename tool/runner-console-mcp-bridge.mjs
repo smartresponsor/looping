@@ -183,19 +183,25 @@ async function main() {
     }) + "\n");
     return;
   }
+  const handshakeOnly = process.argv.length === 3 && process.argv[2] === "--handshake-check";
   const args = parseArgs(process.argv);
+  if (args["handshake-check"] && !handshakeOnly) {
+    throw new Error("CONSOLE_MCP_HANDSHAKE_CHECK_ARGUMENTS_INVALID");
+  }
   const payloadPath = args.payload;
   const resultPath = args.result;
-  if (!payloadPath) throw new Error("--payload is required");
-  if (!resultPath) throw new Error("--result is required");
-
-  const toolCall = await readToolCall(payloadPath);
-  if (!toolAllowed(toolCall)) {
-    throw new Error(`console-mcp bridge tool not allowed: ${toolCall.name}`);
-  }
-  if (m5AtomicWriteTools.has(toolCall.name)) {
-    const admission = validateM5AtomicInvocation(toolCall);
-    if (!admission.ok) throw new Error(admission.status);
+  let toolCall;
+  if (!handshakeOnly) {
+    if (!payloadPath) throw new Error("--payload is required");
+    if (!resultPath) throw new Error("--result is required");
+    toolCall = await readToolCall(payloadPath);
+    if (!toolAllowed(toolCall)) {
+      throw new Error(`console-mcp bridge tool not allowed: ${toolCall.name}`);
+    }
+    if (m5AtomicWriteTools.has(toolCall.name)) {
+      const admission = validateM5AtomicInvocation(toolCall);
+      if (!admission.ok) throw new Error(admission.status);
+    }
   }
 
   const token = process.env.CONSOLE_MCP_BEARER_TOKEN ?? "";
@@ -225,6 +231,15 @@ async function main() {
         return;
       }
       throw error;
+    }
+    if (handshakeOnly) {
+      const toolsAdvertised = Boolean(client.getServerCapabilities()?.tools);
+      if (!toolsAdvertised) throw new Error("CONSOLE_MCP_HANDSHAKE_TOOLS_CAPABILITY_MISSING");
+      process.stdout.write(JSON.stringify({
+        ok: true, status: "LOOPING_RUNNER_HANDSHAKE_PASS", connected: true,
+        toolsAdvertised, dispatched: false, endpoint: endpoint.toString()
+      }) + "\n");
+      return;
     }
     const requestTimeoutMs = resolveToolRequestTimeoutMs(toolCall.name);
     const requestOptions = { timeout: requestTimeoutMs, maxTotalTimeout: requestTimeoutMs };
@@ -269,6 +284,10 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  if (process.argv.includes("--handshake-check")) {
+    process.stderr.write("CONSOLE_MCP_HANDSHAKE_CHECK_FAILED\n");
+  } else {
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  }
   process.exitCode = 1;
 });

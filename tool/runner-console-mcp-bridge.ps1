@@ -1,6 +1,9 @@
+[CmdletBinding(DefaultParameterSetName='Dispatch')]
 param(
-    [Parameter(Mandatory=$true)][string]$PayloadPath,
-    [Parameter(Mandatory=$true)][string]$ResultPath
+    [Parameter(Mandatory=$true,ParameterSetName='Dispatch')][string]$PayloadPath,
+    [Parameter(Mandatory=$true,ParameterSetName='Dispatch')][string]$ResultPath,
+    [Parameter(Mandatory=$true,ParameterSetName='Handshake')][switch]$HandshakeCheck,
+    [Parameter(ParameterSetName='Handshake')][switch]$DiagnosticAwsProvider
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,7 +14,7 @@ if ((Split-Path -Leaf $McpRoot) -eq '.worktrees') {
 }
 $Bridge = Join-Path $Root 'tool/runner-console-mcp-bridge.mjs'
 
-if (-not (Test-Path $PayloadPath)) { throw "payload file not found: $PayloadPath" }
+if (-not $HandshakeCheck -and -not (Test-Path -LiteralPath $PayloadPath -PathType Leaf)) { throw "payload file not found: $PayloadPath" }
 
 function Test-KnownDevFallback {
     param([AllowNull()][string]$Value)
@@ -76,23 +79,63 @@ $InitialTokenWasExplicit = -not [string]::IsNullOrWhiteSpace($InitialToken)
 $InitialTokenWasFallback = Test-KnownDevFallback -Value $InitialToken
 $TokenSource = if ($InitialTokenWasExplicit -and -not $InitialTokenWasFallback) { 'env' } else { 'fallback-unknown' }
 
+$InitialPrevious = [Environment]::GetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN_PREVIOUS','Process')
+$InitialEndpoint = [Environment]::GetEnvironmentVariable('CONSOLE_MCP_ENDPOINT','Process')
+try {
 $SecretRuntime = Join-Path $McpRoot 'AwsSecretContract\tool\secret-runtime.ps1'
 $ExportedCurrentToken = $null
 $ExportedPreviousToken = $null
-if (Test-Path -LiteralPath $SecretRuntime -PathType Leaf) {
-    . $SecretRuntime -Command export-env -Consumer console-mcp -IncludePrevious
+if (-not $DiagnosticAwsProvider -and -not $InitialTokenWasFallback) {
+    $ExportedPreviousToken = $InitialPrevious
+} elseif (-not $DiagnosticAwsProvider -and $env:LOOPING_SECRET_RUNTIME_ENABLED -ceq '1') {
+    if (-not (Test-Path -LiteralPath $SecretRuntime -PathType Leaf)) { throw 'CONSOLE_MCP_APPROVED_SECRET_RUNTIME_MISSING' }
+    [Environment]::SetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN',$null,'Process')
+    [Environment]::SetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN_PREVIOUS',$null,'Process')
+    # Invoke in a child scope and request only the runner bearer contract.
+    & $SecretRuntime -Command export-env -Consumer console-mcp -Name CONSOLE_MCP_BEARER_TOKEN -IncludePrevious
     $ExportedCurrentToken = [Environment]::GetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN', 'Process')
     $ExportedPreviousToken = [Environment]::GetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN_PREVIOUS', 'Process')
-    if ($InitialTokenWasExplicit -and -not $InitialTokenWasFallback) {
-        [Environment]::SetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN', $InitialToken, 'Process')
-        Set-Item -Path Env:\CONSOLE_MCP_BEARER_TOKEN -Value $InitialToken
-    } elseif (-not [string]::IsNullOrWhiteSpace($env:CONSOLE_MCP_BEARER_TOKEN)) {
-        $TokenSource = 'aws-secret-runtime'
+    $TokenSource = 'aws-secret-runtime'
+}
+
+# Use the same configured secret contract as Console MCP. The AWS CLI
+# inherits existing IAM authorization; no grant, cache or credential file is created.
+function Get-RunnerBearerFromAws {
+    try {
+        $SecretId = if (-not [string]::IsNullOrWhiteSpace($env:CONSOLE_MCP_BEARER_SECRET_ID)) {
+            $env:CONSOLE_MCP_BEARER_SECRET_ID.Trim()
+        } else { '/secret/dev/console-mcp/' + 'bearer-token' }
+        $Aws = Get-Command aws -CommandType Application -ErrorAction Stop
+        $Raw = & $Aws.Source secretsmanager get-secret-value --secret-id $SecretId --query SecretString --output json 2>&1
+        if ($LASTEXITCODE -ne 0) { throw 'AWS_PROVIDER_REJECTED' }
+        $Secret = ($Raw -join "\n") | ConvertFrom-Json -ErrorAction Stop
+        if ($Secret -isnot [string]) { throw 'AWS_SECRET_STRING_REQUIRED' }
+        $Value = $Secret.Trim()
+        if ($Value.StartsWith('{')) {
+            $Object = $Value | ConvertFrom-Json -ErrorAction Stop
+            $Value = $null
+            foreach ($Key in @('CONSOLE_MCP_BEARER_TOKEN','value','token','apiToken','secret')) {
+                if ($Object.PSObject.Properties.Name -contains $Key -and $Object.$Key -is [string] -and -not (Test-KnownDevFallback -Value $Object.$Key)) {
+                    $Value = $Object.$Key.Trim()
+                    break
+                }
+            }
+        }
+        if ((Test-KnownDevFallback -Value $Value) -or $Value -eq 'None' -or $Value -match '\s') { throw 'AWS_SECRET_INVALID' }
+        return $Value
+    } catch {
+        throw 'CONSOLE_MCP_AWS_BEARER_UNAVAILABLE'
     }
 }
 
+$ResolvedToken = [Environment]::GetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN','Process')
+if ($DiagnosticAwsProvider) {
+    if (-not $HandshakeCheck) { throw 'CONSOLE_MCP_AWS_DIAGNOSTIC_ONLY' }
+    $ResolvedToken = Get-RunnerBearerFromAws
+    $TokenSource = 'aws-secrets-manager'
+}
 $Endpoint = Resolve-ConsoleMcpEndpoint
-$TokenPresent = -not (Test-KnownDevFallback -Value $env:CONSOLE_MCP_BEARER_TOKEN)
+$TokenPresent = -not (Test-KnownDevFallback -Value $ResolvedToken)
 $Bootstrap = [ordered]@{
     endpoint = $Endpoint
     tokenPresent = $TokenPresent
@@ -109,7 +152,12 @@ if ($EndpointPort -le 0 -or -not (Test-LocalPortListening -Port $EndpointPort)) 
 }
 
 function Invoke-NodeBridge {
-    $Output = & node $Bridge --payload $PayloadPath --result $ResultPath 2>&1
+    $PSNativeCommandUseErrorActionPreference = $false
+    if ($script:HandshakeCheck) {
+        $Output = & node $Bridge '--handshake-check' 2>&1
+    } else {
+        $Output = & node $Bridge --payload $PayloadPath --result $ResultPath 2>&1
+    }
     [pscustomobject]@{
         exitCode = $LASTEXITCODE
         output = @($Output)
@@ -117,13 +165,13 @@ function Invoke-NodeBridge {
 }
 
 $Attempts = @(
-    [pscustomobject]@{ token = $env:CONSOLE_MCP_BEARER_TOKEN; source = $TokenSource }
+    [pscustomobject]@{ token = $ResolvedToken; source = $TokenSource }
 )
-foreach ($Candidate in @(
+foreach ($Candidate in $(if (-not $DiagnosticAwsProvider) { @(
     [pscustomobject]@{ token = $ExportedCurrentToken; source = 'aws-secret-runtime' },
-    [pscustomobject]@{ token = $ExportedPreviousToken; source = 'aws-secret-runtime-previous' }
-)) {
-    if (-not (Test-KnownDevFallback -Value $Candidate.token) -and -not (@($Attempts | ForEach-Object { $_.token }) -contains $Candidate.token)) {
+    [pscustomobject]@{ token = $ExportedPreviousToken; source = if ($TokenSource -eq 'env') { 'env-previous' } else { 'aws-secret-runtime-previous' } }
+) })) {
+    if (-not (Test-KnownDevFallback -Value $Candidate.token) -and -not (@($Attempts | ForEach-Object { $_.token }) -ccontains $Candidate.token)) {
         $Attempts += $Candidate
     }
 }
@@ -164,9 +212,14 @@ if (-not $BridgeRun.ok) {
 $Raw = $BridgeRun.output
 $BridgeResult = $Raw | ConvertFrom-Json
 $BridgeResult | Add-Member -NotePropertyName envBootstrap -NotePropertyValue ([pscustomobject]$Bootstrap) -Force
-if (Test-Path -LiteralPath $ResultPath -PathType Leaf) {
+if (-not $HandshakeCheck -and (Test-Path -LiteralPath $ResultPath -PathType Leaf)) {
     $ToolResult = Get-Content -Raw -Path $ResultPath | ConvertFrom-Json
     $ToolResult | Add-Member -NotePropertyName envBootstrap -NotePropertyValue ([pscustomobject]$Bootstrap) -Force
     $ToolResult | ConvertTo-Json -Depth 40 | Set-Content -Path $ResultPath -Encoding UTF8
 }
 $BridgeResult | ConvertTo-Json -Depth 40
+} finally {
+    [Environment]::SetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN',$InitialToken,'Process')
+    [Environment]::SetEnvironmentVariable('CONSOLE_MCP_BEARER_TOKEN_PREVIOUS',$InitialPrevious,'Process')
+    [Environment]::SetEnvironmentVariable('CONSOLE_MCP_ENDPOINT',$InitialEndpoint,'Process')
+}
