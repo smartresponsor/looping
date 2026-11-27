@@ -4,6 +4,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# This historical destructive fixture overwrites and removes the shared runner.lock,
+# and assumes expired locks can be stolen. It is not compatible with atomic admission.
+# Retire this entrypoint until rewritten to use a fully isolated fixture state root.
+throw 'RUNNER_SMOKE_RETIRED_UNSAFE_SHARED_STATE_FIXTURE'
 $Root = Split-Path -Parent $PSScriptRoot
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 

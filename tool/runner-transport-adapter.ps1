@@ -11,20 +11,39 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $RunnerLockPath = $null
 trap {
-    if ($RunnerLockPath -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force }
+    if (-not $InheritedScheduledLock -and $RunnerLockPath -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force }
     throw $_
 }
 $Dispatcher = Join-Path $Root 'tool/runner-dispatcher.ps1'
 $Runner = Join-Path $Root 'tool/runner-adapter.ps1'
 $LockDir = Join-Path $Root 'var/runner/lock'
-if (-not (Test-Path $LockDir)) { New-Item -ItemType Directory -Path $LockDir | Out-Null }
-$RunnerLockPath = Join-Path $LockDir 'runner.lock'
-if (Test-Path $RunnerLockPath) {
-    $Lock = Get-Content -Raw -Path $RunnerLockPath | ConvertFrom-Json
-    $AgeMinutes = ((Get-Date).ToUniversalTime() - ([datetime]$Lock.acquiredAt)).TotalMinutes
-    if ($AgeMinutes -lt 30) { [pscustomobject]@{ ok = $false; status = 'RUNNER_LOCK_BUSY'; lockPath = $RunnerLockPath; owner = $Lock.owner; acquiredAt = $Lock.acquiredAt; nextAction = 'retry_later' } | ConvertTo-Json -Depth 20; exit 0 }
+New-Item -ItemType Directory -Path $LockDir -Force | Out-Null
+$CandidateLockPath = Join-Path $LockDir 'runner.lock'
+$InheritedScheduledLock = $false
+if (-not [string]::IsNullOrWhiteSpace([string]$env:LOOPING_SCHEDULE_SESSION_TOKEN)) {
+    if (-not (Test-Path -LiteralPath $CandidateLockPath)) { throw 'TRANSPORT_SCHEDULE_LOCK_MISSING' }
+    try { $SessionLock = Get-Content -Raw -LiteralPath $CandidateLockPath | ConvertFrom-Json }
+    catch { throw 'TRANSPORT_SCHEDULE_LOCK_INVALID' }
+    if ($SessionLock.owner -notin @('scheduled-task','repo-smoke','runtime-smoke','task-bank') -or $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN) { throw 'TRANSPORT_SCHEDULE_LOCK_MISMATCH' }
+    $InheritedScheduledLock = $true
 }
-[pscustomobject]@{ owner = 'runner-transport-adapter'; pid = $PID; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Depth 20 | Set-Content -Path $RunnerLockPath -Encoding UTF8
+if (-not $InheritedScheduledLock) {
+try {
+    $Handle = [System.IO.File]::Open($CandidateLockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+} catch [System.IO.IOException] {
+    [pscustomobject]@{ ok = $false; status = 'RUNNER_LOCK_BUSY'; lockPath = $CandidateLockPath; nextAction = 'manual_reconcile_if_stale' } | ConvertTo-Json -Depth 20
+    exit 0
+}
+$RunnerLockPath = $CandidateLockPath
+try {
+    $Payload = [pscustomobject]@{ owner = 'runner-transport-adapter'; pid = $PID; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') }
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes(($Payload | ConvertTo-Json -Depth 20))
+    $Handle.Write($Bytes, 0, $Bytes.Length)
+    $Handle.Flush($true)
+} finally {
+    $Handle.Dispose()
+}
+}
 
 function Write-RunnerJournalEvent {
     param([Parameter(Mandatory=$true)]$Event)
@@ -51,12 +70,12 @@ if ($null -eq $RawResult.ok) { $MissingFields += 'ok' }
 if (-not $RawResult.tool) { $MissingFields += 'tool' }
 if (-not $RawResult.status) { $MissingFields += 'status' }
 if ($MissingFields.Count -gt 0) {
-    if (Test-Path $RunnerLockPath) { Remove-Item -Path $RunnerLockPath -Force }
+    if (-not $InheritedScheduledLock -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force }
     [pscustomobject]@{ ok = $false; status = 'RUNNER_TRANSPORT_RESULT_CONTRACT_INVALID'; missingFields = $MissingFields; expectedTool = $ExpectedTool; nextAction = 'rewrite_executor_result_file' } | ConvertTo-Json -Depth 40
     exit 0
 }
 if ([string]$RawResult.tool -ne $ExpectedTool) {
-    if (Test-Path $RunnerLockPath) { Remove-Item -Path $RunnerLockPath -Force }
+    if (-not $InheritedScheduledLock -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force }
     [pscustomobject]@{ ok = $false; status = 'RUNNER_TRANSPORT_RESULT_TOOL_MISMATCH'; expectedTool = $ExpectedTool; actualTool = [string]$RawResult.tool; nextAction = 'rewrite_executor_result_file' } | ConvertTo-Json -Depth 40
     exit 0
 }
@@ -64,7 +83,7 @@ if ([string]$RawResult.tool -ne $ExpectedTool) {
 $AcceptedRaw = & $Dispatcher -PayloadPath $PayloadPath -ResultPath $ResultPath 2>&1
 $Accepted = $AcceptedRaw | ConvertFrom-Json
 if ($Accepted.status -ne 'DISPATCHER_TRANSPORT_RESULT_ACCEPTED') {
-    if (Test-Path $RunnerLockPath) { Remove-Item -Path $RunnerLockPath -Force }
+    if (-not $InheritedScheduledLock -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force }
     [pscustomobject]@{ ok = $false; status = 'RUNNER_TRANSPORT_ADAPTER_RESULT_REJECTED'; accepted = $Accepted; nextAction = 'inspect_transport_result' } | ConvertTo-Json -Depth 40
     exit 0
 }
@@ -79,7 +98,7 @@ $JournalPath = Write-RunnerJournalEvent ([ordered]@{ component = 'runner-transpo
 [pscustomobject]@{
     ok = $true
     status = 'RUNNER_TRANSPORT_ADAPTER_FED'
-    lockReleased = $(if (Test-Path $RunnerLockPath) { Remove-Item -Path $RunnerLockPath -Force; $true } else { $false })
+    lockReleased = $(if (-not $InheritedScheduledLock -and (Test-Path $RunnerLockPath)) { Remove-Item -Path $RunnerLockPath -Force; $true } else { $false })
     action = 'transport_result_accepted_and_fed'
     payloadPath = $PayloadPath
     resultPath = $ResultPath

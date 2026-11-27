@@ -20,17 +20,29 @@ $StatePath = Join-Path $Root 'var/runner/state/latest.json'
 function Enter-RunnerLock {
     param([Parameter(Mandatory=$true)][string]$Owner)
     $LockDir = Join-Path $Root 'var/runner/lock'
-    if (-not (Test-Path $LockDir)) { New-Item -ItemType Directory -Path $LockDir | Out-Null }
+    New-Item -ItemType Directory -Path $LockDir -Force | Out-Null
     $LockPath = Join-Path $LockDir 'runner.lock'
-    if (Test-Path $LockPath) {
-        $Lock = Get-Content -Raw -Path $LockPath | ConvertFrom-Json
-        $AgeMinutes = ((Get-Date).ToUniversalTime() - ([datetime]$Lock.acquiredAt)).TotalMinutes
-        if ($AgeMinutes -lt 30) {
-            [pscustomobject]@{ ok = $false; status = 'RUNNER_LOCK_BUSY'; lockPath = $LockPath; owner = $Lock.owner; acquiredAt = $Lock.acquiredAt; nextAction = 'retry_later' } | ConvertTo-Json -Depth 20
-            exit 0
-        }
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:LOOPING_SCHEDULE_SESSION_TOKEN)) {
+        if (-not (Test-Path -LiteralPath $LockPath)) { throw 'RUNNER_SCHEDULE_SESSION_LOCK_MISSING' }
+        try { $SessionLock = Get-Content -Raw -LiteralPath $LockPath | ConvertFrom-Json }
+        catch { throw 'RUNNER_SCHEDULE_SESSION_LOCK_INVALID' }
+        if ($SessionLock.owner -notin @('scheduled-task','repo-smoke','runtime-smoke','task-bank') -or $SessionLock.sessionToken -ne $env:LOOPING_SCHEDULE_SESSION_TOKEN) { throw 'RUNNER_SCHEDULE_SESSION_MISMATCH' }
+        return $null
     }
-    [pscustomobject]@{ owner = $Owner; pid = $PID; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Depth 20 | Set-Content -Path $LockPath -Encoding UTF8
+    try {
+        $Handle = [System.IO.File]::Open($LockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    } catch [System.IO.IOException] {
+        [pscustomobject]@{ ok = $false; status = 'RUNNER_LOCK_BUSY'; lockPath = $LockPath; nextAction = 'manual_reconcile_if_stale' } | ConvertTo-Json -Depth 20
+        exit 0
+    }
+    try {
+        $Payload = [pscustomobject]@{ owner = $Owner; pid = $PID; acquiredAt = (Get-Date).ToUniversalTime().ToString('o') }
+        $Bytes = [System.Text.Encoding]::UTF8.GetBytes(($Payload | ConvertTo-Json -Depth 20))
+        $Handle.Write($Bytes, 0, $Bytes.Length)
+        $Handle.Flush($true)
+    } finally {
+        $Handle.Dispose()
+    }
     return $LockPath
 }
 
