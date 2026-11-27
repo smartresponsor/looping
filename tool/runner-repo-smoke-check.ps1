@@ -1,4 +1,4 @@
-param()
+param([switch]$RuntimeCheckOnly)
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -13,6 +13,67 @@ function Assert-True {
     if (-not $Condition) {
         throw $Message
     }
+}
+
+if ($RuntimeCheckOnly) {
+    $PSNativeCommandUseErrorActionPreference = $false
+    $BridgePath = Join-Path $Root 'tool/runner-console-mcp-bridge.mjs'
+    $McpRoot = Split-Path -Parent $Root
+    if ((Split-Path -Leaf $McpRoot) -eq '.worktrees') {
+        $McpRoot = Split-Path -Parent $McpRoot
+    }
+    $SdkRoot = Join-Path $McpRoot 'console-mcp'
+    $Temp = Join-Path ([System.IO.Path]::GetTempPath()) ('looping-runtime-check-' + [guid]::NewGuid().ToString('N'))
+    $null = New-Item -ItemType Directory -Path $Temp
+    $Saved = @{}
+    foreach ($Name in @('LOOPING_CONSOLE_MCP_ROOT','CONSOLE_MCP_BEARER_TOKEN','CONSOLE_MCP_ENDPOINT')) {
+        $Saved[$Name] = [Environment]::GetEnvironmentVariable($Name,'Process')
+    }
+    function Invoke-Probe([string[]]$Arguments) {
+        $Output = & node $BridgePath @Arguments 2>&1
+        [pscustomobject]@{ code = $LASTEXITCODE; output = ($Output -join "\n") }
+    }
+    try {
+        $env:CONSOLE_MCP_BEARER_TOKEN = $null
+        $env:CONSOLE_MCP_ENDPOINT = $null
+        $env:LOOPING_CONSOLE_MCP_ROOT = $null
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -eq 0) 'default SDK resolution failed'
+        $Receipt = $Probe.output | ConvertFrom-Json
+        Assert-True ($Receipt.status -eq 'LOOPING_CONSOLE_MCP_SDK_READY' -and $Receipt.connected -eq $false -and $Receipt.dispatched -eq $false) 'SDK probe must be offline'
+        $env:LOOPING_CONSOLE_MCP_ROOT = $SdkRoot
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -eq 0) 'explicit SDK resolution failed'
+        $env:LOOPING_CONSOLE_MCP_ROOT = 'relative/path'
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('LOOPING_CONSOLE_MCP_ROOT_INVALID')) 'relative SDK root accepted'
+        $env:LOOPING_CONSOLE_MCP_ROOT = Join-Path $Temp 'missing-sdk'
+        $Probe = Invoke-Probe @('--runtime-check')
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('LOOPING_CONSOLE_MCP_SDK_UNAVAILABLE')) 'missing SDK accepted or fallback used'
+        $Payload = Join-Path $Temp 'payload.json'
+        $Result = Join-Path $Temp 'result.json'
+        '{"runnerExecutionPlan":{"tool":"read_.repo.workspace.status","arguments":{}}}' | Set-Content -LiteralPath $Payload -Encoding UTF8
+        $env:LOOPING_CONSOLE_MCP_ROOT = $SdkRoot
+        $env:CONSOLE_MCP_BEARER_TOKEN = 'dev'
+        $Probe = Invoke-Probe @('--payload',$Payload,'--result',$Result)
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('CONSOLE_MCP_BEARER_TOKEN_MISSING_OR_PLACEHOLDER')) 'placeholder credential accepted'
+        $env:CONSOLE_MCP_BEARER_TOKEN = 'offline-fixture-not-a-real-credential'
+        $env:CONSOLE_MCP_ENDPOINT = 'http://127.0.0.1:1/mcp'
+        $Probe = Invoke-Probe @('--payload',$Payload,'--result',$Result)
+        Assert-True ($Probe.code -ne 0 -and $Probe.output.Contains('CONSOLE_MCP_ENDPOINT_NOT_RUNNER_PROFILE')) 'non-runner endpoint accepted'
+        Assert-True (-not (Test-Path -LiteralPath $Result)) 'negative probe produced a tool receipt'
+        $BridgeSource = Read-Text 'tool/runner-console-mcp-bridge.mjs'
+        $WrapperSource = Read-Text 'tool/runner-console-mcp-bridge.ps1'
+        Assert-True ($BridgeSource.IndexOf('CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH') -lt $BridgeSource.IndexOf('await client.callTool(') -and $BridgeSource.Contains('process.exitCode = 77')) 'handshake rejection must precede tool dispatch'
+        Assert-True ($WrapperSource.Contains('exitCode -ne 77') -and $WrapperSource.Contains("-cne 'CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH'")) 'retry must require exact pre-dispatch rejection'
+        [pscustomobject]@{ok=$true;status='LOOPING_RUNTIME_BOOTSTRAP_DELTA_PASS';sdkVersion=$Receipt.sdkVersion;checks=8;liveDispatches=0;browserCalls=0} | ConvertTo-Json -Compress
+    } finally {
+        foreach ($Name in $Saved.Keys) {
+            [Environment]::SetEnvironmentVariable($Name,$Saved[$Name],'Process')
+        }
+        Remove-Item -LiteralPath $Temp -Recurse -Force
+    }
+    return
 }
 
 $RepoSmoke = Read-Text 'tool/runner-repo-smoke.ps1'

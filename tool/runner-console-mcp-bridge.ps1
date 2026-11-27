@@ -6,6 +6,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $McpRoot = Split-Path -Parent $Root
+if ((Split-Path -Leaf $McpRoot) -eq '.worktrees') {
+    $McpRoot = Split-Path -Parent $McpRoot
+}
 $Bridge = Join-Path $Root 'tool/runner-console-mcp-bridge.mjs'
 
 if (-not (Test-Path $PayloadPath)) { throw "payload file not found: $PayloadPath" }
@@ -23,7 +26,7 @@ function Test-KnownDevFallback {
         'local-dev-token',
         'console-mcp-dev-token'
     )
-    return $Known -contains $Value
+    return $Known -contains $Value.Trim()
 }
 
 function Test-LocalPortListening {
@@ -89,7 +92,7 @@ if (Test-Path -LiteralPath $SecretRuntime -PathType Leaf) {
 }
 
 $Endpoint = Resolve-ConsoleMcpEndpoint
-$TokenPresent = -not [string]::IsNullOrWhiteSpace($env:CONSOLE_MCP_BEARER_TOKEN)
+$TokenPresent = -not (Test-KnownDevFallback -Value $env:CONSOLE_MCP_BEARER_TOKEN)
 $Bootstrap = [ordered]@{
     endpoint = $Endpoint
     tokenPresent = $TokenPresent
@@ -120,7 +123,7 @@ foreach ($Candidate in @(
     [pscustomobject]@{ token = $ExportedCurrentToken; source = 'aws-secret-runtime' },
     [pscustomobject]@{ token = $ExportedPreviousToken; source = 'aws-secret-runtime-previous' }
 )) {
-    if (-not [string]::IsNullOrWhiteSpace($Candidate.token) -and -not (@($Attempts | ForEach-Object { $_.token }) -contains $Candidate.token)) {
+    if (-not (Test-KnownDevFallback -Value $Candidate.token) -and -not (@($Attempts | ForEach-Object { $_.token }) -contains $Candidate.token)) {
         $Attempts += $Candidate
     }
 }
@@ -138,8 +141,8 @@ function Invoke-BridgeAttempts {
             return [pscustomobject]@{ ok = $true; output = $AttemptOutput; message = $null }
         }
 
-        $AttemptMessage = ($AttemptOutput -join "`n")
-        if ($AttemptMessage -notmatch 'Unauthorized') {
+        $AttemptMessage = ($AttemptOutput -join "`n").Trim()
+        if ($BridgeAttempt.exitCode -ne 77 -or $AttemptMessage -cne 'CONSOLE_MCP_HANDSHAKE_UNAUTHORIZED_NO_DISPATCH') {
             throw $AttemptMessage
         }
     }

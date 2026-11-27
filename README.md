@@ -32,7 +32,9 @@ M2 shadow-state parity is intentionally read-only: captured Console receipts are
 
 ## Clone portability
 
-A normal clone is supported on Windows and Ubuntu/Linux. PHP 8.3+ and `pwsh` are required for the current regression/orchestration helpers.
+A normal clone is supported on Windows and Ubuntu/Linux. PHP 8.4+, Node.js and `pwsh` are required for the current CLI and regression/orchestration helpers.
+
+The MCP bridge resolves the installed Console MCP SDK from the conventional sibling `console-mcp` repository (also for Looping checkouts directly under `.worktrees`). Set an absolute `LOOPING_CONSOLE_MCP_ROOT` to select a different trusted Console MCP installation; invalid or missing installations fail closed. `node tool/runner-console-mcp-bridge.mjs --runtime-check` verifies SDK availability without a network connection or token. Live calls remain pinned to the runner-bearer endpoint `http://127.0.0.1:3335/mcp`. Supply credentials through the existing authorized process environment or approved secret runtime; no credentials are embedded in Looping. Known development placeholder tokens are rejected. Credential rotation may retry only a classified unauthorized handshake before dispatch; a failed or ambiguous tool call is never retried by the bridge.
 
 The canonical workspace root is derived from the repository layout (`<workspace>/mcp/Looping`) instead of a hard-coded Windows path. Set `CHATGPT_LOOP_WORKSPACE_ROOT` only when the clone is intentionally placed outside that canonical layout.
 
